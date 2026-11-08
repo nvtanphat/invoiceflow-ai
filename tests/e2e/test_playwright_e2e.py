@@ -4,8 +4,10 @@ import tempfile
 import threading
 import time
 from fastapi.staticfiles import StaticFiles
-from playwright.sync_api import sync_playwright
 import pytest
+
+pytest.importorskip("playwright")
+from playwright.sync_api import sync_playwright
 import uvicorn
 
 from invoiceflow.api.main import create_app
