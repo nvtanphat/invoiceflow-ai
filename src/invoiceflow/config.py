@@ -57,6 +57,11 @@ class Settings(BaseSettings):
 
     MAX_UPLOAD_SIZE_BYTES: int = 25 * 1024 * 1024
     MAX_DOCUMENT_PAGES: int = 50
+    OCR_DPI: int = 150
+    WORKER_CONCURRENCY: int = 4
+    DEFAULT_PRICE_TOLERANCE_PCT: float = 2.0
+    DEFAULT_QTY_TOLERANCE_PCT: float = 0.0
+    DOCLING_TIMEOUT_SECONDS: int = 60
 
     @field_validator("JWT_SECRET")
     @classmethod
@@ -72,6 +77,10 @@ class Settings(BaseSettings):
             if any(marker in self.JWT_SECRET.lower() for marker in insecure_markers):
                 raise ValueError(
                     "In production (APP_ENV=production), a strong non-default JWT_SECRET is strictly required."
+                )
+            if self.STORAGE_KIND == "s3" and (self.S3_ACCESS_KEY == "minioadmin" or self.S3_SECRET_KEY == "minioadmin"):
+                raise ValueError(
+                    "In production with S3 storage, default credentials 'minioadmin' are strictly forbidden."
                 )
         return self
 

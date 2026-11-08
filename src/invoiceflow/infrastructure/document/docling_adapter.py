@@ -2,7 +2,7 @@ import hashlib
 import logging
 import os
 import time
-from typing import List, Optional
+from typing import Any, List, Optional
 from uuid import UUID
 
 from invoiceflow.domain.documents.models import (
@@ -28,11 +28,11 @@ class DoclingAdapter:
 
     def __init__(self, fallback_extractor: Optional[LayoutExtractor] = None):
         self._fallback_extractor = fallback_extractor or LayoutExtractor()
-        self._converter = None
+        self._converters: dict[bool, Any] = {}
 
     def _get_converter(self, do_ocr: bool = False):
-        if self._converter is not None:
-            return self._converter
+        if do_ocr in self._converters:
+            return self._converters[do_ocr]
 
         # Environment isolation guards for Windows & CPU-only deployment
         os.environ["USE_TF"] = "0"
@@ -54,12 +54,13 @@ class DoclingAdapter:
         pipeline_options.do_ocr = do_ocr
         pipeline_options.do_table_structure = True
 
-        self._converter = DocumentConverter(
+        converter = DocumentConverter(
             format_options={
                 InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)
             }
         )
-        return self._converter
+        self._converters[do_ocr] = converter
+        return converter
 
     def extract_canonical(
         self,

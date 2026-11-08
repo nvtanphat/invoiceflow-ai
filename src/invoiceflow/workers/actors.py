@@ -9,7 +9,7 @@ from invoiceflow.infrastructure.document.pdf_inspector import PDFInspector
 from invoiceflow.infrastructure.document.xml_parser import SecureXMLParser
 from invoiceflow.infrastructure.llm.factory import get_llm_adapter
 from invoiceflow.infrastructure.messaging.broker import setup_broker
-from invoiceflow.infrastructure.storage.service import LocalStorageService
+from invoiceflow.infrastructure.storage.service import get_storage_service
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +21,7 @@ def process_document_job(job_id: str) -> None:
     """Asynchronous worker actor consuming document processing jobs."""
     settings = get_settings()
     db_manager = DatabaseSessionManager(database_url=settings.DATABASE_URL)
-    storage = LocalStorageService(base_dir=settings.LOCAL_STORAGE_DIR)
+    storage = get_storage_service(settings)
     xml_parser = SecureXMLParser()
     pdf_inspector = PDFInspector()
     layout_extractor = LayoutExtractor()

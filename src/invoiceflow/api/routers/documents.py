@@ -154,7 +154,13 @@ async def preview_document(
     if not doc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found.")
 
-    content = await storage.get(doc.storage_uri)
+    try:
+        content = await storage.get(doc.storage_uri)
+    except (FileNotFoundError, ValueError):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document content not found in storage.",
+        )
     return Response(content=content, media_type=doc.mime_type)
 
 
@@ -172,7 +178,13 @@ async def render_document_page(
     if not doc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found.")
 
-    content = await storage.get(doc.storage_uri)
+    try:
+        content = await storage.get(doc.storage_uri)
+    except (FileNotFoundError, ValueError):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document content not found in storage.",
+        )
     if doc.mime_type == "application/pdf" or doc.filename.lower().endswith(".pdf"):
         import fitz
 

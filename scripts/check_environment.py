@@ -46,7 +46,7 @@ def main() -> int:
         if code == 0:
             print(f"[*] Docker: {docker_ver} -> [OK]")
         else:
-            print(f"[*] Docker: installed but daemon might not be running -> [WARN]")
+            print("[*] Docker: installed but daemon might not be running -> [WARN]")
     else:
         print("[*] Docker: Not installed -> [WARN]")
 

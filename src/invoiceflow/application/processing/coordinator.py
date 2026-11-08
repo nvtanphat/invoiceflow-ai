@@ -1,4 +1,5 @@
 from datetime import date
+import json
 import logging
 from typing import Optional
 from sqlalchemy import select, update
@@ -6,17 +7,19 @@ from invoiceflow.application.processing.document_router import DocumentRouter, P
 from invoiceflow.application.processing.evidence_mapper import EvidenceMapper
 from invoiceflow.application.reconciliation.service import ReconciliationService
 from invoiceflow.domain.invoices.models import (
+    FieldEvidence,
     InvoiceAggregate,
     InvoiceLine,
     InvoiceStatus,
 )
-from invoiceflow.infrastructure.database.models import DocumentORM, ProcessingJobORM
+from invoiceflow.infrastructure.database.models import AuditLogORM, DocumentORM, ProcessingJobORM
 from invoiceflow.infrastructure.database.repositories import DocumentRepository, InvoiceRepository
 from invoiceflow.infrastructure.database.session import DatabaseSessionManager
 from invoiceflow.infrastructure.document.digital_pdf_parser import DigitalPDFParser
 from invoiceflow.infrastructure.document.docling_adapter import DoclingAdapter
 from invoiceflow.infrastructure.document.layout_extractor import LayoutExtractor
 from invoiceflow.infrastructure.document.pdf_inspector import PDFInspector
+from invoiceflow.infrastructure.document.signature_verifier import SignatureVerifierPort, XMLSignatureVerifier
 from invoiceflow.infrastructure.document.xml_parser import SecureXMLParser
 from invoiceflow.infrastructure.llm.provider import LLMProviderPort
 from invoiceflow.infrastructure.storage.service import StoragePort
@@ -34,6 +37,7 @@ class JobCoordinator:
         layout_extractor: LayoutExtractor,
         llm_adapter: LLMProviderPort,
         docling_adapter: Optional[DoclingAdapter] = None,
+        signature_verifier: Optional[SignatureVerifierPort] = None,
     ):
         self._db_manager = db_manager
         self._storage = storage
@@ -42,6 +46,7 @@ class JobCoordinator:
         self._layout_extractor = layout_extractor
         self._llm_adapter = llm_adapter
         self._docling_adapter = docling_adapter or DoclingAdapter(fallback_extractor=layout_extractor)
+        self._signature_verifier = signature_verifier or XMLSignatureVerifier()
         self._router = DocumentRouter()
         self._evidence_mapper = EvidenceMapper()
 
@@ -123,9 +128,45 @@ class JobCoordinator:
             xml_content=content,
         )
 
+        # Cryptographic verification of XMLDSig digital signature
+        sig_res = self._signature_verifier.verify_xml_signature(content)
+        invoice_aggregate.signature_status = sig_res.status
+
+        # Add signature verification evidence
+        invoice_aggregate.evidence.append(
+            FieldEvidence(
+                field_path="signature_verification",
+                source_kind="xml_signature",
+                raw_value=sig_res.signer_name or "Unknown Signer",
+                normalized_value=sig_res.status.value,
+                confidence=1.0 if sig_res.is_valid else 0.0,
+                extractor="xml_signature_verifier",
+            )
+        )
+
         async with self._db_manager.session() as session:
             inv_repo = InvoiceRepository(session)
             await inv_repo.create_invoice(invoice_aggregate)
+
+            # Record audit provenance for XMLDSig verification
+            audit_details = json.dumps({
+                "signature_status": sig_res.status.value,
+                "is_valid": sig_res.is_valid,
+                "signer_name": sig_res.signer_name,
+                "issuer": sig_res.issuer,
+                "certificate_serial": sig_res.certificate_serial,
+                "valid_from": sig_res.valid_from.isoformat() if sig_res.valid_from else None,
+                "valid_to": sig_res.valid_to.isoformat() if sig_res.valid_to else None,
+                "details": sig_res.details,
+            })
+            audit = AuditLogORM(
+                tenant_id=doc.tenant_id,
+                action="XMLDSIG_VERIFIED",
+                aggregate_type="INVOICE",
+                aggregate_id=str(invoice_aggregate.id),
+                details_json=audit_details,
+            )
+            session.add(audit)
 
             reconciliation = ReconciliationService(session)
             await reconciliation.reconcile_invoice(invoice_aggregate)
@@ -145,10 +186,12 @@ class JobCoordinator:
                 .values(stage="PARSING")
             )
 
+        # Pass do_ocr dynamically based on inspection route
         canonical_doc = self._docling_adapter.extract_canonical(
             tenant_id=doc.tenant_id,
             document_id=doc.id,
             pdf_bytes=content,
+            do_ocr=(route == ProcessingRoute.VISION_FALLBACK or inspection.classification == "SCANNED_IMAGE"),
         )
 
         # Extraction phase

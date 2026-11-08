@@ -10,7 +10,7 @@ from invoiceflow.api.dependencies import set_global_dependencies
 from invoiceflow.api.routers import auth, documents, exports, health, invoices, jobs, matching
 from invoiceflow.config import get_settings
 from invoiceflow.infrastructure.database.session import DatabaseSessionManager
-from invoiceflow.infrastructure.storage.service import LocalStorageService, StoragePort
+from invoiceflow.infrastructure.storage.service import StoragePort, get_storage_service
 
 logger = logging.getLogger(__name__)
 
@@ -38,17 +38,22 @@ def create_app(
     settings = get_settings()
     db_url = database_url or settings.DATABASE_URL
     manager = db_manager or DatabaseSessionManager(db_url)
-    store = storage or LocalStorageService(settings.LOCAL_STORAGE_DIR)
+    store = storage or get_storage_service(settings)
 
     set_global_dependencies(manager, store)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        # Startup: verify database connectivity or init tables in dev
-        try:
-            await manager.create_tables()
-        except Exception:
-            pass
+        # Startup: verify database connectivity fail-fast in production, init in dev/test
+        if settings.APP_ENV == "production":
+            from sqlalchemy import text
+            async with manager.session() as session:
+                await session.execute(text("SELECT 1"))
+        else:
+            try:
+                await manager.create_tables()
+            except Exception:
+                pass
 
         stop_event = asyncio.Event()
         outbox_task = asyncio.create_task(_run_outbox_loop(manager, stop_event))

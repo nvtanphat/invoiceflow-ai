@@ -64,10 +64,13 @@ class LocalStorageService(StoragePort):
             return f.read()
 
     async def get_local_path(self, uri: str) -> str:
-        if not uri.startswith("local://"):
+        if uri.startswith("local://"):
+            relative = uri[len("local://"):].replace("/", os.sep)
+        elif "://" not in uri:
+            relative = uri.replace("/", os.sep)
+        else:
             raise ValueError(f"Invalid URI scheme for local storage: {uri}")
 
-        relative = uri.replace("local://", "").replace("/", os.sep)
         full_path = os.path.abspath(os.path.join(self.base_dir, relative))
 
         # Strict containment validation
@@ -90,12 +93,14 @@ class S3StorageService(StoragePort):
         secret_key: str = "minioadmin",
         bucket_name: str = "invoiceflow-documents",
         region_name: str = "us-east-1",
+        is_production: bool = False,
     ):
         self.endpoint_url = endpoint_url
         self.access_key = access_key
         self.secret_key = secret_key
         self.bucket_name = bucket_name
         self.region_name = region_name
+        self.is_production = is_production
         self._s3_client = None
 
     def _get_client(self):
@@ -109,10 +114,18 @@ class S3StorageService(StoragePort):
                 aws_secret_access_key=self.secret_key,
                 region_name=self.region_name,
             )
-            try:
-                self._s3_client.create_bucket(Bucket=self.bucket_name)
-            except Exception:
-                pass
+            if self.is_production:
+                try:
+                    self._s3_client.head_bucket(Bucket=self.bucket_name)
+                except Exception as exc:
+                    raise RuntimeError(
+                        f"Production S3 bucket '{self.bucket_name}' is inaccessible or does not exist: {exc}"
+                    )
+            else:
+                try:
+                    self._s3_client.create_bucket(Bucket=self.bucket_name)
+                except Exception:
+                    pass
         return self._s3_client
 
     def _sanitize_tenant(self, tenant_id: str) -> str:
@@ -160,3 +173,20 @@ class S3StorageService(StoragePort):
         with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as f:
             f.write(content)
             return f.name
+
+
+def get_storage_service(settings=None) -> StoragePort:
+    if settings is None:
+        from invoiceflow.config import get_settings
+        settings = get_settings()
+
+    if getattr(settings, "STORAGE_KIND", "local") == "s3":
+        return S3StorageService(
+            endpoint_url=settings.S3_ENDPOINT_URL,
+            access_key=settings.S3_ACCESS_KEY,
+            secret_key=settings.S3_SECRET_KEY,
+            bucket_name=settings.S3_BUCKET_NAME,
+            region_name=getattr(settings, "S3_REGION", "us-east-1"),
+            is_production=(getattr(settings, "APP_ENV", "development") == "production"),
+        )
+    return LocalStorageService(base_dir=settings.LOCAL_STORAGE_DIR)

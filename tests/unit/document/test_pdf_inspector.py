@@ -102,3 +102,42 @@ def test_digital_pdf_parser_multi_line_and_vietnamese_currency_format():
     assert res.lines[1].qty == Decimal("500")
     assert res.lines[1].unit_price == Decimal("26000")
     assert res.lines[1].line_amount == Decimal("13000000")
+
+
+def test_no_arbitrary_self_healing_preserves_accounting_errors():
+    sample_text = """
+    Ký hiệu: 2C26TBB
+    Số: 0008899
+    Ngày: 06/03/2026
+    Đơn vị bán: Công ty CP Giấy Miền Nam
+    Mã số thuế: 0309876543
+    Đơn vị mua: Công ty Cổ phần Alpha VN
+    Mã số thuế: 0109998888
+    Tổng cộng: 13.000.000
+    Bút bi Thiên Long 0.5mm [PEN-TL-05] 500000 26.000 8% 13.000.000
+    """
+    parser = DigitalPDFParser()
+    res = parser.parse(sample_text)
+
+    assert len(res.lines) == 1
+    line = res.lines[0]
+    # Must preserve extracted raw value and not divide by 1000
+    assert line.qty == Decimal("500000")
+    assert line.raw_qty == "500000"
+    assert "ARITHMETIC_MISMATCH" in line.issues
+
+
+def test_numeric_parsing_separators_and_ambiguity():
+    parser = DigitalPDFParser()
+    assert parser._parse_decimal("200.000", is_qty=True)[0] == Decimal("200.000")
+    assert parser._parse_decimal("200.5", is_qty=True)[0] == Decimal("200.5")
+    assert parser._parse_decimal("12.000.000")[0] == Decimal("12000000")
+    assert parser._parse_decimal("1,234.56")[0] == Decimal("1234.56")
+    assert parser._parse_decimal("1.234,56")[0] == Decimal("1234.56")
+
+
+def test_unparseable_number_records_issue():
+    parser = DigitalPDFParser()
+    val, issue = parser._parse_decimal("invalid_amount_xyz")
+    assert val is None or val == Decimal("0.0000")
+    assert issue == "PARSE_ERROR"

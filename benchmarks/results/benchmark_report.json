@@ -1,7 +1,7 @@
 {
   "benchmark_suite": "InvoiceFlow AI Frozen AP Benchmark v1.0",
   "total_cases": 5,
-  "timestamp": "2026-11-08T08:29:04Z",
+  "timestamp": "2026-11-08T09:38:10Z",
   "model_id": "gpt-6.1-sol",
   "live_ai_enabled": true,
   "baselines": {
@@ -9,7 +9,7 @@
       "header_exact_match": 0.4,
       "lines_f1": 0.4,
       "anomaly_f1": 0.6,
-      "avg_latency_ms": 0.73,
+      "avg_latency_ms": 3.13,
       "avg_cost_usd": 0.0,
       "cost_per_1000_invoices_usd": 0.0
     },
@@ -17,25 +17,25 @@
       "header_exact_match": 0.7455,
       "lines_f1": 0.8,
       "anomaly_f1": 0.6,
-      "avg_latency_ms": 2.69,
+      "avg_latency_ms": 3.45,
       "avg_cost_usd": 0.0,
       "cost_per_1000_invoices_usd": 0.0
     },
     "B2_PURE_VISION_LLM": {
-      "header_exact_match": 0.5273,
-      "lines_f1": 0.6,
+      "header_exact_match": 0.8727,
+      "lines_f1": 1.0,
       "anomaly_f1": 0.6,
-      "avg_latency_ms": 73695.59,
-      "avg_cost_usd": 0.000306,
-      "cost_per_1000_invoices_usd": 0.306
+      "avg_latency_ms": 8523.06,
+      "avg_cost_usd": 0.000509,
+      "cost_per_1000_invoices_usd": 0.509
     },
     "B3_INVOICEFLOW_HYBRID": {
       "header_exact_match": 0.8727,
       "lines_f1": 1.0,
       "anomaly_f1": 1.0,
-      "avg_latency_ms": 5851.67,
-      "avg_cost_usd": 0.000118,
-      "cost_per_1000_invoices_usd": 0.118
+      "avg_latency_ms": 7196.83,
+      "avg_cost_usd": 0.000117,
+      "cost_per_1000_invoices_usd": 0.117
     }
   }
 }

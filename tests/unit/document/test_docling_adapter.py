@@ -67,3 +67,13 @@ def test_docling_adapter_fallback_on_corrupt_data():
     assert isinstance(canonical, CanonicalDocument)
     assert "fallback_from" in canonical.metadata
     assert canonical.metadata["fallback_from"] == "docling"
+
+
+def test_docling_adapter_converter_cache_separation():
+    pytest.importorskip("docling")
+    adapter = DoclingAdapter()
+    c_no_ocr = adapter._get_converter(do_ocr=False)
+    c_ocr = adapter._get_converter(do_ocr=True)
+    assert c_no_ocr is not c_ocr
+    assert False in adapter._converters
+    assert True in adapter._converters

@@ -21,6 +21,70 @@ export const InvoiceReview: React.FC<InvoiceReviewProps> = ({
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [selectedField, setSelectedField] = useState<string | null>(null);
 
+  const renderSignatureBadge = (status?: string) => {
+    switch (status?.toLowerCase()) {
+      case "verified":
+        return (
+          <span className="inline-flex items-center gap-1 text-xs px-2.5 py-0.5 rounded-full font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+            Chữ ký số: Hợp lệ (Verified)
+          </span>
+        );
+      case "unverified":
+        return (
+          <span className="inline-flex items-center gap-1 text-xs px-2.5 py-0.5 rounded-full font-medium bg-amber-50 text-amber-700 border border-amber-200" title="Chữ ký số mật mã đúng nhưng chưa cấu hình CA Trust Anchor">
+            <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+            Chữ ký số: Chưa xác thực CA
+          </span>
+        );
+      case "failed":
+        return (
+          <span className="inline-flex items-center gap-1 text-xs px-2.5 py-0.5 rounded-full font-medium bg-rose-50 text-rose-700 border border-rose-200">
+            <XCircle className="w-3.5 h-3.5 text-rose-600" />
+            Chữ ký số: Không hợp lệ
+          </span>
+        );
+      default:
+        return (
+          <span className="inline-flex items-center gap-1 text-xs px-2.5 py-0.5 rounded-full font-medium bg-slate-100 text-slate-600 border border-slate-200">
+            Chữ ký số: Chưa kiểm
+          </span>
+        );
+    }
+  };
+
+  const renderTaxBadge = (status?: string) => {
+    switch (status?.toLowerCase()) {
+      case "verified":
+        return (
+          <span className="inline-flex items-center gap-1 text-xs px-2.5 py-0.5 rounded-full font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+            Tổng cục Thuế: Đã kiểm chứng
+          </span>
+        );
+      case "failed":
+        return (
+          <span className="inline-flex items-center gap-1 text-xs px-2.5 py-0.5 rounded-full font-medium bg-rose-50 text-rose-700 border border-rose-200">
+            <XCircle className="w-3.5 h-3.5 text-rose-600" />
+            Tổng cục Thuế: Báo sai
+          </span>
+        );
+      case "unknown":
+        return (
+          <span className="inline-flex items-center gap-1 text-xs px-2.5 py-0.5 rounded-full font-medium bg-amber-50 text-amber-700 border border-amber-200" title="Cổng Tổng cục Thuế cần credentials hoặc đang bảo trì">
+            <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+            Tổng cục Thuế: Chờ đối soát
+          </span>
+        );
+      default:
+        return (
+          <span className="inline-flex items-center gap-1 text-xs px-2.5 py-0.5 rounded-full font-medium bg-slate-100 text-slate-600 border border-slate-200">
+            Tổng cục Thuế: Chưa tra cứu
+          </span>
+        );
+    }
+  };
+
   // Form edit state
   const [formData, setFormData] = useState<Partial<InvoiceItem>>({});
 
@@ -121,6 +185,8 @@ export const InvoiceReview: React.FC<InvoiceReviewProps> = ({
               <span className="text-xs px-2 py-0.5 rounded font-mono bg-slate-100 text-slate-700">
                 Rev v{invoice.revision}
               </span>
+              {renderSignatureBadge(invoice.signature_status)}
+              {renderTaxBadge(invoice.tax_authority_status)}
             </div>
             <p className="text-xs text-slate-500">
               Nhà cung cấp: <span className="font-semibold text-slate-700">{invoice.supplier_name || "N/A"}</span> ({invoice.supplier_tax_id || "N/A"})

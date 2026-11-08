@@ -1,6 +1,7 @@
 import base64
 from datetime import datetime, timedelta, timezone
 import hashlib
+from typing import Optional
 from lxml import etree
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes
@@ -12,7 +13,7 @@ from invoiceflow.domain.invoices.models import VerificationStatus
 from invoiceflow.infrastructure.document.signature_verifier import XMLSignatureVerifier
 
 
-def _generate_ca_and_cert(expired: bool = False):
+def _generate_ca_and_cert(expired: bool = False, key_usage: Optional[x509.KeyUsage] = None):
     ca_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
     ca_name = x509.Name([
         x509.NameAttribute(NameOID.COUNTRY_NAME, "VN"),
@@ -46,7 +47,7 @@ def _generate_ca_and_cert(expired: bool = False):
         not_before = now - timedelta(days=1)
         not_after = now + timedelta(days=180)
 
-    leaf_cert = (
+    leaf_builder = (
         x509.CertificateBuilder()
         .subject_name(cert_subject)
         .issuer_name(ca_name)
@@ -54,9 +55,27 @@ def _generate_ca_and_cert(expired: bool = False):
         .serial_number(x509.random_serial_number())
         .not_valid_before(not_before)
         .not_valid_after(not_after)
-        .sign(ca_key, hashes.SHA256())
     )
 
+    if key_usage is not None:
+        leaf_builder = leaf_builder.add_extension(key_usage, critical=True)
+    else:
+        leaf_builder = leaf_builder.add_extension(
+            x509.KeyUsage(
+                digital_signature=True,
+                content_commitment=True,
+                key_encipherment=False,
+                data_encipherment=False,
+                key_agreement=False,
+                key_cert_sign=False,
+                crl_sign=False,
+                encipher_only=False,
+                decipher_only=False,
+            ),
+            critical=True,
+        )
+
+    leaf_cert = leaf_builder.sign(ca_key, hashes.SHA256())
     return ca_cert, leaf_cert, cert_key
 
 
@@ -69,6 +88,11 @@ def _build_signed_xml(
     tamper_signature_value: bool = False,
     external_uri: bool = False,
     duplicate_id: bool = False,
+    sig_algo_uri: str = "http://www.w3.org/2001/04/xmldsig-more#rsa-sha256",
+    digest_algo_uri: str = "http://www.w3.org/2001/04/xmlenc#sha256",
+    second_reference: bool = False,
+    tamper_second_reference: bool = False,
+    detached_target: bool = False,
 ) -> bytes:
     root = etree.Element("HDon")
     data_el = etree.SubElement(root, "DLHDon", id=doc_id)
@@ -76,14 +100,30 @@ def _build_signed_xml(
     for child in sub:
         data_el.append(child)
 
+    if detached_target:
+        # Reference will point to unrelated element outside DLHDon
+        etree.SubElement(root, "UnrelatedBanner", id="banner123").text = "Ad banner"
+
     if duplicate_id:
         # Signature wrapping attack: inject duplicate element with same id
         etree.SubElement(root, "EvilWrap", id=doc_id)
 
     # Compute genuine digest
-    ref_uri = "https://external.com/invoice" if external_uri else f"#{doc_id}"
-    c14n_data = etree.tostring(data_el, method="c14n")
-    digest_val = base64.b64encode(hashlib.sha256(c14n_data).digest()).decode("ascii")
+    if external_uri:
+        ref_uri = "https://external.com/invoice"
+    elif detached_target:
+        ref_uri = "#banner123"
+    else:
+        ref_uri = f"#{doc_id}"
+
+    target_for_digest = root.find(".//*[@id='banner123']") if detached_target else data_el
+    c14n_data = etree.tostring(target_for_digest, method="c14n")
+
+    if "sha1" in digest_algo_uri.lower():
+        digest_bytes = hashlib.sha1(c14n_data).digest()
+    else:
+        digest_bytes = hashlib.sha256(c14n_data).digest()
+    digest_val = base64.b64encode(digest_bytes).decode("ascii")
 
     if tamper_data_after_digest:
         # Mutate data inside node after digest was computed
@@ -94,15 +134,22 @@ def _build_signed_xml(
     sig_el = etree.SubElement(root, "{http://www.w3.org/2000/09/xmldsig#}Signature")
     si_el = etree.SubElement(sig_el, "{http://www.w3.org/2000/09/xmldsig#}SignedInfo")
     etree.SubElement(si_el, "{http://www.w3.org/2000/09/xmldsig#}CanonicalizationMethod", Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315")
-    etree.SubElement(si_el, "{http://www.w3.org/2000/09/xmldsig#}SignatureMethod", Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256")
+    etree.SubElement(si_el, "{http://www.w3.org/2000/09/xmldsig#}SignatureMethod", Algorithm=sig_algo_uri)
     ref_el = etree.SubElement(si_el, "{http://www.w3.org/2000/09/xmldsig#}Reference", URI=ref_uri)
-    etree.SubElement(ref_el, "{http://www.w3.org/2000/09/xmldsig#}DigestMethod", Algorithm="http://www.w3.org/2001/04/xmlenc#sha256")
+    etree.SubElement(ref_el, "{http://www.w3.org/2000/09/xmldsig#}DigestMethod", Algorithm=digest_algo_uri)
     dv_el = etree.SubElement(ref_el, "{http://www.w3.org/2000/09/xmldsig#}DigestValue")
     dv_el.text = digest_val
 
+    if second_reference:
+        ref_el2 = etree.SubElement(si_el, "{http://www.w3.org/2000/09/xmldsig#}Reference", URI=ref_uri)
+        etree.SubElement(ref_el2, "{http://www.w3.org/2000/09/xmldsig#}DigestMethod", Algorithm=digest_algo_uri)
+        dv_el2 = etree.SubElement(ref_el2, "{http://www.w3.org/2000/09/xmldsig#}DigestValue")
+        dv_el2.text = "tampered_digest_value_2" if tamper_second_reference else digest_val
+
     # Sign canonical SignedInfo
     si_c14n = etree.tostring(si_el, method="c14n")
-    sig_bytes = cert_key.sign(si_c14n, padding.PKCS1v15(), hashes.SHA256())
+    hash_obj = hashes.SHA1() if "sha1" in sig_algo_uri.lower() else hashes.SHA256()
+    sig_bytes = cert_key.sign(si_c14n, padding.PKCS1v15(), hash_obj)
     if tamper_signature_value:
         sig_bytes = b"bad_signature_bytes_that_are_forged"
 
@@ -237,3 +284,81 @@ def test_valid_signature_verified_with_configured_trusted_ca():
     assert res.is_valid is True
     assert "MST:0109998888" in (res.signer_name or "")
     assert "Xác thực bởi CA tin cậy" in (res.details or "")
+
+
+def test_unapproved_signature_algorithm_rejected():
+    ca_cert, leaf_cert, cert_key = _generate_ca_and_cert(expired=False)
+    xml_bytes = _build_signed_xml(
+        leaf_cert, cert_key, sig_algo_uri="http://www.w3.org/2000/09/xmldsig#unknown-algo"
+    )
+    verifier = XMLSignatureVerifier()
+    res = verifier.verify_xml_signature(xml_bytes)
+    assert res.status == VerificationStatus.FAILED
+    assert not res.is_valid
+    assert "Thuật toán chữ ký không được hỗ trợ" in (res.details or "")
+
+
+def test_sha1_rejected_in_strict_production_policy():
+    ca_cert, leaf_cert, cert_key = _generate_ca_and_cert(expired=False)
+    xml_bytes = _build_signed_xml(
+        leaf_cert,
+        cert_key,
+        sig_algo_uri="http://www.w3.org/2000/09/xmldsig#rsa-sha1",
+        digest_algo_uri="http://www.w3.org/2000/09/xmldsig#sha1",
+    )
+    # Default policy forbids SHA-1
+    verifier = XMLSignatureVerifier(allow_sha1=False)
+    res = verifier.verify_xml_signature(xml_bytes)
+    assert res.status == VerificationStatus.FAILED
+    assert not res.is_valid
+    assert "SHA-1 bị từ chối" in (res.details or "")
+
+
+def test_multi_reference_tampered_second_ref_fails():
+    ca_cert, leaf_cert, cert_key = _generate_ca_and_cert(expired=False)
+    xml_bytes = _build_signed_xml(
+        leaf_cert,
+        cert_key,
+        second_reference=True,
+        tamper_second_reference=True,
+    )
+    verifier = XMLSignatureVerifier()
+    res = verifier.verify_xml_signature(xml_bytes)
+    assert res.status == VerificationStatus.FAILED
+    assert not res.is_valid
+    assert "DigestValue không khớp" in (res.details or "")
+
+
+def test_detached_target_outside_invoice_data_rejected():
+    ca_cert, leaf_cert, cert_key = _generate_ca_and_cert(expired=False)
+    xml_bytes = _build_signed_xml(
+        leaf_cert,
+        cert_key,
+        detached_target=True,
+    )
+    verifier = XMLSignatureVerifier()
+    res = verifier.verify_xml_signature(xml_bytes)
+    assert res.status == VerificationStatus.FAILED
+    assert not res.is_valid
+    assert "không nằm trong phạm vi" in (res.details or "")
+
+
+def test_key_usage_missing_digital_signature_rejected():
+    key_usage = x509.KeyUsage(
+        digital_signature=False,
+        content_commitment=False,
+        key_encipherment=True,
+        data_encipherment=False,
+        key_agreement=False,
+        key_cert_sign=False,
+        crl_sign=False,
+        encipher_only=False,
+        decipher_only=False,
+    )
+    ca_cert, leaf_cert, cert_key = _generate_ca_and_cert(expired=False, key_usage=key_usage)
+    xml_bytes = _build_signed_xml(leaf_cert, cert_key)
+    verifier = XMLSignatureVerifier(trusted_ca_certs=[ca_cert])
+    res = verifier.verify_xml_signature(xml_bytes)
+    assert res.status == VerificationStatus.FAILED
+    assert not res.is_valid
+    assert "KeyUsage" in (res.details or "")
