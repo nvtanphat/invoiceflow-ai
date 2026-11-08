@@ -1,0 +1,18 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "PredictionInvoiceSchema",
+  "type": "object",
+  "required": ["case_id", "baseline_id", "header", "lines", "latency_ms", "cost_usd"],
+  "properties": {
+    "case_id": { "type": "string" },
+    "baseline_id": { "type": "string" },
+    "header": { "type": "object" },
+    "lines": { "type": "array" },
+    "detected_discrepancies": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "latency_ms": { "type": "number" },
+    "cost_usd": { "type": "number" }
+  }
+}

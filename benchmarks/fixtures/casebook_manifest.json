@@ -1,0 +1,152 @@
+[
+  {
+    "case_id": "CASE-01-XML-STANDARD",
+    "document_type": "xml_standard",
+    "format": "xml",
+    "description": "Hóa đơn điện tử XML Thông tư 78 chuẩn mực, đầy đủ chữ ký số và trường nghiệp vụ",
+    "header": {
+      "supplier_tax_id": "0101234567",
+      "supplier_name": "Công ty TNHH Thiết bị Văn phòng Thăng Long",
+      "buyer_tax_id": "0109998888",
+      "buyer_name": "Công ty Cổ phần Thương mại Alpha VN",
+      "invoice_number": "0001245",
+      "invoice_series": "1C26TAA",
+      "issue_date": "2026-03-02",
+      "currency": "VND",
+      "subtotal": "50000000.0000",
+      "tax_total": "5000000.0000",
+      "amount_payable": "55000000.0000"
+    },
+    "lines": [
+      {
+        "sku": "DELL-XPS-13",
+        "description": "Máy tính xách tay Dell XPS 13 i7/16GB/512GB",
+        "qty": "5.0000",
+        "unit_price": "10000000.0000",
+        "tax_rate": "10.00",
+        "line_amount": "50000000.0000"
+      }
+    ],
+    "expected_discrepancies": []
+  },
+  {
+    "case_id": "CASE-02-PDF-DIGITAL",
+    "document_type": "pdf_digital",
+    "format": "pdf",
+    "description": "Hóa đơn PDF điện tử dạng text layer (Digital PDF) trích xuất bằng PyMuPDF và rule layout",
+    "header": {
+      "supplier_tax_id": "0309876543",
+      "supplier_name": "Công ty CP Giấy & Văn phòng phẩm Miền Nam",
+      "buyer_tax_id": "0109998888",
+      "buyer_name": "Công ty Cổ phần Thương mại Alpha VN",
+      "invoice_number": "0008890",
+      "invoice_series": "1C26TBB",
+      "issue_date": "2026-03-05",
+      "currency": "VND",
+      "subtotal": "12000000.0000",
+      "tax_total": "960000.0000",
+      "amount_payable": "12960000.0000"
+    },
+    "lines": [
+      {
+        "sku": "PAPER-A4-70",
+        "description": "Giấy photocopy Double A A4 70gsm",
+        "qty": "200.0000",
+        "unit_price": "60000.0000",
+        "tax_rate": "8.00",
+        "line_amount": "12000000.0000"
+      }
+    ],
+    "expected_discrepancies": []
+  },
+  {
+    "case_id": "CASE-03-PDF-SCAN",
+    "document_type": "pdf_scan",
+    "format": "pdf",
+    "description": "Hóa đơn PDF scan ảnh chất lượng thấp cần kích hoạt Vision LLM fallback",
+    "header": {
+      "supplier_tax_id": "0105554321",
+      "supplier_name": "Công ty TNHH Dịch vụ Vệ sinh Công nghiệp Hà Nội",
+      "buyer_tax_id": "0109998888",
+      "buyer_name": "Công ty Cổ phần Thương mại Alpha VN",
+      "invoice_number": "0003412",
+      "invoice_series": "2C26TCC",
+      "issue_date": "2026-03-08",
+      "currency": "VND",
+      "subtotal": "8500000.0000",
+      "tax_total": "680000.0000",
+      "amount_payable": "9180000.0000"
+    },
+    "lines": [
+      {
+        "sku": "CLEAN-SET-01",
+        "description": "Bộ dụng cụ và hóa chất vệ sinh sàn văn phòng",
+        "qty": "10.0000",
+        "unit_price": "850000.0000",
+        "tax_rate": "8.00",
+        "line_amount": "8500000.0000"
+      }
+    ],
+    "expected_discrepancies": []
+  },
+  {
+    "case_id": "CASE-04-DISCREPANCY-PRICE",
+    "document_type": "discrepancy_price",
+    "format": "pdf",
+    "description": "Hóa đơn chênh lệch đơn giá vượt ngưỡng dung sai (Đơn giá 63,000 VND vs PO 60,000 VND, lệch +5.0% > 2.0%)",
+    "header": {
+      "supplier_tax_id": "0309876543",
+      "supplier_name": "Công ty CP Giấy & Văn phòng phẩm Miền Nam",
+      "buyer_tax_id": "0109998888",
+      "buyer_name": "Công ty Cổ phần Thương mại Alpha VN",
+      "invoice_number": "0008899",
+      "invoice_series": "2C26TBB",
+      "issue_date": "2026-03-06",
+      "currency": "VND",
+      "subtotal": "12600000.0000",
+      "tax_total": "1008000.0000",
+      "amount_payable": "13608000.0000"
+    },
+    "lines": [
+      {
+        "sku": "PAPER-A4-70",
+        "description": "Giấy photocopy Double A A4 70gsm (lệch giá 5%)",
+        "qty": "200.0000",
+        "unit_price": "63000.0000",
+        "tax_rate": "8.00",
+        "line_amount": "12600000.0000"
+      }
+    ],
+    "expected_discrepancies": ["PRICE_MISMATCH"]
+  },
+  {
+    "case_id": "CASE-05-DISCREPANCY-QTY",
+    "document_type": "discrepancy_qty",
+    "format": "xml",
+    "description": "Hóa đơn số lượng xuất lớn hơn thực tế nhập kho GRN (Hóa đơn ghi 220 ram vs GRN chỉ nhận 200 ram)",
+    "header": {
+      "supplier_tax_id": "0309876543",
+      "supplier_name": "Công ty CP Giấy & Văn phòng phẩm Miền Nam",
+      "buyer_tax_id": "0109998888",
+      "buyer_name": "Công ty Cổ phần Thương mại Alpha VN",
+      "invoice_number": "0008900",
+      "invoice_series": "1C26TBB",
+      "issue_date": "2026-03-07",
+      "currency": "VND",
+      "subtotal": "13200000.0000",
+      "tax_total": "1056000.0000",
+      "amount_payable": "14256000.0000"
+    },
+    "lines": [
+      {
+        "sku": "PAPER-A4-70",
+        "description": "Giấy photocopy Double A A4 70gsm (lệch số lượng)",
+        "qty": "220.0000",
+        "unit_price": "60000.0000",
+        "tax_rate": "8.00",
+        "line_amount": "13200000.0000"
+      }
+    ],
+    "expected_discrepancies": ["QUANTITY_MISMATCH"]
+  }
+]

@@ -1,0 +1,1 @@
+{"root":["./src/main.tsx","./src/app/app.tsx","./src/features/exports/exportmodal.tsx","./src/features/inbox/documentinbox.tsx","./src/features/matching/reconciliationpanel.tsx","./src/features/review/bboxviewer.tsx","./src/features/review/invoicereview.tsx","./src/lib/api-client.ts","./src/test/api-client.test.ts"],"version":"5.9.3"}
