@@ -32,13 +32,16 @@ class GeminiAdapter(LLMProviderPort):
     async def extract_invoice_data(
         self,
         document_text: str,
+        image_bytes: Optional[bytes] = None,
         budget_usd: float = 0.05,
         request_id: Optional[str] = None,
     ) -> ExtractionResult:
-        raw_dict = await self._call_genai_api(document_text)
+        raw_dict = await self._call_genai_api(document_text, image_bytes)
         return self._map_to_result(raw_dict)
 
-    async def _call_genai_api(self, document_text: str) -> dict[str, Any]:
+    async def _call_genai_api(
+        self, document_text: str, image_bytes: Optional[bytes] = None
+    ) -> dict[str, Any]:
         """Calls Gemini API or raises exception if not configured."""
         if not self._client:
             raise RuntimeError("Gemini API client is not configured or missing API key.")
@@ -47,9 +50,14 @@ class GeminiAdapter(LLMProviderPort):
             f"{INVOICE_EXTRACTION_SYSTEM_PROMPT}\n\n"
             f"DOCUMENT CONTENT TO EXTRACT:\n{document_text}\n"
         )
+        contents = [prompt]
+        if image_bytes:
+            from google.genai import types
+            contents.append(types.Part.from_bytes(data=image_bytes, mime_type="image/png"))
+
         response = self._client.models.generate_content(
             model=self.model_id,
-            contents=prompt,
+            contents=contents,
             config={
                 "response_mime_type": "application/json",
             },

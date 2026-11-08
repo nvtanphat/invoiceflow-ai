@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<HDon>
+  <DLHDon>
+    <TTChung>
+      <KHMSHDon>1</KHMSHDon>
+      <KHHDon>1C26TAA</KHHDon>
+      <SHDon>0001245</SHDon>
+      <NLap>2026-03-02</NLap>
+      <DVTTe>VND</DVTTe>
+    </TTChung>
+    <NDHDon>
+      <NBan>
+        <Ten>Công ty TNHH Thiết bị Văn phòng Thăng Long</Ten>
+        <MST>0101234567</MST>
+        <DChi>Số 12 phố Thăng Long, Ba Đình, Hà Nội</DChi>
+      </NBan>
+      <NMua>
+        <Ten>Công ty Cổ phần Thương mại Alpha VN</Ten>
+        <MST>0109998888</MST>
+        <DChi>Tòa nhà Alpha, Cầu Giấy, Hà Nội</DChi>
+      </NMua>
+      <DSHHDVu>
+        <HHDVu>
+          <STT>1</STT>
+          <THHDVu>Máy tính xách tay Dell XPS 13 i7/16GB/512GB [DELL-XPS-13]</THHDVu>
+          <DVTinh>cái</DVTinh>
+          <SLuong>5.0000</SLuong>
+          <DGia>10000000.0000</DGia>
+          <TLCKhau>0.00</TLCKhau>
+          <STCKhau>0.0000</STCKhau>
+          <TSuat>10%</TSuat>
+          <ThTien>50000000.0000</ThTien>
+        </HHDVu>
+      </DSHHDVu>
+      <TToan>
+        <TgTCThue>50000000.0000</TgTCThue>
+        <TgTThue>5000000.0000</TgTThue>
+        <TgTTTBSo>55000000.0000</TgTTTBSo>
+      </TToan>
+    </NDHDon>
+  </DLHDon>
+  <DSCKS>
+    <NBan>
+      <Signature>SignedByThangLongCo</Signature>
+    </NBan>
+  </DSCKS>
+</HDon>

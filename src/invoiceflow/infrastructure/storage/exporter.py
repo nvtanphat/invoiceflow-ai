@@ -88,9 +88,9 @@ class DocumentExporter:
                 sanitize_csv_cell(inv.get("invoice_series", "")),
                 str(inv.get("issue_date", "")),
                 str(inv.get("currency", "VND")),
-                float(inv.get("subtotal", 0)),
-                float(inv.get("tax_total", 0)),
-                float(inv.get("amount_payable", 0)),
+                Decimal(str(inv.get("subtotal", "0.00"))),
+                Decimal(str(inv.get("tax_total", "0.00"))),
+                Decimal(str(inv.get("amount_payable", "0.00"))),
                 str(inv.get("status", "")),
             ])
 

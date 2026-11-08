@@ -41,19 +41,35 @@ class OpenAIAdapter(LLMProviderPort):
     async def extract_invoice_data(
         self,
         document_text: str,
+        image_bytes: Optional[bytes] = None,
         budget_usd: float = 0.05,
         request_id: Optional[str] = None,
     ) -> ExtractionResult:
-        raw_dict = await self._call_openai_api(document_text)
+        raw_dict = await self._call_openai_api(document_text, image_bytes)
         return self._map_to_result(raw_dict)
 
-    async def _call_openai_api(self, document_text: str) -> dict[str, Any]:
+    async def _call_openai_api(
+        self, document_text: str, image_bytes: Optional[bytes] = None
+    ) -> dict[str, Any]:
         if not self._client:
             raise RuntimeError("OpenAI/ModelAPI client is not configured or missing API key.")
 
+        if image_bytes:
+            import base64
+            b64_img = base64.b64encode(image_bytes).decode("utf-8")
+            user_msg = [
+                {"type": "text", "text": f"DOCUMENT CONTENT TO EXTRACT:\n{document_text}\n"},
+                {
+                    "type": "image_url",
+                    "image_url": {"url": f"data:image/png;base64,{b64_img}"},
+                },
+            ]
+        else:
+            user_msg = f"DOCUMENT CONTENT TO EXTRACT:\n{document_text}\n"
+
         messages = [
             {"role": "system", "content": INVOICE_EXTRACTION_SYSTEM_PROMPT},
-            {"role": "user", "content": f"DOCUMENT CONTENT TO EXTRACT:\n{document_text}\n"},
+            {"role": "user", "content": user_msg},
         ]
 
         response = await self._client.chat.completions.create(
@@ -68,32 +84,41 @@ class OpenAIAdapter(LLMProviderPort):
 
     def _map_to_result(self, data: dict[str, Any]) -> ExtractionResult:
         lines = []
-        for raw_line in data.get("line_items", []):
+        raw_lines = data.get("line_items") or data.get("items") or []
+        for idx, raw_line in enumerate(raw_lines, start=1):
             lines.append(
                 ExtractedLine(
-                    line_no=int(raw_line.get("line_no", 1)),
-                    description=str(raw_line.get("description", "")),
+                    line_no=int(raw_line.get("line_no", idx)),
+                    description=str(raw_line.get("description") or raw_line.get("item_name") or ""),
                     unit=raw_line.get("unit"),
-                    qty=self._parse_decimal(raw_line.get("qty")),
-                    unit_price=self._parse_decimal(raw_line.get("unit_price")),
+                    qty=self._parse_decimal(raw_line.get("qty") or raw_line.get("quantity")),
+                    unit_price=self._parse_decimal(raw_line.get("unit_price") or raw_line.get("price")),
                     discount=self._parse_decimal(raw_line.get("discount")),
                     tax_rate=self._parse_decimal(raw_line.get("tax_rate")) if raw_line.get("tax_rate") else None,
-                    line_amount=self._parse_decimal(raw_line.get("line_amount")),
+                    line_amount=self._parse_decimal(raw_line.get("line_amount") or raw_line.get("amount")),
                 )
             )
 
+        s_tax = data.get("supplier_tax_id") or data.get("tax_code") or data.get("seller_tax_id")
+        s_name = data.get("supplier_name") or data.get("seller_name")
+        b_tax = data.get("buyer_tax_id") or data.get("customer_tax_id")
+        b_name = data.get("buyer_name") or data.get("customer_name")
+        inv_no = data.get("invoice_number") or data.get("invoice_no")
+        inv_series = data.get("invoice_series") or data.get("series") or data.get("invoice_template")
+        i_date = data.get("issue_date") or data.get("invoice_date") or data.get("date")
+
         return ExtractionResult(
-            supplier_tax_id=str(data["supplier_tax_id"]).strip() if data.get("supplier_tax_id") else None,
-            supplier_name=str(data["supplier_name"]).strip() if data.get("supplier_name") else None,
-            buyer_tax_id=str(data["buyer_tax_id"]).strip() if data.get("buyer_tax_id") else None,
-            buyer_name=str(data["buyer_name"]).strip() if data.get("buyer_name") else None,
-            invoice_number=str(data["invoice_number"]).strip() if data.get("invoice_number") else None,
-            invoice_series=str(data["invoice_series"]).strip() if data.get("invoice_series") else None,
-            issue_date=str(data["issue_date"]).strip() if data.get("issue_date") else None,
+            supplier_tax_id=str(s_tax).strip() if s_tax else None,
+            supplier_name=str(s_name).strip() if s_name else None,
+            buyer_tax_id=str(b_tax).strip() if b_tax else None,
+            buyer_name=str(b_name).strip() if b_name else None,
+            invoice_number=str(inv_no).strip() if inv_no else None,
+            invoice_series=str(inv_series).strip() if inv_series else None,
+            issue_date=str(i_date).strip() if i_date else None,
             currency=data.get("currency", "VND"),
-            subtotal=self._parse_decimal(data.get("subtotal")),
-            tax_total=self._parse_decimal(data.get("tax_total")),
-            amount_payable=self._parse_decimal(data.get("amount_payable")),
+            subtotal=self._parse_decimal(data.get("subtotal") or data.get("pre_tax_amount")),
+            tax_total=self._parse_decimal(data.get("tax_total") or data.get("vat_amount")),
+            amount_payable=self._parse_decimal(data.get("amount_payable") or data.get("total_amount")),
             line_items=lines,
             raw_response=data,
             prompt_version=PROMPT_VERSION,

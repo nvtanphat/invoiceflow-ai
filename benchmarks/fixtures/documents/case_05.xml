@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<HDon>
+  <DLHDon>
+    <TTChung>
+      <KHMSHDon>1</KHMSHDon>
+      <KHHDon>1C26TBB</KHHDon>
+      <SHDon>0008900</SHDon>
+      <NLap>2026-03-07</NLap>
+      <DVTTe>VND</DVTTe>
+    </TTChung>
+    <NDHDon>
+      <NBan>
+        <Ten>Công ty CP Giấy &amp; Văn phòng phẩm Miền Nam</Ten>
+        <MST>0309876543</MST>
+        <DChi>Quận 1, TP Hồ Chí Minh</DChi>
+      </NBan>
+      <NMua>
+        <Ten>Công ty Cổ phần Thương mại Alpha VN</Ten>
+        <MST>0109998888</MST>
+        <DChi>Tòa nhà Alpha, Cầu Giấy, Hà Nội</DChi>
+      </NMua>
+      <DSHHDVu>
+        <HHDVu>
+          <STT>1</STT>
+          <THHDVu>Giấy photocopy Double A A4 70gsm (lệch số lượng) [PAPER-A4-70]</THHDVu>
+          <DVTinh>ram</DVTinh>
+          <SLuong>220.0000</SLuong>
+          <DGia>60000.0000</DGia>
+          <TLCKhau>0.00</TLCKhau>
+          <STCKhau>0.0000</STCKhau>
+          <TSuat>8%</TSuat>
+          <ThTien>13200000.0000</ThTien>
+        </HHDVu>
+      </DSHHDVu>
+      <TToan>
+        <TgTCThue>13200000.0000</TgTCThue>
+        <TgTThue>1056000.0000</TgTThue>
+        <TgTTTBSo>14256000.0000</TgTTTBSo>
+      </TToan>
+    </NDHDon>
+  </DLHDon>
+  <DSCKS>
+    <NBan>
+      <Signature>SignedByMienNamPaper</Signature>
+    </NBan>
+  </DSCKS>
+</HDon>

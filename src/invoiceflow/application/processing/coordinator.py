@@ -108,11 +108,11 @@ class JobCoordinator:
         )
 
         async with self._db_manager.session() as session:
-            reconciliation = ReconciliationService(session)
-            await reconciliation.reconcile_invoice(invoice_aggregate)
-
             inv_repo = InvoiceRepository(session)
             await inv_repo.create_invoice(invoice_aggregate)
+
+            reconciliation = ReconciliationService(session)
+            await reconciliation.reconcile_invoice(invoice_aggregate)
 
     async def _process_pdf(self, job_id: str, doc: DocumentORM, content: bytes) -> None:
         inspection = self._pdf_inspector.inspect(content)
@@ -143,11 +143,23 @@ class JobCoordinator:
                 .values(stage="EXTRACTING")
             )
 
-        # Call LLM or deterministic fallback
+        # Render image for vision if scanned/mixed
+        image_bytes: Optional[bytes] = None
+        if inspection.classification in ("scanned", "mixed"):
+            import fitz
+            doc_pdf = fitz.open(stream=content, filetype="pdf")
+            if len(doc_pdf) > 0:
+                page = doc_pdf.load_page(0)
+                pix = page.get_pixmap(dpi=150)
+                image_bytes = pix.tobytes("png")
+            doc_pdf.close()
+
+        # Call LLM extraction
         full_text = "\n".join([el.text for el in canonical_doc.elements])
         try:
             llm_result = await self._llm_adapter.extract_invoice_data(
                 document_text=full_text,
+                image_bytes=image_bytes,
                 budget_usd=0.05,
             )
             extracted_fields = {
@@ -191,18 +203,8 @@ class JobCoordinator:
                 evidence=evidence,
             )
         except Exception as e:
-            logger.warning("LLM extraction unavailable: %s. Using basic rule baseline.", e)
-            # Safe baseline when LLM is unconfigured
-            evidence = self._evidence_mapper.map_evidence(
-                {"amount_payable": "0.00"}, canonical_doc
-            )
-            invoice_aggregate = InvoiceAggregate(
-                tenant_id=doc.tenant_id,
-                document_id=doc.id,
-                revision=1,
-                status=InvoiceStatus.READY_FOR_REVIEW,
-                evidence=evidence,
-            )
+            logger.error("Document extraction failed for job %s: %s", job_id, e)
+            raise RuntimeError(f"Extraction failed for {doc.filename}: {e}") from e
 
         async with self._db_manager.session() as session:
             await session.execute(
@@ -210,8 +212,8 @@ class JobCoordinator:
                 .where(ProcessingJobORM.id == job_id)
                 .values(stage="VALIDATING")
             )
-            reconciliation = ReconciliationService(session)
-            await reconciliation.reconcile_invoice(invoice_aggregate)
-
             inv_repo = InvoiceRepository(session)
             await inv_repo.create_invoice(invoice_aggregate)
+
+            reconciliation = ReconciliationService(session)
+            await reconciliation.reconcile_invoice(invoice_aggregate)

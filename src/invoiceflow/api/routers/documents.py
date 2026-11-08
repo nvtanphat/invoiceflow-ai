@@ -50,6 +50,13 @@ async def upload_document(
     except PreflightError as e:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
 
+    if not is_replay:
+        try:
+            from invoiceflow.workers.actors import process_document_job
+            process_document_job.send(job.id)
+        except Exception:
+            pass
+
     response.headers["Location"] = f"/api/v1/jobs/{job.id}"
     return {
         "document_id": doc.id,

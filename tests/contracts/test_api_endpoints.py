@@ -23,8 +23,8 @@ async def test_auth_login_and_protected_route():
     from invoiceflow.api.main import create_app
     from invoiceflow.infrastructure.database.session import DatabaseSessionManager
     from invoiceflow.infrastructure.database.models import TenantORM, UserORM, MembershipORM
+    from invoiceflow.infrastructure.security.password import hash_password
     import uuid
-    import hashlib
 
     db_url = "sqlite+aiosqlite:///:memory:"
     db_manager = DatabaseSessionManager(database_url=db_url)
@@ -32,8 +32,7 @@ async def test_auth_login_and_protected_route():
 
     tenant_id = str(uuid.uuid4())
     user_id = str(uuid.uuid4())
-    # Simple sha256 password hash for test demo
-    pwd_hash = hashlib.sha256(b"password123").hexdigest()
+    pwd_hash = hash_password("password123")
 
     async with db_manager.session() as session:
         t = TenantORM(id=tenant_id, name="Tenant Demo")

@@ -68,6 +68,7 @@ def create_access_token(
 async def get_current_context(
     credentials: HTTPAuthorizationCredentials = Security(security),
     settings: Settings = Depends(get_settings),
+    session: AsyncSession = Depends(get_db),
 ) -> AuthenticatedContext:
     token = credentials.credentials
     try:
@@ -76,18 +77,50 @@ async def get_current_context(
             settings.JWT_SECRET,
             algorithms=[settings.JWT_ALGORITHM],
         )
-        return AuthenticatedContext(
-            user_id=payload["sub"],
-            tenant_id=payload["tenant_id"],
-            role=payload.get("role", "viewer"),
-            email=payload.get("email", ""),
-        )
     except jwt.PyJWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired authentication credentials.",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+    user_id = payload.get("sub")
+    tenant_id = payload.get("tenant_id")
+    if not user_id or not tenant_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Malformed token claims.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    user_stmt = select(UserORM).where(UserORM.id == user_id, UserORM.is_active.is_(True))
+    user_res = await session.execute(user_stmt)
+    user = user_res.scalar_one_or_none()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User account is inactive or not found.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    m_stmt = select(MembershipORM).where(
+        MembershipORM.user_id == user_id,
+        MembershipORM.tenant_id == tenant_id,
+    )
+    m_res = await session.execute(m_stmt)
+    membership = m_res.scalar_one_or_none()
+    if not membership:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Tenant membership not found or revoked.",
+        )
+
+    return AuthenticatedContext(
+        user_id=user.id,
+        tenant_id=membership.tenant_id,
+        role=membership.role,
+        email=user.email,
+    )
 
 
 def require_role(allowed_roles: list[str]):

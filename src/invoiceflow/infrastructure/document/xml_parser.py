@@ -101,9 +101,9 @@ class SecureXMLParser:
                     )
                     line_no += 1
 
-        # Check digital signature presence
+        # Check digital signature presence (marked unverified until cryptographic certificate check)
         signature_el = self._find_element(root, ["DSCKS"], ["Signature"])
-        sig_status = VerificationStatus.VERIFIED if signature_el is not None else VerificationStatus.NOT_CHECKED
+        sig_status = VerificationStatus.UNVERIFIED if signature_el is not None else VerificationStatus.NOT_CHECKED
 
         evidence = [
             FieldEvidence(

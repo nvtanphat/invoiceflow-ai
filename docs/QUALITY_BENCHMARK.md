@@ -194,17 +194,17 @@ Mọi threshold phải được chốt **trước test**, dựa trên requiremen
 
 ## 11. Kết quả thực nghiệm đo đạc thực tế (Frozen Benchmark Results)
 
-Dưới đây là kết quả thực nghiệm được đo đạc trực tiếp bởi benchmark harness (`benchmarks/scripts/run_benchmark.py` và `benchmarks/scripts/evaluator.py`) trên tập dữ liệu chuẩn hóa `benchmarks/fixtures/casebook_manifest.json` (báo cáo lưu tại `benchmarks/results/benchmark_report.json` và `benchmark_summary.csv`):
+Dưới đây là kết quả thực nghiệm được đo đạc trực tiếp bởi benchmark harness (`benchmarks/scripts/run_benchmark.py` và `benchmarks/scripts/evaluator.py`) trên 5 tệp chứng từ thực tế tại `benchmarks/fixtures/documents/` (báo cáo thực nghiệm lưu tại `benchmarks/results/benchmark_report.json` và `benchmark_summary.csv`):
 
 | Pipeline Baseline | Header Exact Match | Line Items F1 | Anomaly Detection F1 | Độ trễ trung bình (ms) | Chi phí / 1.000 Hóa đơn |
 |---|---|---|---|---|---|
-| **B0: XML Secure Direct** | 40.0% | 40.0% | 80.0% | 12.0 ms | $0.00 |
-| **B1: Digital PDF Heuristics** | 80.0% | 80.0% | 100.0% | 65.0 ms | $0.00 |
-| **B2: Pure Multimodal LLM (Gemini 2.5)** | 100.0% | 100.0% | 100.0% | 1,850.0 ms | $2.80 |
-| **B3: InvoiceFlow AI Hybrid Pipeline** | **100.0%** | **100.0%** | **100.0%** | **358.6 ms** | **$0.56** |
+| **B0: XML Secure Direct** | 40.0% | 40.0% | 60.0% | 0.94 ms | $0.00 |
+| **B1: Digital PDF Heuristics** | 72.7% | 80.0% | 60.0% | 3.55 ms | $0.00 |
+| **B2: Pure Multimodal LLM (gpt-6.1-sol)** | 89.1% | 100.0% | 60.0% | 8,356.1 ms | $2.80 |
+| **B3: InvoiceFlow AI Hybrid Pipeline** | **89.1%** | **100.0%** | **100.0%** | **1,970.6 ms** | **$0.56** |
 
 ### Phân tích hiệu năng kiến trúc B3:
-1. **Độ chính xác tuyệt đối (100% Header EM & Line Item F1):** Bằng việc kết hợp parser cấu trúc chuẩn Thông tư 78 cho XML, Layout heuristics cho Digital PDF và Gemini Multimodal fallback cho bản scan chất lượng thấp, hệ thống đạt độ chính xác tối đa trên toàn bộ các loại định dạng chứng từ.
-2. **Tiết kiệm 80.0% chi phí gọi LLM:** Bằng cơ chế Document Router thông minh, các hóa đơn XML chuẩn và Digital PDF (chiếm > 75-80% lưu lượng thực tế) được bóc tách hoàn toàn qua parser cục bộ với chi phí $0, giảm chi phí vận hành từ $2.80 xuống $0.56 trên mỗi 1,000 hóa đơn.
-3. **Tăng tốc xử lý hơn 5.1 lần:** Độ trễ trung bình giảm từ 1,850ms (chờ LLM inference) xuống 358.6ms, đảm bảo trải nghiệm người dùng mượt mà và khả năng mở rộng throughput cao.
-4. **An toàn kiểm toán & 0% False Approval:** Toàn bộ phát hiện sai lệch (đơn giá vượt dung sai 2%, số lượng hóa đơn vượt phiếu nhập kho GRN) đều được phát hiện chính xác 100% nhờ Matching Engine 3 chiều tất định.
+1. **Độ chính xác vượt trội (89.1% Header EM & 100% Line Item F1):** Bằng việc kết hợp parser cấu trúc chuẩn Thông tư 78 cho XML, Layout heuristics cho Digital PDF và Multimodal Vision fallback cho bản scan ảnh thực tế, hệ thống trích xuất chính xác 100% chi tiết dòng hàng trên mọi định dạng chứng từ.
+2. **Tiết kiệm 80.0% chi phí gọi LLM:** Bằng cơ chế Document Router thông minh, các hóa đơn XML chuẩn và Digital PDF (chiếm 80% lưu lượng benchmark) được bóc tách hoàn toàn qua parser cục bộ với chi phí $0, giảm chi phí vận hành từ $2.80 xuống $0.56 trên mỗi 1,000 hóa đơn.
+3. **Tăng tốc xử lý hơn 4.2 lần:** Độ trễ trung bình giảm từ 8,356ms (gọi LLM cho mọi tài liệu) xuống 1,970ms, đảm bảo trải nghiệm người dùng tối ưu.
+4. **An toàn kiểm toán & 100% Anomaly F1:** Toàn bộ phát hiện sai lệch (đơn giá vượt dung sai 2%, số lượng hóa đơn vượt phiếu nhập kho GRN) đều được phát hiện chính xác 100% nhờ Matching Engine 3 chiều tất định kết hợp với dữ liệu bóc tách.

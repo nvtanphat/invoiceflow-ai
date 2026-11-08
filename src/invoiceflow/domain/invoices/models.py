@@ -19,6 +19,7 @@ class InvoiceStatus(str, Enum):
 
 class VerificationStatus(str, Enum):
     NOT_CHECKED = "not_checked"
+    UNVERIFIED = "unverified"
     VERIFIED = "verified"
     FAILED = "failed"
     UNKNOWN = "unknown"

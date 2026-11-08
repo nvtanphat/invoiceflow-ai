@@ -69,12 +69,12 @@ flowchart TD
 
 | Pipeline Baseline | Header Exact Match | Line Items F1 | Anomaly Detection F1 | Độ trễ trung bình | Chi phí / 1.000 Hóa đơn |
 |---|---|---|---|---|---|
-| **B0: XML Direct** | 40.0% | 40.0% | 80.0% | 12.0 ms | $0.00 |
-| **B1: Digital PDF Heuristics** | 80.0% | 80.0% | 100.0% | 65.0 ms | $0.00 |
-| **B2: Pure Multimodal LLM (Gemini 2.5)** | 100.0% | 100.0% | 100.0% | 1,850.0 ms | $2.80 |
-| **B3: InvoiceFlow AI Hybrid Pipeline** | **100.0%** | **100.0%** | **100.0%** | **358.6 ms** | **$0.56** |
+| **B0: XML Direct** | 40.0% | 40.0% | 60.0% | 0.9 ms | $0.00 |
+| **B1: Digital PDF Heuristics** | 72.7% | 80.0% | 60.0% | 3.5 ms | $0.00 |
+| **B2: Pure Multimodal LLM (gpt-6.1-sol)** | 89.1% | 100.0% | 60.0% | 8,356.1 ms | $2.80 |
+| **B3: InvoiceFlow AI Hybrid Pipeline** | **89.1%** | **100.0%** | **100.0%** | **1,970.6 ms** | **$0.56** |
 
-> **Hiệu quả thực tế của B3:** Giảm **80.0% chi phí gọi LLM** ($0.56 vs $2.80) và tăng tốc **hơn 5 lần** (358ms vs 1,850ms) trong khi duy trì độ chính xác hoàn hảo 100%.
+> **Hiệu quả thực tế của B3:** Giảm **80.0% chi phí gọi LLM** ($0.56 vs $2.80) và tăng tốc **hơn 4.2 lần** (1,970ms vs 8,356ms) trong khi đạt **100.0% Anomaly F1** và **100.0% Line Items F1** trên dữ liệu kiểm thử thực tế.
 
 ---
 

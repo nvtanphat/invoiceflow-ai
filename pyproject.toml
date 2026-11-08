@@ -27,6 +27,15 @@ dependencies = [
     "httpx>=0.28.0",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.24.0",
+    "pytest-cov>=6.0.0",
+    "ruff>=0.8.0",
+    "mypy>=1.13.0",
+]
+
 [dependency-groups]
 dev = [
     "pytest>=8.3.0",
@@ -46,7 +55,7 @@ packages = ["src/invoiceflow"]
 [tool.pytest.ini_options]
 asyncio_mode = "strict"
 asyncio_default_fixture_loop_scope = "function"
-pythonpath = ["src"]
+pythonpath = ["src", "."]
 testpaths = ["tests"]
 
 [tool.ruff]

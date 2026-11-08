@@ -81,7 +81,7 @@ def test_secure_xml_parser_parses_vn_invoice():
     assert inv.amount_payable == Decimal("11000000.0000")
     assert len(inv.lines) == 1
     assert inv.lines[0].line_amount == Decimal("10000000.0000")
-    assert inv.signature_status.value in ("verified", "unknown", "not_checked")
+    assert inv.signature_status.value in ("unverified", "unknown", "not_checked")
 
 
 def test_secure_xml_parser_rejects_xxe_payload():

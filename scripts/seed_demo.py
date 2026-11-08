@@ -25,10 +25,7 @@ from invoiceflow.infrastructure.database.models import (
     UserORM,
 )
 from invoiceflow.infrastructure.database.session import DatabaseSessionManager
-
-
-def hash_pw(password: str) -> str:
-    return hashlib.sha256(password.encode("utf-8")).hexdigest()
+from invoiceflow.infrastructure.security.password import hash_password
 
 
 async def seed_all(db_manager: DatabaseSessionManager) -> None:
@@ -48,7 +45,7 @@ async def seed_all(db_manager: DatabaseSessionManager) -> None:
             session.add(t2)
 
         # 2. Users & Memberships
-        default_pwd_hash = hash_pw("DemoPassword@123")
+        default_pwd_hash = hash_password("DemoPassword@123")
         users_meta = [
             ("user-admin-01", "admin@invoiceflow.vn", "Hệ thống Admin", "admin", t1_id),
             ("user-accountant-02", "accountant@invoiceflow.vn", "Kế toán viên Nguyễn Văn An", "accountant", t1_id),

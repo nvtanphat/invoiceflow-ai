@@ -41,6 +41,7 @@ class LLMProviderPort(ABC):
     async def extract_invoice_data(
         self,
         document_text: str,
+        image_bytes: Optional[bytes] = None,
         budget_usd: float = 0.05,
         request_id: Optional[str] = None,
     ) -> ExtractionResult:

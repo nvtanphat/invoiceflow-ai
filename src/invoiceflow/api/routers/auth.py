@@ -1,11 +1,11 @@
-import hashlib
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, EmailStr
+from pydantic import EmailStr, BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from invoiceflow.api.dependencies import create_access_token, get_db
 from invoiceflow.config import Settings, get_settings
 from invoiceflow.infrastructure.database.models import MembershipORM, UserORM
+from invoiceflow.infrastructure.security.password import verify_password
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -39,15 +39,12 @@ async def login(
             detail="Incorrect email or password.",
         )
 
-    # Verification: check password against sha256 or exact for demo
-    hashed_input = hashlib.sha256(req.password.encode()).hexdigest()
-    if user.hashed_password not in (hashed_input, req.password):
+    if not verify_password(req.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password.",
         )
 
-    # Fetch user tenant membership
     m_stmt = select(MembershipORM).where(MembershipORM.user_id == user.id)
     m_res = await session.execute(m_stmt)
     membership = m_res.scalar_one_or_none()

@@ -21,8 +21,10 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
-lib64/
+/lib/
+/lib64/
+!apps/web/src/lib/
+.agents/skills/vercel-optimize/lib/
 parts/
 sdist/
 var/
