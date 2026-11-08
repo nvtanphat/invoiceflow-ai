@@ -61,7 +61,9 @@ class DocumentRepository:
         await self._session.flush()
         return doc
 
-    async def get_document(self, tenant_id: UUID | str, document_id: UUID | str) -> Optional[DocumentORM]:
+    async def get_document(
+        self, tenant_id: UUID | str, document_id: UUID | str
+    ) -> Optional[DocumentORM]:
         stmt = select(DocumentORM).where(
             DocumentORM.tenant_id == str(tenant_id),
             DocumentORM.id == str(document_id),
@@ -82,8 +84,11 @@ class InvoiceRepository:
     def __init__(self, session: AsyncSession):
         self._session = session
 
-    async def get_invoice_by_document(self, tenant_id: UUID | str, document_id: UUID | str) -> Optional[InvoiceORM]:
+    async def get_invoice_by_document(
+        self, tenant_id: UUID | str, document_id: UUID | str
+    ) -> Optional[InvoiceORM]:
         from sqlalchemy.orm import selectinload
+
         stmt = (
             select(InvoiceORM)
             .options(selectinload(InvoiceORM.lines), selectinload(InvoiceORM.evidence))
@@ -141,7 +146,9 @@ class InvoiceRepository:
                 tax_rate=line.tax_rate,
                 tax=line.tax,
                 line_amount=line.line_amount,
-                po_line_id=str(line.purchase_order_line_id) if line.purchase_order_line_id else None,
+                po_line_id=str(line.purchase_order_line_id)
+                if line.purchase_order_line_id
+                else None,
             )
             self._session.add(line_orm)
 
@@ -163,8 +170,11 @@ class InvoiceRepository:
         await self._session.flush()
         return inv
 
-    async def get_invoice(self, tenant_id: UUID | str, invoice_id: UUID | str) -> Optional[InvoiceORM]:
+    async def get_invoice(
+        self, tenant_id: UUID | str, invoice_id: UUID | str
+    ) -> Optional[InvoiceORM]:
         from sqlalchemy.orm import selectinload
+
         stmt = (
             select(InvoiceORM)
             .options(selectinload(InvoiceORM.lines), selectinload(InvoiceORM.evidence))

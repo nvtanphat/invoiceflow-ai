@@ -42,6 +42,8 @@ class DigitalInvoiceExtraction(BaseModel):
 
     @property
     def is_confident(self) -> bool:
+        if bool(self.issues) or any(bool(line.issues) for line in self.lines):
+            return False
         return (
             bool(self.supplier_tax_id)
             and bool(self.invoice_number)
@@ -67,13 +69,17 @@ class DigitalPDFParser:
         doc_issues: List[str] = []
 
         # 1. Invoice Series
-        m_series = re.search(r"(?:Ky hieu|Ký hiệu|Series)(?:\s*\([^)]*\))?:\s*([^\r\n]+)", text, re.IGNORECASE)
+        m_series = re.search(
+            r"(?:Ky hieu|Ký hiệu|Series)(?:\s*\([^)]*\))?:\s*([^\r\n]+)", text, re.IGNORECASE
+        )
         if m_series:
             data["invoice_series"] = m_series.group(1).strip()
             fields_found += 1
 
         # 2. Invoice Number (preserving leading zeros as string)
-        m_inv_no = re.search(r"(?:So|Số|Invoice No|No\.?)(?:\s*\([^)]*\))?:\s*([0-9]+)", text, re.IGNORECASE)
+        m_inv_no = re.search(
+            r"(?:So|Số|Invoice No|No\.?)(?:\s*\([^)]*\))?:\s*([0-9]+)", text, re.IGNORECASE
+        )
         if m_inv_no:
             data["invoice_number"] = m_inv_no.group(1).strip()
             fields_found += 1
@@ -93,19 +99,31 @@ class DigitalPDFParser:
             fields_found += 1
 
         # 4. Supplier Name
-        m_supp = re.search(r"(?:Don vi ban|Đơn vị bán|Supplier|Người bán)(?:\s*\([^)]*\))?:\s*([^\r\n]+)", text, re.IGNORECASE)
+        m_supp = re.search(
+            r"(?:Don vi ban|Đơn vị bán|Supplier|Người bán)(?:\s*\([^)]*\))?:\s*([^\r\n]+)",
+            text,
+            re.IGNORECASE,
+        )
         if m_supp:
             data["supplier_name"] = m_supp.group(1).strip()
             fields_found += 1
 
         # 5. Buyer Name
-        m_buyer = re.search(r"(?:Don vi mua|Đơn vị mua|Buyer|Người mua)(?:\s*\([^)]*\))?:\s*([^\r\n]+)", text, re.IGNORECASE)
+        m_buyer = re.search(
+            r"(?:Don vi mua|Đơn vị mua|Buyer|Người mua)(?:\s*\([^)]*\))?:\s*([^\r\n]+)",
+            text,
+            re.IGNORECASE,
+        )
         if m_buyer:
             data["buyer_name"] = m_buyer.group(1).strip()
             fields_found += 1
 
         # 6. Tax IDs (preserving leading zeros as string)
-        tax_ids = re.findall(r"(?:Ma so thue|Mã số thuế|Tax ID)(?:\s*\([^)]*\))?:\s*([0-9-]{10,14})", text, re.IGNORECASE)
+        tax_ids = re.findall(
+            r"(?:Ma so thue|Mã số thuế|Tax ID)(?:\s*\([^)]*\))?:\s*([0-9-]{10,14})",
+            text,
+            re.IGNORECASE,
+        )
         if len(tax_ids) >= 1:
             data["supplier_tax_id"] = tax_ids[0].strip()
             fields_found += 1
@@ -114,7 +132,11 @@ class DigitalPDFParser:
             fields_found += 1
 
         # 7. Monetary Totals
-        m_subtotal = re.search(r"(?:Cong tien hang|Cộng tiền hàng|Subtotal)(?:\s*\([^)]*\))?:\s*([0-9.,]+)", text, re.IGNORECASE)
+        m_subtotal = re.search(
+            r"(?:Cong tien hang|Cộng tiền hàng|Subtotal)(?:\s*\([^)]*\))?:\s*([0-9.,]+)",
+            text,
+            re.IGNORECASE,
+        )
         if m_subtotal:
             subtotal_val, subtotal_err = self._parse_decimal(m_subtotal.group(1))
             data["subtotal"] = subtotal_val
@@ -122,7 +144,11 @@ class DigitalPDFParser:
                 doc_issues.append(f"SUBTOTAL_{subtotal_err}")
             fields_found += 1
 
-        m_tax = re.search(r"(?:Tien thue GTGT|Tiền thuế GTGT|Tax Total)(?:\s*\([^)]*\))?:\s*([0-9.,]+)", text, re.IGNORECASE)
+        m_tax = re.search(
+            r"(?:Tien thue GTGT|Tiền thuế GTGT|Tax Total)(?:\s*\([^)]*\))?:\s*([0-9.,]+)",
+            text,
+            re.IGNORECASE,
+        )
         if m_tax:
             tax_val, tax_err = self._parse_decimal(m_tax.group(1))
             data["tax_total"] = tax_val
@@ -130,7 +156,11 @@ class DigitalPDFParser:
                 doc_issues.append(f"TAX_{tax_err}")
             fields_found += 1
 
-        m_total = re.search(r"(?:Tong cong|Tổng cộng|Total Amount)(?:\s*\([^)]*\))?:\s*([0-9.,]+)", text, re.IGNORECASE)
+        m_total = re.search(
+            r"(?:Tong cong|Tổng cộng|Total Amount)(?:\s*\([^)]*\))?:\s*([0-9.,]+)",
+            text,
+            re.IGNORECASE,
+        )
         if m_total:
             total_val, total_err = self._parse_decimal(m_total.group(1))
             data["amount_payable"] = total_val
@@ -148,7 +178,9 @@ class DigitalPDFParser:
         for idx, m_line in enumerate(pattern_lines.finditer(text), start=1):
             desc = m_line.group(1).strip()
             # Ignore table column header matches
-            if any(h in desc.lower() for h in ["hang hoa", "dich vu", "description", "stt", "item"]):
+            if any(
+                h in desc.lower() for h in ["hang hoa", "dich vu", "description", "stt", "item"]
+            ):
                 continue
             sku = m_line.group(2).strip() if m_line.group(2) else None
             raw_qty = m_line.group(3).strip()

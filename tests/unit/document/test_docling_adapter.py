@@ -6,7 +6,10 @@ from invoiceflow.infrastructure.document.docling_adapter import DoclingAdapter
 
 
 def test_docling_adapter_extracts_canonical_document_without_fallback():
-    pytest.importorskip("docling", reason="Docling is an optional dependency (install with pip install '.[documents]')")
+    pytest.importorskip(
+        "docling",
+        reason="Docling is an optional dependency (install with pip install '.[documents]')",
+    )
     fixture_path = Path("benchmarks/fixtures/documents/case_02.pdf")
     if not fixture_path.exists():
         pytest.skip("Fixture case_02.pdf not found")
@@ -77,3 +80,23 @@ def test_docling_adapter_converter_cache_separation():
     assert c_no_ocr is not c_ocr
     assert False in adapter._converters
     assert True in adapter._converters
+
+
+def test_docling_adapter_empty_document_fallback():
+    import fitz
+
+    # Create empty 1-page PDF
+    doc = fitz.open()
+    doc.new_page()
+    blank_bytes = doc.write()
+    doc.close()
+
+    adapter = DoclingAdapter()
+    canonical = adapter.extract_canonical(
+        tenant_id=uuid.uuid4(),
+        document_id=uuid.uuid4(),
+        pdf_bytes=blank_bytes,
+        do_ocr=False,
+    )
+    assert isinstance(canonical, CanonicalDocument)
+    assert "fallback_from" in canonical.metadata

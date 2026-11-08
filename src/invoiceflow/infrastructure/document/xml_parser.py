@@ -65,7 +65,9 @@ class SecureXMLParser:
         t_toan = self._find_element(root, ["DLHDon", "NDHDon", "TToan"], ["TToan"])
         subtotal = self._parse_decimal(self._get_text(t_toan, ["TgTCThue", "TongTienChuaThue"]))
         tax_total = self._parse_decimal(self._get_text(t_toan, ["TgTThue", "TongTienThue"]))
-        amount_payable = self._parse_decimal(self._get_text(t_toan, ["TgTTTBSo", "TongTienThanhToan"]))
+        amount_payable = self._parse_decimal(
+            self._get_text(t_toan, ["TgTTTBSo", "TongTienThanhToan"])
+        )
 
         # Line items
         lines: list[InvoiceLine] = []
@@ -76,10 +78,14 @@ class SecureXMLParser:
                 if child.tag.endswith("HHDVu") or child.tag.endswith("Item"):
                     desc = self._get_text(child, ["THHDVu", "TenHHDVu"]) or f"Item {line_no}"
                     unit = self._get_text(child, ["DVTinh"])
-                    qty = self._parse_decimal(self._get_text(child, ["SLuong", "SoLuong"])) or Decimal("1.0000")
+                    qty = self._parse_decimal(
+                        self._get_text(child, ["SLuong", "SoLuong"])
+                    ) or Decimal("1.0000")
                     price = self._parse_decimal(self._get_text(child, ["DGia", "DonGia"]))
                     discount = self._parse_decimal(self._get_text(child, ["STCKhau", "TienCK"]))
-                    line_amount = self._parse_decimal(self._get_text(child, ["ThTien", "ThanhTien"]))
+                    line_amount = self._parse_decimal(
+                        self._get_text(child, ["ThTien", "ThanhTien"])
+                    )
 
                     tax_rate_str = self._get_text(child, ["TSuat", "ThueSuat"])
                     tax_rate = self._parse_tax_rate(tax_rate_str)
@@ -95,14 +101,20 @@ class SecureXMLParser:
                             discount=discount,
                             tax_rate=tax_rate,
                             tax=tax,
-                            line_amount=line_amount if line_amount > Decimal("0") else (qty * price - discount),
+                            line_amount=line_amount
+                            if line_amount > Decimal("0")
+                            else (qty * price - discount),
                         )
                     )
                     line_no += 1
 
         # Check digital signature presence (marked unverified until cryptographic certificate check)
         signature_el = self._find_element(root, ["DSCKS"], ["Signature"])
-        sig_status = VerificationStatus.UNVERIFIED if signature_el is not None else VerificationStatus.NOT_CHECKED
+        sig_status = (
+            VerificationStatus.UNVERIFIED
+            if signature_el is not None
+            else VerificationStatus.NOT_CHECKED
+        )
 
         evidence = [
             FieldEvidence(

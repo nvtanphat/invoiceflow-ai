@@ -28,6 +28,7 @@ class OpenAIAdapter(LLMProviderPort):
         if api_key and api_key != "mock-key":
             try:
                 from openai import AsyncOpenAI
+
                 self._client = AsyncOpenAI(
                     api_key=api_key,
                     base_url=base_url,
@@ -62,15 +63,20 @@ class OpenAIAdapter(LLMProviderPort):
             raise RuntimeError("OpenAI/ModelAPI client is not configured or missing API key.")
 
         import base64
-        user_msg: list[dict[str, Any]] = [{"type": "text", "text": f"DOCUMENT CONTENT TO EXTRACT:\n{document_text}\n"}]
+
+        user_msg: list[dict[str, Any]] = [
+            {"type": "text", "text": f"DOCUMENT CONTENT TO EXTRACT:\n{document_text}\n"}
+        ]
         if image_bytes:
             imgs = image_bytes if isinstance(image_bytes, list) else [image_bytes]
             for img in imgs:
                 b64_img = base64.b64encode(img).decode("utf-8")
-                user_msg.append({
-                    "type": "image_url",
-                    "image_url": {"url": f"data:image/png;base64,{b64_img}"},
-                })
+                user_msg.append(
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": f"data:image/png;base64,{b64_img}"},
+                    }
+                )
 
         messages = [
             {"role": "system", "content": INVOICE_EXTRACTION_SYSTEM_PROMPT},
@@ -116,10 +122,16 @@ class OpenAIAdapter(LLMProviderPort):
                     description=desc_val,
                     unit=raw_line.get("unit"),
                     qty=self._parse_decimal(raw_line.get("qty") or raw_line.get("quantity")),
-                    unit_price=self._parse_decimal(raw_line.get("unit_price") or raw_line.get("price")),
+                    unit_price=self._parse_decimal(
+                        raw_line.get("unit_price") or raw_line.get("price")
+                    ),
                     discount=self._parse_decimal(raw_line.get("discount")),
-                    tax_rate=self._parse_decimal(raw_line.get("tax_rate")) if raw_line.get("tax_rate") else None,
-                    line_amount=self._parse_decimal(raw_line.get("line_amount") or raw_line.get("amount")),
+                    tax_rate=self._parse_decimal(raw_line.get("tax_rate"))
+                    if raw_line.get("tax_rate")
+                    else None,
+                    line_amount=self._parse_decimal(
+                        raw_line.get("line_amount") or raw_line.get("amount")
+                    ),
                 )
             )
 
@@ -128,7 +140,9 @@ class OpenAIAdapter(LLMProviderPort):
         b_tax = data.get("buyer_tax_id") or data.get("customer_tax_id")
         b_name = data.get("buyer_name") or data.get("customer_name")
         inv_no = data.get("invoice_number") or data.get("invoice_no")
-        inv_series = data.get("invoice_series") or data.get("series") or data.get("invoice_template")
+        inv_series = (
+            data.get("invoice_series") or data.get("series") or data.get("invoice_template")
+        )
         i_date = data.get("issue_date") or data.get("invoice_date") or data.get("date")
 
         usage = data.get("_usage", {})
@@ -150,7 +164,9 @@ class OpenAIAdapter(LLMProviderPort):
             currency=data.get("currency", "VND"),
             subtotal=self._parse_decimal(data.get("subtotal") or data.get("pre_tax_amount")),
             tax_total=self._parse_decimal(data.get("tax_total") or data.get("vat_amount")),
-            amount_payable=self._parse_decimal(data.get("amount_payable") or data.get("total_amount")),
+            amount_payable=self._parse_decimal(
+                data.get("amount_payable") or data.get("total_amount")
+            ),
             line_items=lines,
             raw_response=data,
             prompt_version=PROMPT_VERSION,

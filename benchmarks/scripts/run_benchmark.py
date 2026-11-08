@@ -54,9 +54,6 @@ def get_fixture_file(case_id: str) -> Path:
     return mapping[case_id]
 
 
-
-
-
 def get_demo_po_and_grn(supplier_tax_id: Optional[str]):
     tenant_id = uuid.uuid4()
     if supplier_tax_id == "0101234567":
@@ -220,14 +217,16 @@ def run_b0_xml_direct(case: Dict[str, Any], file_path: Path) -> Dict[str, Any]:
             for line in inv.lines:
                 m_sku = re.search(r"\[([A-Z0-9_-]+)\]", line.description)
                 sku_val = line.sku_ref or (m_sku.group(1) if m_sku else "")
-                lines.append({
-                    "sku": sku_val,
-                    "description": line.description,
-                    "qty": str(line.qty),
-                    "unit_price": str(line.unit_price),
-                    "tax_rate": str(line.tax_rate) if line.tax_rate else None,
-                    "line_amount": str(line.line_amount),
-                })
+                lines.append(
+                    {
+                        "sku": sku_val,
+                        "description": line.description,
+                        "qty": str(line.qty),
+                        "unit_price": str(line.unit_price),
+                        "tax_rate": str(line.tax_rate) if line.tax_rate else None,
+                        "line_amount": str(line.line_amount),
+                    }
+                )
         except XMLParsingError:
             pass
 
@@ -341,14 +340,16 @@ async def run_b2_pure_vision_llm(
         for item in ext_res.line_items:
             m_sku = re.search(r"\[([A-Z0-9_-]+)\]", item.description)
             sku_val = item.sku or (m_sku.group(1) if m_sku else "")
-            lines.append({
-                "sku": sku_val,
-                "description": item.description,
-                "qty": str(item.qty),
-                "unit_price": str(item.unit_price),
-                "tax_rate": str(item.tax_rate) if item.tax_rate else None,
-                "line_amount": str(item.line_amount),
-            })
+            lines.append(
+                {
+                    "sku": sku_val,
+                    "description": item.description,
+                    "qty": str(item.qty),
+                    "unit_price": str(item.unit_price),
+                    "tax_rate": str(item.tax_rate) if item.tax_rate else None,
+                    "line_amount": str(item.line_amount),
+                }
+            )
     except Exception:
         # Fallback to empty if LLM call fails
         pass
@@ -514,7 +515,14 @@ async def run_benchmark_async() -> Dict[str, Any]:
         pred = run_b0_xml_direct(c, p)
         ev = evaluate_prediction(c, pred)
         b0_scores.append(ev)
-        all_predictions.append({"case_id": c["case_id"], "baseline": "B0_XML_DIRECT", "prediction": pred, "evaluation": ev})
+        all_predictions.append(
+            {
+                "case_id": c["case_id"],
+                "baseline": "B0_XML_DIRECT",
+                "prediction": pred,
+                "evaluation": ev,
+            }
+        )
 
     # Run B1
     print("[*] Running Baseline B1: Digital PDF Heuristics...", flush=True)
@@ -524,10 +532,19 @@ async def run_benchmark_async() -> Dict[str, Any]:
         pred = run_b1_digital_heuristics(c, p)
         ev = evaluate_prediction(c, pred)
         b1_scores.append(ev)
-        all_predictions.append({"case_id": c["case_id"], "baseline": "B1_DIGITAL_HEURISTICS", "prediction": pred, "evaluation": ev})
+        all_predictions.append(
+            {
+                "case_id": c["case_id"],
+                "baseline": "B1_DIGITAL_HEURISTICS",
+                "prediction": pred,
+                "evaluation": ev,
+            }
+        )
 
     # Run B2
-    mode_str = f"Live AI via {settings.OPENAI_MODEL_ID}" if has_api_key else "Offline CI Fallback (No Key)"
+    mode_str = (
+        f"Live AI via {settings.OPENAI_MODEL_ID}" if has_api_key else "Offline CI Fallback (No Key)"
+    )
     print(f"[*] Running Baseline B2: Pure Vision LLM ({mode_str})...", flush=True)
     b2_scores = []
     for c in cases:
@@ -535,17 +552,34 @@ async def run_benchmark_async() -> Dict[str, Any]:
         pred = await run_b2_pure_vision_llm(c, p, adapter)
         ev = evaluate_prediction(c, pred)
         b2_scores.append(ev)
-        all_predictions.append({"case_id": c["case_id"], "baseline": "B2_PURE_VISION_LLM", "prediction": pred, "evaluation": ev})
+        all_predictions.append(
+            {
+                "case_id": c["case_id"],
+                "baseline": "B2_PURE_VISION_LLM",
+                "prediction": pred,
+                "evaluation": ev,
+            }
+        )
 
     # Run B3
-    print("[*] Running Baseline B3: InvoiceFlow AI Hybrid Routing (Docling + Rules + Vision Fallback + 3-Way Match)...", flush=True)
+    print(
+        "[*] Running Baseline B3: InvoiceFlow AI Hybrid Routing (Docling + Rules + Vision Fallback + 3-Way Match)...",
+        flush=True,
+    )
     b3_scores = []
     for c in cases:
         p = get_fixture_file(c["case_id"])
         pred = await run_b3_invoiceflow_hybrid(c, p, adapter)
         ev = evaluate_prediction(c, pred)
         b3_scores.append(ev)
-        all_predictions.append({"case_id": c["case_id"], "baseline": "B3_INVOICEFLOW_HYBRID", "prediction": pred, "evaluation": ev})
+        all_predictions.append(
+            {
+                "case_id": c["case_id"],
+                "baseline": "B3_INVOICEFLOW_HYBRID",
+                "prediction": pred,
+                "evaluation": ev,
+            }
+        )
 
     baseline_results = {
         "B0_XML_DIRECT": b0_scores,
@@ -572,14 +606,16 @@ async def run_benchmark_async() -> Dict[str, Any]:
             "cost_per_1000_invoices_usd": round(cost_per_1k, 3),
         }
 
-        summary_rows.append({
-            "Baseline": b_id,
-            "Header Exact Match (%)": f"{avg_header_em * 100:.1f}%",
-            "Line Items F1 (%)": f"{avg_lines_f1 * 100:.1f}%",
-            "Anomaly F1 (%)": f"{avg_anomaly_f1 * 100:.1f}%",
-            "Avg Latency (ms)": f"{avg_latency:.1f}",
-            "Cost / 1K Invoices ($)": f"${cost_per_1k:.2f}",
-        })
+        summary_rows.append(
+            {
+                "Baseline": b_id,
+                "Header Exact Match (%)": f"{avg_header_em * 100:.1f}%",
+                "Line Items F1 (%)": f"{avg_lines_f1 * 100:.1f}%",
+                "Anomaly F1 (%)": f"{avg_anomaly_f1 * 100:.1f}%",
+                "Avg Latency (ms)": f"{avg_latency:.1f}",
+                "Cost / 1K Invoices ($)": f"${cost_per_1k:.2f}",
+            }
+        )
 
     report_file = results_dir / "benchmark_report.json"
     with open(report_file, "w", encoding="utf-8") as f:
@@ -607,7 +643,9 @@ def main() -> None:
 
     print(f"\nEvaluated on {report['total_cases']} real document fixtures.")
     print("-" * 70)
-    print(f"{'Baseline':<25} | {'Header EM':<10} | {'Lines F1':<10} | {'Latency':<10} | {'Cost/1k'}")
+    print(
+        f"{'Baseline':<25} | {'Header EM':<10} | {'Lines F1':<10} | {'Latency':<10} | {'Cost/1k'}"
+    )
     print("-" * 70)
     for b_id, stats in report["baselines"].items():
         em = f"{stats['header_exact_match'] * 100:.1f}%"

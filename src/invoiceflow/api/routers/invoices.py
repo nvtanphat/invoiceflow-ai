@@ -97,7 +97,9 @@ async def get_invoice(
 
     # Fetch lines
     lines_res = await session.execute(
-        select(InvoiceLineORM).where(InvoiceLineORM.invoice_id == invoice_id).order_by(InvoiceLineORM.line_no)
+        select(InvoiceLineORM)
+        .where(InvoiceLineORM.invoice_id == invoice_id)
+        .order_by(InvoiceLineORM.line_no)
     )
     lines = lines_res.scalars().all()
 
@@ -161,7 +163,9 @@ async def get_invoice(
                 "bbox_json": e.bbox_json or "",
                 "raw_value": e.raw_value or "",
                 "normalized_value": e.normalized_value or "",
-                "confidence": float(e.confidence) if getattr(e, "confidence", None) is not None else 1.0,
+                "confidence": float(e.confidence)
+                if getattr(e, "confidence", None) is not None
+                else 1.0,
             }
             for e in evidence
         ],
@@ -185,7 +189,9 @@ async def review_invoice_unified(
     try:
         expected_revision = int(if_match.strip('"'))
     except ValueError:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid If-Match header.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid If-Match header."
+        )
 
     review_service = ReviewService(session)
     try:
@@ -195,7 +201,7 @@ async def review_invoice_unified(
                 invoice_id=invoice_id,
                 expected_revision=expected_revision,
                 actor_id=ctx.user_id,
-                notes=req.notes or req.reason,
+                notes=req.notes or req.reason or "Phê duyệt bởi kiểm soát viên",
             )
         elif req.action == "reject":
             updated = await review_service.reject_invoice(
@@ -245,7 +251,9 @@ async def patch_invoice(
     try:
         expected_revision = int(if_match.strip('"'))
     except ValueError:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid If-Match header.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid If-Match header."
+        )
 
     review_service = ReviewService(session)
     try:

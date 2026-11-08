@@ -1,4 +1,5 @@
 import base64
+import copy
 from datetime import datetime, timedelta, timezone
 import hashlib
 from typing import Optional
@@ -15,11 +16,13 @@ from invoiceflow.infrastructure.document.signature_verifier import XMLSignatureV
 
 def _generate_ca_and_cert(expired: bool = False, key_usage: Optional[x509.KeyUsage] = None):
     ca_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-    ca_name = x509.Name([
-        x509.NameAttribute(NameOID.COUNTRY_NAME, "VN"),
-        x509.NameAttribute(NameOID.ORGANIZATION_NAME, "Root CA Quoc Gia"),
-        x509.NameAttribute(NameOID.COMMON_NAME, "Vietnam National Root CA"),
-    ])
+    ca_name = x509.Name(
+        [
+            x509.NameAttribute(NameOID.COUNTRY_NAME, "VN"),
+            x509.NameAttribute(NameOID.ORGANIZATION_NAME, "Root CA Quoc Gia"),
+            x509.NameAttribute(NameOID.COMMON_NAME, "Vietnam National Root CA"),
+        ]
+    )
     now = datetime.now(timezone.utc)
     ca_cert = (
         x509.CertificateBuilder()
@@ -34,11 +37,13 @@ def _generate_ca_and_cert(expired: bool = False, key_usage: Optional[x509.KeyUsa
     )
 
     cert_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-    cert_subject = x509.Name([
-        x509.NameAttribute(NameOID.COUNTRY_NAME, "VN"),
-        x509.NameAttribute(NameOID.ORGANIZATION_NAME, "Cong ty Co phan Thuong mai Alpha VN"),
-        x509.NameAttribute(NameOID.COMMON_NAME, "MST:0109998888"),
-    ])
+    cert_subject = x509.Name(
+        [
+            x509.NameAttribute(NameOID.COUNTRY_NAME, "VN"),
+            x509.NameAttribute(NameOID.ORGANIZATION_NAME, "Cong ty Co phan Thuong mai Alpha VN"),
+            x509.NameAttribute(NameOID.COMMON_NAME, "MST:0109998888"),
+        ]
+    )
 
     if expired:
         not_before = now - timedelta(days=60)
@@ -133,16 +138,28 @@ def _build_signed_xml(
 
     sig_el = etree.SubElement(root, "{http://www.w3.org/2000/09/xmldsig#}Signature")
     si_el = etree.SubElement(sig_el, "{http://www.w3.org/2000/09/xmldsig#}SignedInfo")
-    etree.SubElement(si_el, "{http://www.w3.org/2000/09/xmldsig#}CanonicalizationMethod", Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315")
-    etree.SubElement(si_el, "{http://www.w3.org/2000/09/xmldsig#}SignatureMethod", Algorithm=sig_algo_uri)
+    etree.SubElement(
+        si_el,
+        "{http://www.w3.org/2000/09/xmldsig#}CanonicalizationMethod",
+        Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315",
+    )
+    etree.SubElement(
+        si_el, "{http://www.w3.org/2000/09/xmldsig#}SignatureMethod", Algorithm=sig_algo_uri
+    )
     ref_el = etree.SubElement(si_el, "{http://www.w3.org/2000/09/xmldsig#}Reference", URI=ref_uri)
-    etree.SubElement(ref_el, "{http://www.w3.org/2000/09/xmldsig#}DigestMethod", Algorithm=digest_algo_uri)
+    etree.SubElement(
+        ref_el, "{http://www.w3.org/2000/09/xmldsig#}DigestMethod", Algorithm=digest_algo_uri
+    )
     dv_el = etree.SubElement(ref_el, "{http://www.w3.org/2000/09/xmldsig#}DigestValue")
     dv_el.text = digest_val
 
     if second_reference:
-        ref_el2 = etree.SubElement(si_el, "{http://www.w3.org/2000/09/xmldsig#}Reference", URI=ref_uri)
-        etree.SubElement(ref_el2, "{http://www.w3.org/2000/09/xmldsig#}DigestMethod", Algorithm=digest_algo_uri)
+        ref_el2 = etree.SubElement(
+            si_el, "{http://www.w3.org/2000/09/xmldsig#}Reference", URI=ref_uri
+        )
+        etree.SubElement(
+            ref_el2, "{http://www.w3.org/2000/09/xmldsig#}DigestMethod", Algorithm=digest_algo_uri
+        )
         dv_el2 = etree.SubElement(ref_el2, "{http://www.w3.org/2000/09/xmldsig#}DigestValue")
         dv_el2.text = "tampered_digest_value_2" if tamper_second_reference else digest_val
 
@@ -362,3 +379,38 @@ def test_key_usage_missing_digital_signature_rejected():
     assert res.status == VerificationStatus.FAILED
     assert not res.is_valid
     assert "KeyUsage" in (res.details or "")
+
+
+def test_multi_signature_one_tampered_fails_overall():
+    ca_cert, leaf_cert, cert_key = _generate_ca_and_cert()
+    xml_bytes_1 = _build_signed_xml(leaf_cert, cert_key)
+    # Parse and append a second, tampered signature block
+    root = etree.fromstring(xml_bytes_1)
+    sig_1 = root.find(".//{http://www.w3.org/2000/09/xmldsig#}Signature")
+    sig_2 = copy.deepcopy(sig_1)
+    # Tamper the second signature's SignatureValue
+    sig_val_2 = sig_2.find(".//{http://www.w3.org/2000/09/xmldsig#}SignatureValue")
+    sig_val_2.text = "Zm9yZ2VkX3NpZ25hdHVyZQ=="
+    root.append(sig_2)
+    tampered_multi_sig_xml = etree.tostring(root)
+
+    verifier = XMLSignatureVerifier(trusted_ca_certs=[ca_cert])
+    res = verifier.verify_xml_signature(tampered_multi_sig_xml)
+    # Even though signature 1 was valid, signature 2 is tampered, so overall must be FAILED
+    assert res.status == VerificationStatus.FAILED
+    assert not res.is_valid
+
+
+def test_xpath_injection_in_reference_id_rejected():
+    ca_cert, leaf_cert, cert_key = _generate_ca_and_cert()
+    xml_bytes = _build_signed_xml(leaf_cert, cert_key)
+    root = etree.fromstring(xml_bytes)
+    ref = root.find(".//{http://www.w3.org/2000/09/xmldsig#}Reference")
+    ref.set("URI", "#' or '1'='1")
+    injection_xml = etree.tostring(root)
+
+    verifier = XMLSignatureVerifier(trusted_ca_certs=[ca_cert])
+    res = verifier.verify_xml_signature(injection_xml)
+    assert res.status == VerificationStatus.FAILED
+    assert not res.is_valid
+    assert "Bảo mật vi phạm" in (res.details or "")

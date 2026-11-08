@@ -1,4 +1,5 @@
 from datetime import date
+from decimal import Decimal
 import json
 import logging
 from typing import Optional
@@ -19,7 +20,10 @@ from invoiceflow.infrastructure.document.digital_pdf_parser import DigitalPDFPar
 from invoiceflow.infrastructure.document.docling_adapter import DoclingAdapter
 from invoiceflow.infrastructure.document.layout_extractor import LayoutExtractor
 from invoiceflow.infrastructure.document.pdf_inspector import PDFInspector
-from invoiceflow.infrastructure.document.signature_verifier import SignatureVerifierPort, XMLSignatureVerifier
+from invoiceflow.infrastructure.document.signature_verifier import (
+    SignatureVerifierPort,
+    XMLSignatureVerifier,
+)
 from invoiceflow.infrastructure.document.xml_parser import SecureXMLParser
 from invoiceflow.infrastructure.llm.provider import LLMProviderPort
 from invoiceflow.infrastructure.storage.service import StoragePort
@@ -45,7 +49,9 @@ class JobCoordinator:
         self._pdf_inspector = pdf_inspector
         self._layout_extractor = layout_extractor
         self._llm_adapter = llm_adapter
-        self._docling_adapter = docling_adapter or DoclingAdapter(fallback_extractor=layout_extractor)
+        self._docling_adapter = docling_adapter or DoclingAdapter(
+            fallback_extractor=layout_extractor
+        )
         self._signature_verifier = signature_verifier or XMLSignatureVerifier()
         self._router = DocumentRouter()
         self._evidence_mapper = EvidenceMapper()
@@ -149,19 +155,21 @@ class JobCoordinator:
             await inv_repo.create_invoice(invoice_aggregate)
 
             # Record audit provenance for XMLDSig verification
-            audit_details = json.dumps({
-                "signature_status": sig_res.status.value,
-                "is_valid": sig_res.is_valid,
-                "signer_name": sig_res.signer_name,
-                "issuer": sig_res.issuer,
-                "certificate_serial": sig_res.certificate_serial,
-                "valid_from": sig_res.valid_from.isoformat() if sig_res.valid_from else None,
-                "valid_to": sig_res.valid_to.isoformat() if sig_res.valid_to else None,
-                "details": sig_res.details,
-            })
+            audit_details = json.dumps(
+                {
+                    "signature_status": sig_res.status.value,
+                    "is_valid": sig_res.is_valid,
+                    "signer_name": sig_res.signer_name,
+                    "issuer": sig_res.issuer,
+                    "certificate_serial": sig_res.certificate_serial,
+                    "valid_from": sig_res.valid_from.isoformat() if sig_res.valid_from else None,
+                    "valid_to": sig_res.valid_to.isoformat() if sig_res.valid_to else None,
+                    "details": sig_res.details,
+                }
+            )
             audit = AuditLogORM(
                 tenant_id=doc.tenant_id,
-                action="XMLDSIG_VERIFIED",
+                action="XMLDSIG_CHECKED",
                 aggregate_type="INVOICE",
                 aggregate_id=str(invoice_aggregate.id),
                 details_json=audit_details,
@@ -191,7 +199,10 @@ class JobCoordinator:
             tenant_id=doc.tenant_id,
             document_id=doc.id,
             pdf_bytes=content,
-            do_ocr=(route == ProcessingRoute.VISION_FALLBACK or inspection.classification == "SCANNED_IMAGE"),
+            do_ocr=(
+                route == ProcessingRoute.VISION_FALLBACK
+                or inspection.classification == "SCANNED_IMAGE"
+            ),
         )
 
         # Extraction phase
@@ -206,8 +217,14 @@ class JobCoordinator:
         digital_parser = DigitalPDFParser()
         digital_res = digital_parser.parse(full_text)
 
-        # 1. Deterministic Fast Path: Digital PDF with high text confidence
-        if route == ProcessingRoute.PDF_DIGITAL and digital_res.is_confident:
+        # 1. Deterministic Extraction: Digital PDF with structured invoice data
+        can_use_digital = (
+            route == ProcessingRoute.PDF_DIGITAL
+            and bool(digital_res.supplier_tax_id)
+            and bool(digital_res.invoice_number)
+            and len(digital_res.lines) > 0
+        )
+        if can_use_digital:
             lines = [
                 InvoiceLine(
                     line_no=line.line_no,
@@ -219,6 +236,10 @@ class JobCoordinator:
                     discount=line.discount,
                     tax_rate=line.tax_rate,
                     line_amount=line.line_amount,
+                    raw_qty=line.raw_qty,
+                    raw_unit_price=line.raw_unit_price,
+                    raw_line_amount=line.raw_line_amount,
+                    issues=line.issues,
                 )
                 for line in digital_res.lines
             ]
@@ -240,35 +261,46 @@ class JobCoordinator:
                 buyer_name=digital_res.buyer_name,
                 invoice_number=digital_res.invoice_number,
                 invoice_series=digital_res.invoice_series,
-                issue_date=date.fromisoformat(digital_res.issue_date) if digital_res.issue_date else None,
+                issue_date=date.fromisoformat(digital_res.issue_date)
+                if digital_res.issue_date
+                else None,
                 currency=digital_res.currency,
                 subtotal=digital_res.subtotal,
                 tax_total=digital_res.tax_total,
                 amount_payable=digital_res.amount_payable,
                 lines=lines,
                 evidence=evidence,
+                parser_issues=digital_res.issues,
             )
         else:
             # 2. Vision Fallback Path: Scanned, mixed, or unconfident digital PDFs
+            from invoiceflow.config import get_settings
+
+            settings = get_settings()
+
             image_bytes_list: list[bytes] = []
             import fitz
+
             doc_pdf = fitz.open(stream=content, filetype="pdf")
-            max_pages = min(len(doc_pdf), 5)
+            max_pages = min(len(doc_pdf), getattr(settings, "DOCLING_MAX_PAGES", 20))
+            ocr_dpi = getattr(settings, "DOCLING_OCR_DPI", 150)
             for p_no in range(max_pages):
-                pix = doc_pdf.load_page(p_no).get_pixmap(dpi=150)
+                pix = doc_pdf.load_page(p_no).get_pixmap(dpi=ocr_dpi)
                 image_bytes_list.append(pix.tobytes("png"))
             doc_pdf.close()
 
             image_payload = (
-                image_bytes_list if len(image_bytes_list) > 1
+                image_bytes_list
+                if len(image_bytes_list) > 1
                 else (image_bytes_list[0] if image_bytes_list else None)
             )
 
             try:
+                budget = float(getattr(settings, "DOCLING_BUDGET_USD", 0.05))
                 llm_result = await self._llm_adapter.extract_invoice_data(
                     document_text=full_text,
                     image_bytes=image_payload,
-                    budget_usd=0.05,
+                    budget_usd=budget,
                 )
                 extracted_fields = {
                     "supplier_tax_id": llm_result.supplier_tax_id,
@@ -278,19 +310,28 @@ class JobCoordinator:
                 }
                 evidence = self._evidence_mapper.map_evidence(extracted_fields, canonical_doc)
 
-                lines = [
-                    InvoiceLine(
-                        line_no=line.line_no,
-                        description=line.description,
-                        unit=line.unit,
-                        qty=line.qty,
-                        unit_price=line.unit_price,
-                        discount=line.discount,
-                        tax_rate=line.tax_rate,
-                        line_amount=line.line_amount,
+                lines = []
+                for line in llm_result.line_items:
+                    line_issues: list[str] = []
+                    expected_amount = (line.qty * line.unit_price) - line.discount
+                    if abs(line.line_amount - expected_amount) >= Decimal("0.0100"):
+                        line_issues.append("ARITHMETIC_MISMATCH")
+                    lines.append(
+                        InvoiceLine(
+                            line_no=line.line_no,
+                            description=line.description,
+                            unit=line.unit,
+                            qty=line.qty,
+                            unit_price=line.unit_price,
+                            discount=line.discount,
+                            tax_rate=line.tax_rate,
+                            line_amount=line.line_amount,
+                            raw_qty=str(line.qty),
+                            raw_unit_price=str(line.unit_price),
+                            raw_line_amount=str(line.line_amount),
+                            issues=line_issues,
+                        )
                     )
-                    for line in llm_result.line_items
-                ]
 
                 invoice_aggregate = InvoiceAggregate(
                     tenant_id=doc.tenant_id,

@@ -6,7 +6,9 @@ import sys
 
 def run_cmd(cmd: list[str]) -> tuple[int, str]:
     try:
-        res = subprocess.run(cmd, capture_output=True, text=True, timeout=10, shell=sys.platform.startswith("win"))
+        res = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=10, shell=sys.platform.startswith("win")
+        )
         return res.returncode, (res.stdout + res.stderr).strip()
     except Exception as exc:
         return 1, str(exc)
@@ -16,11 +18,11 @@ def main() -> int:
     print("=" * 60)
     print(" InvoiceFlow AI - Development Environment Diagnostics")
     print("=" * 60)
-    
+
     # 1. Python version
     py_ver = sys.version.split()[0]
     major, minor = sys.version_info[:2]
-    py_ok = (major == 3 and minor >= 11)
+    py_ok = major == 3 and minor >= 11
     print(f"[*] Python: {py_ver} -> {'[OK]' if py_ok else '[FAIL: Needs >= 3.11]'}")
 
     # 2. Node.js
@@ -52,7 +54,9 @@ def main() -> int:
 
     # 5. Env file check
     env_exists = os.path.exists(".env")
-    print(f"[*] Environment config (.env): {'[OK]' if env_exists else '[WARN: .env missing, using defaults]'}")
+    print(
+        f"[*] Environment config (.env): {'[OK]' if env_exists else '[WARN: .env missing, using defaults]'}"
+    )
 
     print("\nEnvironment verification completed.")
     return 0

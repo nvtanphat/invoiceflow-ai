@@ -47,6 +47,7 @@ def create_app(
         # Startup: verify database connectivity fail-fast in production, init in dev/test
         if settings.APP_ENV == "production":
             from sqlalchemy import text
+
             async with manager.session() as session:
                 await session.execute(text("SELECT 1"))
         else:

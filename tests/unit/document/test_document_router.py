@@ -1,5 +1,3 @@
-
-
 def test_document_router_routes_xml_and_pdf():
     from invoiceflow.application.processing.document_router import DocumentRouter, ProcessingRoute
 

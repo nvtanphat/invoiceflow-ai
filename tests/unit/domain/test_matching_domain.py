@@ -8,7 +8,7 @@ def test_matching_tolerance_policy():
     policy = TolerancePolicy(
         tenant_id=uuid.uuid4(),
         price_tolerance_pct=Decimal("0.02"),  # 2%
-        qty_tolerance_pct=Decimal("0.00"),    # 0%
+        qty_tolerance_pct=Decimal("0.00"),  # 0%
         auto_approve_threshold=Decimal("5000000.0000"),
     )
     assert policy.is_price_within_tolerance(

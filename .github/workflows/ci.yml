@@ -31,6 +31,14 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev]" pytest pytest-asyncio pytest-cov ruff mypy email-validator openai argon2-cffi
 
+      - name: Run Ruff Lint Check
+        run: |
+          python -m ruff check src tests scripts benchmarks
+
+      - name: Run Ruff Format Check
+        run: |
+          python -m ruff format --check src tests scripts benchmarks
+
       - name: Run Pytest Test Suite
         env:
           JWT_SECRET: "ci-jwt-secret-very-secure-key-32-chars-long"
@@ -118,7 +126,6 @@ jobs:
   docling-pipeline:
     name: Real Docling OCR Integration
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4

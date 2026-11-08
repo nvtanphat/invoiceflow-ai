@@ -11,9 +11,7 @@ def normalize_discrepancy(code: str) -> str:
     return c
 
 
-def compute_field_exact_match(
-    gt: dict[str, Any], pred: dict[str, Any]
-) -> tuple[float, list[str]]:
+def compute_field_exact_match(gt: dict[str, Any], pred: dict[str, Any]) -> tuple[float, list[str]]:
     if not gt:
         return 1.0, []
     matches = 0
@@ -74,7 +72,11 @@ def compute_line_items_f1(
             pred_amount = pred_item.get("line_amount")
 
             # Check SKU or description containment
-            sku_match = (gt_sku and gt_sku in pred_sku) or (pred_sku and pred_sku in gt_sku) or (gt_sku == pred_sku)
+            sku_match = (
+                (gt_sku and gt_sku in pred_sku)
+                or (pred_sku and pred_sku in gt_sku)
+                or (gt_sku == pred_sku)
+            )
             amount_match = False
             try:
                 if gt_amount is not None and pred_amount is not None:
@@ -97,15 +99,11 @@ def compute_line_items_f1(
     return precision, recall, f1
 
 
-def evaluate_prediction(
-    gt: dict[str, Any], pred: dict[str, Any]
-) -> dict[str, Any]:
+def evaluate_prediction(gt: dict[str, Any], pred: dict[str, Any]) -> dict[str, Any]:
     header_score, header_mismatches = compute_field_exact_match(
         gt.get("header", {}), pred.get("header", {})
     )
-    lines_p, lines_r, lines_f1 = compute_line_items_f1(
-        gt.get("lines", []), pred.get("lines", [])
-    )
+    lines_p, lines_r, lines_f1 = compute_line_items_f1(gt.get("lines", []), pred.get("lines", []))
 
     expected_anomalies = {normalize_discrepancy(x) for x in gt.get("expected_discrepancies", [])}
     detected_anomalies = {normalize_discrepancy(x) for x in pred.get("detected_discrepancies", [])}

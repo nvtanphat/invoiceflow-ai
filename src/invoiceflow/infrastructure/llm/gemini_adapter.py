@@ -25,6 +25,7 @@ class GeminiAdapter(LLMProviderPort):
         if api_key and api_key != "mock-key":
             try:
                 from google import genai
+
                 self._client = genai.Client(api_key=api_key)
             except Exception:
                 self._client = None
@@ -47,12 +48,12 @@ class GeminiAdapter(LLMProviderPort):
             raise RuntimeError("Gemini API client is not configured or missing API key.")
 
         prompt = (
-            f"{INVOICE_EXTRACTION_SYSTEM_PROMPT}\n\n"
-            f"DOCUMENT CONTENT TO EXTRACT:\n{document_text}\n"
+            f"{INVOICE_EXTRACTION_SYSTEM_PROMPT}\n\nDOCUMENT CONTENT TO EXTRACT:\n{document_text}\n"
         )
         contents = [prompt]
         if image_bytes:
             from google.genai import types
+
             contents.append(types.Part.from_bytes(data=image_bytes, mime_type="image/png"))
 
         response = self._client.models.generate_content(
@@ -75,7 +76,9 @@ class GeminiAdapter(LLMProviderPort):
                     qty=self._parse_decimal(raw_line.get("qty")),
                     unit_price=self._parse_decimal(raw_line.get("unit_price")),
                     discount=self._parse_decimal(raw_line.get("discount")),
-                    tax_rate=self._parse_decimal(raw_line.get("tax_rate")) if raw_line.get("tax_rate") else None,
+                    tax_rate=self._parse_decimal(raw_line.get("tax_rate"))
+                    if raw_line.get("tax_rate")
+                    else None,
                     line_amount=self._parse_decimal(raw_line.get("line_amount")),
                 )
             )

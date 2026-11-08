@@ -63,7 +63,10 @@ class MatchingEngine:
         for inv_line in invoice.lines:
             # 1. Match to PO line
             matched_po_line: Optional[POLine] = None
-            if inv_line.purchase_order_line_id and inv_line.purchase_order_line_id in po_lines_by_id:
+            if (
+                inv_line.purchase_order_line_id
+                and inv_line.purchase_order_line_id in po_lines_by_id
+            ):
                 matched_po_line = po_lines_by_id[inv_line.purchase_order_line_id]
             elif inv_line.sku_ref and inv_line.sku_ref in po_lines_by_sku:
                 matched_po_line = po_lines_by_sku[inv_line.sku_ref]
@@ -82,7 +85,9 @@ class MatchingEngine:
                 continue
 
             # 2. Price match
-            if not policy.is_price_within_tolerance(matched_po_line.unit_price, inv_line.unit_price):
+            if not policy.is_price_within_tolerance(
+                matched_po_line.unit_price, inv_line.unit_price
+            ):
                 has_price_variance = True
                 issues.append(
                     MatchIssue(

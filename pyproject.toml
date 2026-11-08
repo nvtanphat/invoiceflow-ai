@@ -63,7 +63,7 @@ packages = ["src/invoiceflow"]
 asyncio_mode = "strict"
 asyncio_default_fixture_loop_scope = "function"
 pythonpath = ["src", "."]
-testpaths = ["tests"]
+testpaths = ["tests/unit", "tests/integration", "tests/contracts", "tests/security"]
 
 [tool.ruff]
 line-length = 100

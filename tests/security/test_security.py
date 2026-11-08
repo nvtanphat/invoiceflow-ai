@@ -8,6 +8,7 @@ from invoiceflow.api.main import create_app
 from invoiceflow.config import get_settings
 from invoiceflow.infrastructure.database.models import (
     DocumentORM,
+    InvoiceLineORM,
     InvoiceORM,
     MembershipORM,
     OutboxEventORM,
@@ -121,7 +122,9 @@ async def test_auth_inactive_user_and_revoked_membership():
             headers={"Authorization": f"Bearer {stranger_token}"},
         )
         assert res.status_code == 403
-        assert "revoked" in res.json()["detail"].lower() or "not found" in res.json()["detail"].lower()
+        assert (
+            "revoked" in res.json()["detail"].lower() or "not found" in res.json()["detail"].lower()
+        )
 
     await db_manager.close()
 
@@ -154,8 +157,12 @@ async def test_separation_of_duties_uploader_cannot_approve():
             full_name="Approver User",
             is_active=True,
         )
-        m1 = MembershipORM(id=str(uuid.uuid4()), tenant_id=tenant_id, user_id=uploader_id, role="accountant")
-        m2 = MembershipORM(id=str(uuid.uuid4()), tenant_id=tenant_id, user_id=approver_id, role="accountant")
+        m1 = MembershipORM(
+            id=str(uuid.uuid4()), tenant_id=tenant_id, user_id=uploader_id, role="accountant"
+        )
+        m2 = MembershipORM(
+            id=str(uuid.uuid4()), tenant_id=tenant_id, user_id=approver_id, role="accountant"
+        )
         doc = DocumentORM(
             id=doc_id,
             tenant_id=tenant_id,
@@ -186,10 +193,18 @@ async def test_separation_of_duties_uploader_cannot_approve():
     settings = get_settings()
 
     uploader_token = create_access_token(
-        user_id=uploader_id, tenant_id=tenant_id, role="accountant", email="uploader@sod.vn", settings=settings
+        user_id=uploader_id,
+        tenant_id=tenant_id,
+        role="accountant",
+        email="uploader@sod.vn",
+        settings=settings,
     )
     approver_token = create_access_token(
-        user_id=approver_id, tenant_id=tenant_id, role="accountant", email="approver@sod.vn", settings=settings
+        user_id=approver_id,
+        tenant_id=tenant_id,
+        role="accountant",
+        email="approver@sod.vn",
+        settings=settings,
     )
 
     async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -237,7 +252,9 @@ async def test_cross_tenant_grn_isolation():
             full_name="User B",
             is_active=True,
         )
-        m_b = MembershipORM(id=str(uuid.uuid4()), tenant_id=tenant_b, user_id=user_b_id, role="accountant")
+        m_b = MembershipORM(
+            id=str(uuid.uuid4()), tenant_id=tenant_b, user_id=user_b_id, role="accountant"
+        )
         po_a = PurchaseOrderORM(
             id=po_a_id,
             tenant_id=tenant_a,
@@ -265,7 +282,11 @@ async def test_cross_tenant_grn_isolation():
     settings = get_settings()
 
     user_b_token = create_access_token(
-        user_id=user_b_id, tenant_id=tenant_b, role="accountant", email="user_b@tenantb.vn", settings=settings
+        user_id=user_b_id,
+        tenant_id=tenant_b,
+        role="accountant",
+        email="user_b@tenantb.vn",
+        settings=settings,
     )
 
     async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -313,7 +334,9 @@ async def test_export_invoices_decimal_preservation():
             full_name="Export User",
             is_active=True,
         )
-        m = MembershipORM(id=str(uuid.uuid4()), tenant_id=tenant_id, user_id=user_id, role="accountant")
+        m = MembershipORM(
+            id=str(uuid.uuid4()), tenant_id=tenant_id, user_id=user_id, role="accountant"
+        )
         doc = DocumentORM(
             id=doc_id,
             tenant_id=tenant_id,
@@ -347,7 +370,11 @@ async def test_export_invoices_decimal_preservation():
     settings = get_settings()
 
     token = create_access_token(
-        user_id=user_id, tenant_id=tenant_id, role="accountant", email="export@tenant.vn", settings=settings
+        user_id=user_id,
+        tenant_id=tenant_id,
+        role="accountant",
+        email="export@tenant.vn",
+        settings=settings,
     )
 
     async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -396,7 +423,9 @@ async def test_unified_review_actions_and_concurrency():
             full_name="Reviewer User",
             is_active=True,
         )
-        m = MembershipORM(id=str(uuid.uuid4()), tenant_id=tenant_id, user_id=reviewer_id, role="reviewer")
+        m = MembershipORM(
+            id=str(uuid.uuid4()), tenant_id=tenant_id, user_id=reviewer_id, role="reviewer"
+        )
         doc = DocumentORM(
             id=doc_id,
             tenant_id=tenant_id,
@@ -427,7 +456,11 @@ async def test_unified_review_actions_and_concurrency():
     settings = get_settings()
 
     token = create_access_token(
-        user_id=reviewer_id, tenant_id=tenant_id, role="reviewer", email="reviewer@test.vn", settings=settings
+        user_id=reviewer_id,
+        tenant_id=tenant_id,
+        role="reviewer",
+        email="reviewer@test.vn",
+        settings=settings,
     )
 
     async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -545,3 +578,152 @@ def test_production_security_rejects_default_jwt_secret():
     assert valid_settings.APP_ENV == "production"
 
 
+@pytest.mark.asyncio
+async def test_financial_arithmetic_mismatch_blocks_approval_until_corrected():
+    db_url = "sqlite+aiosqlite:///:memory:"
+    db_manager = DatabaseSessionManager(database_url=db_url)
+    await db_manager.create_tables()
+
+    tenant_id = str(uuid.uuid4())
+    reviewer_id = str(uuid.uuid4())
+    doc_id = str(uuid.uuid4())
+    inv_id = str(uuid.uuid4())
+
+    async with db_manager.session() as session:
+        t = TenantORM(id=tenant_id, name="Finance Safety Tenant")
+        u = UserORM(
+            id=reviewer_id,
+            email="fin_reviewer@test.vn",
+            hashed_password=hash_password("Pass123!"),
+            full_name="Finance Reviewer",
+            is_active=True,
+        )
+        m = MembershipORM(
+            id=str(uuid.uuid4()), tenant_id=tenant_id, user_id=reviewer_id, role="reviewer"
+        )
+        doc = DocumentORM(
+            id=doc_id,
+            tenant_id=tenant_id,
+            filename="arithmetic_error.pdf",
+            mime_type="application/pdf",
+            file_size_bytes=1024,
+            sha256="shafinance123",
+            storage_uri="local://arithmetic_error.pdf",
+            status="READY",
+            uploaded_by="different_uploader_id",
+        )
+        inv = InvoiceORM(
+            id=inv_id,
+            tenant_id=tenant_id,
+            document_id=doc_id,
+            revision=1,
+            status="READY_FOR_REVIEW",
+            supplier_tax_id="0109999999",
+            supplier_name="Vendor Name",
+            invoice_number="INV-001",
+            subtotal=Decimal("40000000.0000"),
+            tax_total=Decimal("0.0000"),
+            amount_payable=Decimal("40000000.0000"),
+        )
+        # Line with arithmetic error: qty=5 * unit_price=10,000,000 != line_amount=40,000,000
+        inv_line = InvoiceLineORM(
+            id=str(uuid.uuid4()),
+            invoice_id=inv_id,
+            line_no=1,
+            description="Laptop Dell",
+            qty=Decimal("5.0000"),
+            unit_price=Decimal("10000000.0000"),
+            discount=Decimal("0.0000"),
+            line_amount=Decimal("40000000.0000"),
+        )
+        session.add_all([t, u, m, doc, inv, inv_line])
+        await session.flush()
+
+        from invoiceflow.application.reconciliation.service import ReconciliationService
+        from invoiceflow.domain.invoices.models import (
+            InvoiceAggregate,
+            InvoiceLine,
+            InvoiceStatus,
+            VerificationStatus,
+        )
+
+        reconcile_agg = InvoiceAggregate(
+            id=inv.id,
+            tenant_id=inv.tenant_id,
+            document_id=inv.document_id,
+            revision=inv.revision,
+            status=InvoiceStatus(inv.status),
+            supplier_tax_id=inv.supplier_tax_id,
+            supplier_name=inv.supplier_name,
+            invoice_number=inv.invoice_number,
+            subtotal=inv.subtotal,
+            amount_payable=inv.amount_payable,
+            lines=[
+                InvoiceLine(
+                    line_no=inv_line.line_no,
+                    description=inv_line.description,
+                    qty=inv_line.qty,
+                    unit_price=inv_line.unit_price,
+                    discount=inv_line.discount,
+                    line_amount=inv_line.line_amount,
+                )
+            ],
+            signature_status=VerificationStatus(inv.signature_status),
+            tax_authority_status=VerificationStatus(inv.tax_authority_status),
+        )
+        reconciliation = ReconciliationService(session)
+        await reconciliation.reconcile_invoice(reconcile_agg)
+
+    app = create_app(database_url=db_url, db_manager=db_manager)
+    transport = ASGITransport(app=app)
+    settings = get_settings()
+
+    token = create_access_token(
+        user_id=reviewer_id,
+        tenant_id=tenant_id,
+        role="reviewer",
+        email="fin_reviewer@test.vn",
+        settings=settings,
+    )
+
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        # 1. Attempting to approve invoice with arithmetic mismatch MUST fail (blocking)
+        res_fail = await client.post(
+            f"/api/v1/invoices/{inv_id}/review",
+            headers={"Authorization": f"Bearer {token}", "If-Match": '"1"'},
+            json={"action": "approve", "notes": "Trying to bypass arithmetic error"},
+        )
+        assert res_fail.status_code in (400, 422)
+        assert (
+            "LINE_ARITHMETIC_MISMATCH" in res_fail.json()["detail"]
+            or "nghiêm trọng" in res_fail.json()["detail"]
+        )
+
+        # 2. Correct the line amount arithmetic
+        res_correct = await client.post(
+            f"/api/v1/invoices/{inv_id}/review",
+            headers={"Authorization": f"Bearer {token}", "If-Match": '"1"'},
+            json={
+                "action": "correct",
+                "corrections": {
+                    "lines": [{"line_no": 1, "line_amount": "50000000"}],
+                    "subtotal": "50000000",
+                    "amount_payable": "50000000",
+                },
+                "reason": "Corrected line 1 calculation error",
+            },
+        )
+        assert res_correct.status_code == 200
+        assert res_correct.json()["revision"] == 2
+
+        # 3. Now approval SUCCEEDS
+        res_approve = await client.post(
+            f"/api/v1/invoices/{inv_id}/review",
+            headers={"Authorization": f"Bearer {token}", "If-Match": '"2"'},
+            json={"action": "approve", "notes": "Approved after correction"},
+        )
+        assert res_approve.status_code == 200
+        assert res_approve.json()["status"] == "APPROVED"
+        assert res_approve.json()["revision"] == 3
+
+    await db_manager.close()

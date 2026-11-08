@@ -1,7 +1,7 @@
 from datetime import date, datetime, timezone
 from decimal import Decimal
 from enum import Enum
-from typing import Any, List, Optional
+from typing import Any, List, Optional, Union
 from uuid import UUID, uuid4
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from invoiceflow.domain.documents.models import BoundingBox
@@ -68,6 +68,10 @@ class InvoiceLine(BaseModel):
     tax: Decimal = Field(default=Decimal("0.0000"), ge=Decimal("0.0000"))
     line_amount: Decimal = Field(..., ge=Decimal("0.0000"))
     purchase_order_line_id: Optional[UUID] = None
+    raw_qty: Optional[str] = None
+    raw_unit_price: Optional[str] = None
+    raw_line_amount: Optional[str] = None
+    issues: List[str] = Field(default_factory=list)
 
     @field_validator("qty", "unit_price", "discount", "tax", "line_amount", mode="before")
     @classmethod
@@ -80,9 +84,9 @@ class InvoiceLine(BaseModel):
 class InvoiceAggregate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    id: UUID = Field(default_factory=uuid4)
-    tenant_id: UUID
-    document_id: UUID
+    id: Union[UUID, str] = Field(default_factory=uuid4)
+    tenant_id: Union[UUID, str]
+    document_id: Union[UUID, str]
     revision: int = 1
     status: InvoiceStatus = InvoiceStatus.RECEIVED
 
@@ -106,6 +110,7 @@ class InvoiceAggregate(BaseModel):
     tax_breakdown: List[TaxBreakdown] = Field(default_factory=list)
     lines: List[InvoiceLine] = Field(default_factory=list)
     evidence: List[FieldEvidence] = Field(default_factory=list)
+    parser_issues: List[str] = Field(default_factory=list)
 
     signature_status: VerificationStatus = VerificationStatus.NOT_CHECKED
     tax_authority_status: VerificationStatus = VerificationStatus.NOT_CHECKED
@@ -133,5 +138,7 @@ class InvoiceAggregate(BaseModel):
 
     @property
     def is_arithmetic_balanced(self) -> bool:
-        expected_total = self.subtotal - self.discount_total + self.tax_total + self.rounding_adjustment
+        expected_total = (
+            self.subtotal - self.discount_total + self.tax_total + self.rounding_adjustment
+        )
         return abs(self.amount_payable - expected_total) < Decimal("0.0100")

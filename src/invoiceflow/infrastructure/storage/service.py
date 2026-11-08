@@ -65,7 +65,7 @@ class LocalStorageService(StoragePort):
 
     async def get_local_path(self, uri: str) -> str:
         if uri.startswith("local://"):
-            relative = uri[len("local://"):].replace("/", os.sep)
+            relative = uri[len("local://") :].replace("/", os.sep)
         elif "://" not in uri:
             relative = uri.replace("/", os.sep)
         else:
@@ -178,6 +178,7 @@ class S3StorageService(StoragePort):
 def get_storage_service(settings=None) -> StoragePort:
     if settings is None:
         from invoiceflow.config import get_settings
+
         settings = get_settings()
 
     if getattr(settings, "STORAGE_KIND", "local") == "s3":

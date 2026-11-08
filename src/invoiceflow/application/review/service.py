@@ -1,11 +1,13 @@
-import json
+from datetime import date
 from decimal import Decimal
+import json
 from typing import Any, Optional
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from invoiceflow.infrastructure.database.models import (
     AuditLogORM,
     DocumentORM,
+    InvoiceLineORM,
     InvoiceORM,
     MatchResultORM,
     TolerancePolicyORM,
@@ -56,10 +58,37 @@ class ReviewService:
                 old_values[k] = str(getattr(invoice, k, ""))
                 if k in ("subtotal", "tax_total", "amount_payable", "discount_total"):
                     clean_values[k] = Decimal(str(v))
+                elif k == "issue_date":
+                    if isinstance(v, str) and v:
+                        clean_values[k] = date.fromisoformat(v)
+                    elif isinstance(v, date):
+                        clean_values[k] = v
                 else:
                     clean_values[k] = v
 
-        if not clean_values:
+        lines_patched = False
+        if "lines" in patches and isinstance(patches["lines"], list):
+            for line_patch in patches["lines"]:
+                line_id = line_patch.get("id")
+                line_no = line_patch.get("line_no")
+                line_stmt = select(InvoiceLineORM).where(InvoiceLineORM.invoice_id == invoice_id)
+                if line_id:
+                    line_stmt = line_stmt.where(InvoiceLineORM.id == str(line_id))
+                elif line_no:
+                    line_stmt = line_stmt.where(InvoiceLineORM.line_no == int(line_no))
+                ln = (await self._session.execute(line_stmt)).scalar_one_or_none()
+                if ln:
+                    if "qty" in line_patch:
+                        ln.qty = Decimal(str(line_patch["qty"]))
+                    if "unit_price" in line_patch:
+                        ln.unit_price = Decimal(str(line_patch["unit_price"]))
+                    if "line_amount" in line_patch:
+                        ln.line_amount = Decimal(str(line_patch["line_amount"]))
+                    if "description" in line_patch:
+                        ln.description = str(line_patch["description"])
+                    lines_patched = True
+
+        if not clean_values and not lines_patched:
             return invoice
 
         # Atomic Compare-And-Swap update at database level
@@ -95,6 +124,63 @@ class ReviewService:
 
         # Refresh invoice object
         await self._session.refresh(invoice)
+
+        # Re-run reconciliation on updated invoice to refresh match result & validation issues
+        from invoiceflow.application.reconciliation.service import ReconciliationService
+        from invoiceflow.domain.invoices.models import (
+            InvoiceAggregate,
+            InvoiceLine,
+            InvoiceStatus,
+            VerificationStatus,
+        )
+
+        lines_res = await self._session.execute(
+            select(InvoiceLineORM)
+            .where(InvoiceLineORM.invoice_id == invoice_id)
+            .order_by(InvoiceLineORM.line_no)
+        )
+        current_lines = lines_res.scalars().all()
+        agg_lines = [
+            InvoiceLine(
+                line_no=line_item.line_no,
+                sku_ref=line_item.sku_ref,
+                description=line_item.description,
+                unit=line_item.unit,
+                qty=line_item.qty,
+                unit_price=line_item.unit_price,
+                discount=line_item.discount,
+                tax_rate=line_item.tax_rate,
+                tax=line_item.tax,
+                line_amount=line_item.line_amount,
+            )
+            for line_item in current_lines
+        ]
+        reconcile_agg = InvoiceAggregate(
+            id=invoice.id,
+            tenant_id=invoice.tenant_id,
+            document_id=invoice.document_id,
+            revision=invoice.revision,
+            status=InvoiceStatus(invoice.status),
+            supplier_tax_id=invoice.supplier_tax_id,
+            supplier_name=invoice.supplier_name,
+            buyer_tax_id=invoice.buyer_tax_id,
+            buyer_name=invoice.buyer_name,
+            invoice_number=invoice.invoice_number,
+            invoice_series=invoice.invoice_series,
+            issue_date=invoice.issue_date,
+            currency=invoice.currency,
+            subtotal=invoice.subtotal,
+            discount_total=invoice.discount_total,
+            tax_total=invoice.tax_total,
+            amount_payable=invoice.amount_payable,
+            rounding_adjustment=invoice.rounding_adjustment,
+            lines=agg_lines,
+            signature_status=VerificationStatus(invoice.signature_status),
+            tax_authority_status=VerificationStatus(invoice.tax_authority_status),
+        )
+        reconciliation = ReconciliationService(self._session)
+        await reconciliation.reconcile_invoice(reconcile_agg)
+
         return invoice
 
     async def approve_invoice(
@@ -109,7 +195,17 @@ class ReviewService:
         if not invoice or invoice.tenant_id != tenant_id:
             raise ValueError(f"Invoice {invoice_id} not found.")
 
-        # 1. Check Reconciliation Match Status (query latest result by creation time)
+        # 1. Direct Intrinsic Line Arithmetic Check (Zero Tolerance)
+        lines_stmt = select(InvoiceLineORM).where(InvoiceLineORM.invoice_id == invoice_id)
+        current_lines = (await self._session.execute(lines_stmt)).scalars().all()
+        for ln in current_lines:
+            expected_amt = (ln.qty * ln.unit_price) - (ln.discount or Decimal("0.0000"))
+            if abs(ln.line_amount - expected_amt) >= Decimal("0.0100"):
+                raise ValueError(
+                    f"Không thể phê duyệt: Hóa đơn có lỗi nghiêm trọng (LINE_ARITHMETIC_MISMATCH: Dòng {ln.line_no} thành tiền {ln.line_amount} != {expected_amt}). Vui lòng đính chính dữ liệu (correct) trước khi duyệt."
+                )
+
+        # 2. Check Reconciliation Match Status & Blocking Issues
         match_stmt = (
             select(MatchResultORM)
             .where(
@@ -119,11 +215,36 @@ class ReviewService:
             .order_by(MatchResultORM.created_at.desc())
         )
         match_res = (await self._session.execute(match_stmt)).scalars().first()
-        if match_res and match_res.requires_review and not match_res.is_matched:
-            if not notes or not notes.strip():
-                raise ValueError(
-                    "Hóa đơn có sai lệch đối soát (requires review). Cần ghi chú lý do phê duyệt (notes/override)."
+        if match_res:
+            issues = json.loads(match_res.issues_json) if match_res.issues_json else []
+            critical_issues = [
+                iss
+                for iss in issues
+                if iss.get("severity") == "critical"
+                or iss.get("code")
+                in (
+                    "LINE_ARITHMETIC_MISMATCH",
+                    "TOTAL_PAYABLE_MISMATCH",
+                    "MISSING_SUPPLIER_TAX_ID",
+                    "MISSING_INVOICE_NUMBER",
+                    "ARITHMETIC_MISMATCH",
+                    "PARSE_ERROR",
+                    "AMBIGUOUS_NUMBER",
                 )
+            ]
+            if critical_issues:
+                blocking_codes = ", ".join(
+                    sorted({iss.get("code", "UNKNOWN") for iss in critical_issues})
+                )
+                raise ValueError(
+                    f"Không thể phê duyệt: Hóa đơn có lỗi nghiêm trọng ({blocking_codes}). Vui lòng đính chính dữ liệu (correct) trước khi duyệt."
+                )
+
+            if match_res.requires_review and not match_res.is_matched:
+                if not notes or not notes.strip():
+                    raise ValueError(
+                        "Hóa đơn có sai lệch đối soát (requires review). Cần ghi chú lý do phê duyệt (notes/override)."
+                    )
 
         # 2. Check Separation of Duties (SoD)
         policy_stmt = select(TolerancePolicyORM).where(TolerancePolicyORM.tenant_id == tenant_id)
@@ -132,7 +253,9 @@ class ReviewService:
         if sod_required:
             doc = await self._session.get(DocumentORM, invoice.document_id)
             if doc and doc.uploaded_by and doc.uploaded_by == actor_id:
-                raise PermissionError("Separation of duties violation: Document uploader cannot approve invoice.")
+                raise PermissionError(
+                    "Separation of duties violation: Document uploader cannot approve invoice."
+                )
 
         # 3. Atomic CAS update
         stmt = (

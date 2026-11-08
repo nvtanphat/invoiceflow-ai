@@ -99,7 +99,11 @@ class GeneralDepartmentOfTaxationClient(TaxAuthorityPort):
                             message="Phản hồi từ cổng TCT không phải định dạng JSON hợp lệ.",
                         )
 
-                    if not isinstance(data, dict) or "valid" not in data or not isinstance(data["valid"], bool):
+                    if (
+                        not isinstance(data, dict)
+                        or "valid" not in data
+                        or not isinstance(data["valid"], bool)
+                    ):
                         return TaxVerificationResult(
                             status=VerificationStatus.UNKNOWN,
                             is_valid=False,
@@ -118,11 +122,18 @@ class GeneralDepartmentOfTaxationClient(TaxAuthorityPort):
                         )
 
                     return TaxVerificationResult(
-                        status=VerificationStatus.VERIFIED if is_valid else VerificationStatus.FAILED,
+                        status=VerificationStatus.VERIFIED
+                        if is_valid
+                        else VerificationStatus.FAILED,
                         is_valid=is_valid,
                         tax_authority_code=tct_code,
                         verification_time=datetime.now(timezone.utc),
-                        message=data.get("message", "Xác thực cơ quan thuế thành công." if is_valid else "Hóa đơn không hợp lệ theo TCT."),
+                        message=data.get(
+                            "message",
+                            "Xác thực cơ quan thuế thành công."
+                            if is_valid
+                            else "Hóa đơn không hợp lệ theo TCT.",
+                        ),
                     )
                 elif resp.status_code in (401, 403):
                     return TaxVerificationResult(

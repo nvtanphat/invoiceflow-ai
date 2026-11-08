@@ -42,7 +42,9 @@ def check_ai_provider() -> bool:
     print("[*] Checking AI provider configuration...", end=" ")
     if settings.LLM_PROVIDER == "openai":
         if settings.OPENAI_API_KEY:
-            print(f"[OK] (Provider: OpenAI/ModelAPI, Model: {settings.OPENAI_MODEL_ID}, Base URL: {settings.OPENAI_BASE_URL})")
+            print(
+                f"[OK] (Provider: OpenAI/ModelAPI, Model: {settings.OPENAI_MODEL_ID}, Base URL: {settings.OPENAI_BASE_URL})"
+            )
             return True
         else:
             print("[WARN] (OPENAI_API_KEY is empty; system will use Mock/Offline Fallback)")
@@ -61,7 +63,7 @@ async def main() -> int:
     print(" InvoiceFlow AI - System Preflight Verification")
     print("=" * 60)
     settings = get_settings()
-    
+
     db_ok = await check_database(settings.DATABASE_URL)
     storage_ok = check_storage(settings.LOCAL_STORAGE_DIR)
     _ = check_ai_provider()

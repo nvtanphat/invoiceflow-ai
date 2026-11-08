@@ -36,6 +36,7 @@ class IngestionService:
         """Returns (DocumentORM, ProcessingJobORM, is_idempotent_replay)."""
         if idempotency_key:
             from sqlalchemy import select
+
             stmt = select(IdempotencyKeyORM).where(
                 IdempotencyKeyORM.tenant_id == tenant_id,
                 IdempotencyKeyORM.operation == "upload_document",

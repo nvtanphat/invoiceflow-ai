@@ -53,7 +53,7 @@ def test_validator_detects_missing_mandatory_fields():
         revision=1,
         status=InvoiceStatus.RECEIVED,
         supplier_tax_id=None,  # Missing supplier tax id
-        invoice_number=None,   # Missing invoice number
+        invoice_number=None,  # Missing invoice number
         amount_payable=Decimal("0.0000"),
     )
 

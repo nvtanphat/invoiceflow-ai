@@ -7,7 +7,7 @@ def test_preflight_allows_valid_xml_and_pdf():
     preflight = IngestionPreflight(max_size_bytes=1024 * 1024, max_pages=10)
 
     # Valid XML
-    xml_bytes = b"<?xml version=\"1.0\" encoding=\"UTF-8\"?><HDon><DLHDon></DLHDon></HDon>"
+    xml_bytes = b'<?xml version="1.0" encoding="UTF-8"?><HDon><DLHDon></DLHDon></HDon>'
     meta = preflight.inspect_and_validate(filename="invoice.xml", content=xml_bytes)
     assert meta.detected_mime == "application/xml"
     assert meta.detected_kind == "xml"

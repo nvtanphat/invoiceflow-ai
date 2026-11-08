@@ -1,7 +1,12 @@
 import pytest
 from sqlalchemy import select
 from invoiceflow.infrastructure.database.session import DatabaseSessionManager
-from invoiceflow.infrastructure.database.models import TenantORM, UserORM, PurchaseOrderORM, InvoiceORM
+from invoiceflow.infrastructure.database.models import (
+    TenantORM,
+    UserORM,
+    PurchaseOrderORM,
+    InvoiceORM,
+)
 
 
 @pytest.mark.asyncio

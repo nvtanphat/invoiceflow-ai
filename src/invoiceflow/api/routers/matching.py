@@ -124,9 +124,7 @@ async def import_goods_receipt(
         )
 
     # Verify all PO lines belong to this PO
-    po_lines_stmt = select(PurchaseOrderLineORM.id).where(
-        PurchaseOrderLineORM.po_id == po.id
-    )
+    po_lines_stmt = select(PurchaseOrderLineORM.id).where(PurchaseOrderLineORM.po_id == po.id)
     valid_po_line_ids = set((await session.execute(po_lines_stmt)).scalars().all())
 
     for line in req.lines:

@@ -37,16 +37,24 @@ class IngestionPreflight:
         lower_name = filename.lower()
         ext = "." + lower_name.split(".")[-1] if "." in lower_name else ""
         if ext not in self.ALLOWED_EXTENSIONS:
-            raise PreflightError(f"File extension '{ext}' is not in the allowed list: {self.ALLOWED_EXTENSIONS}")
+            raise PreflightError(
+                f"File extension '{ext}' is not in the allowed list: {self.ALLOWED_EXTENSIONS}"
+            )
 
         detected_mime, detected_kind = self._detect_magic_bytes(content)
 
         if ext == ".pdf" and detected_kind != "pdf":
-            raise PreflightError(f"MIME mismatch: extension is .pdf but detected format is {detected_mime}")
+            raise PreflightError(
+                f"MIME mismatch: extension is .pdf but detected format is {detected_mime}"
+            )
         if ext == ".xml" and detected_kind != "xml":
-            raise PreflightError(f"MIME mismatch: extension is .xml but detected format is {detected_mime}")
+            raise PreflightError(
+                f"MIME mismatch: extension is .xml but detected format is {detected_mime}"
+            )
         if ext in {".png", ".jpg", ".jpeg"} and detected_kind not in {"png", "jpeg"}:
-            raise PreflightError(f"MIME mismatch: image extension does not match image header {detected_mime}")
+            raise PreflightError(
+                f"MIME mismatch: image extension does not match image header {detected_mime}"
+            )
 
         page_count = 1
         if detected_kind == "pdf":
@@ -77,7 +85,9 @@ class IngestionPreflight:
         stripped = content[:512].lstrip()
         if stripped.startswith(b"<?xml") or (stripped.startswith(b"<") and b">" in stripped):
             if b"<!ENTITY" in stripped or b"SYSTEM" in stripped:
-                raise PreflightError("Security violation: DTD/external entity declarations are strictly forbidden.")
+                raise PreflightError(
+                    "Security violation: DTD/external entity declarations are strictly forbidden."
+                )
             return "application/xml", "xml"
 
         raise PreflightError("File header does not match any allowed format (PDF, XML, PNG, JPEG).")

@@ -1,6 +1,6 @@
 from datetime import date, datetime, timezone
 from decimal import Decimal
-from typing import Any, Optional
+from typing import Any, Optional, Union
 from uuid import UUID, uuid4
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -8,8 +8,8 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 class TolerancePolicy(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    id: UUID = Field(default_factory=uuid4)
-    tenant_id: UUID
+    id: Union[UUID, str] = Field(default_factory=uuid4)
+    tenant_id: Union[UUID, str]
     vendor_tax_id: Optional[str] = None
     version: int = 1
 

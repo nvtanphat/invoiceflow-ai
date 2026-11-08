@@ -2,6 +2,7 @@ import asyncio
 from datetime import date
 from decimal import Decimal
 import hashlib
+import json
 from pathlib import Path
 import sys
 import uuid
@@ -17,6 +18,7 @@ from invoiceflow.infrastructure.database.models import (
     GoodsReceiptORM,
     InvoiceLineORM,
     InvoiceORM,
+    MatchResultORM,
     MembershipORM,
     PurchaseOrderLineORM,
     PurchaseOrderORM,
@@ -48,9 +50,27 @@ async def seed_all(db_manager: DatabaseSessionManager) -> None:
         default_pwd_hash = hash_password("DemoPassword@123")
         users_meta = [
             ("user-admin-01", "admin@invoiceflow.vn", "Hệ thống Admin", "admin", t1_id),
-            ("user-accountant-02", "accountant@invoiceflow.vn", "Kế toán viên Nguyễn Văn An", "accountant", t1_id),
-            ("user-reviewer-03", "reviewer@invoiceflow.vn", "Kiểm soát viên Trần Thị Bình", "reviewer", t1_id),
-            ("user-viewer-04", "viewer@invoiceflow.vn", "Giám đốc Tài chính Lê Văn C", "viewer", t1_id),
+            (
+                "user-accountant-02",
+                "accountant@invoiceflow.vn",
+                "Kế toán viên Nguyễn Văn An",
+                "accountant",
+                t1_id,
+            ),
+            (
+                "user-reviewer-03",
+                "reviewer@invoiceflow.vn",
+                "Kiểm soát viên Trần Thị Bình",
+                "reviewer",
+                t1_id,
+            ),
+            (
+                "user-viewer-04",
+                "viewer@invoiceflow.vn",
+                "Giám đốc Tài chính Lê Văn C",
+                "viewer",
+                t1_id,
+            ),
         ]
 
         for u_id, email, name, role, tenant_id in users_meta:
@@ -74,9 +94,15 @@ async def seed_all(db_manager: DatabaseSessionManager) -> None:
                 session.add(membership)
 
         # 3. Tolerance Policies
-        p1 = (await session.execute(
-            select(TolerancePolicyORM).where(TolerancePolicyORM.tenant_id == t1_id)
-        )).scalars().first()
+        p1 = (
+            (
+                await session.execute(
+                    select(TolerancePolicyORM).where(TolerancePolicyORM.tenant_id == t1_id)
+                )
+            )
+            .scalars()
+            .first()
+        )
         if not p1:
             policy1 = TolerancePolicyORM(
                 id=str(uuid.uuid4()),
@@ -224,6 +250,17 @@ async def seed_all(db_manager: DatabaseSessionManager) -> None:
             )
             session.add(inv_line1)
 
+            mr1 = MatchResultORM(
+                id="mr-demo-001",
+                tenant_id=t1_id,
+                invoice_id="inv-demo-001",
+                status="MATCHED",
+                is_matched=True,
+                requires_review=False,
+                issues_json="[]",
+            )
+            session.add(mr1)
+
         doc2_id = "doc-demo-pdf-002"
         existing_doc2 = await session.get(DocumentORM, doc2_id)
         if not existing_doc2:
@@ -279,6 +316,107 @@ async def seed_all(db_manager: DatabaseSessionManager) -> None:
                 line_amount=Decimal("12600000.0000"),
             )
             session.add(inv_line2)
+
+            mr2 = MatchResultORM(
+                id="mr-demo-002",
+                tenant_id=t1_id,
+                invoice_id="inv-demo-002",
+                status="REQUIRES_REVIEW",
+                is_matched=False,
+                requires_review=True,
+                issues_json=json.dumps(
+                    [
+                        {
+                            "code": "PRICE_VARIANCE",
+                            "severity": "warning",
+                            "message": "Đơn giá hóa đơn lệch 5% so với PO",
+                            "field": "unit_price",
+                            "invoice_value": "63000.0000",
+                            "reference_value": "60000.0000",
+                        }
+                    ]
+                ),
+            )
+            session.add(mr2)
+
+        # 7. Sample Invoice with Arithmetic Mismatch (For Reviewer Correction & Blocking E2E)
+        doc3_id = "doc-demo-mismatch-003"
+        existing_doc3 = await session.get(DocumentORM, doc3_id)
+        if not existing_doc3:
+            doc3 = DocumentORM(
+                id=doc3_id,
+                tenant_id=t1_id,
+                filename="invoice_hardware_mismatch.pdf",
+                mime_type="application/pdf",
+                file_size_bytes=16384,
+                sha256=hashlib.sha256(b"sample_mismatch_pdf_bytes").hexdigest(),
+                storage_uri=f"tenants/{t1_id}/documents/{doc3_id}.pdf",
+                status="READY_FOR_REVIEW",
+                page_count=1,
+            )
+            session.add(doc3)
+
+            inv3 = InvoiceORM(
+                id="inv-demo-003",
+                tenant_id=t1_id,
+                document_id=doc3_id,
+                revision=1,
+                status="PENDING_REVIEW",
+                supplier_tax_id="0101999888",
+                supplier_name="Công ty TNHH Phần cứng Máy chủ Việt Nam",
+                buyer_tax_id="0109998888",
+                buyer_name="Công ty Cổ phần Thương mại Alpha VN",
+                invoice_number="0009988",
+                invoice_series="1C26TCC",
+                issue_date=date(2026, 3, 10),
+                currency="VND",
+                subtotal=Decimal("40000000.0000"),
+                discount_total=Decimal("0.0000"),
+                tax_total=Decimal("4000000.0000"),
+                amount_payable=Decimal("44000000.0000"),
+                rounding_adjustment=Decimal("0.0000"),
+                signature_status="unverified",
+                tax_authority_status="not_checked",
+            )
+            session.add(inv3)
+
+            inv_line3 = InvoiceLineORM(
+                id="inv-line-003",
+                invoice_id="inv-demo-003",
+                line_no=1,
+                sku_ref="SERVER-RAM-32G",
+                description="Bộ nhớ máy chủ ECC DDR4 32GB (Lỗi số học)",
+                unit="thanh",
+                qty=Decimal("5.0000"),
+                unit_price=Decimal("10000000.0000"),
+                discount=Decimal("0.0000"),
+                tax_rate=Decimal("10.00"),
+                tax=Decimal("4000000.0000"),
+                line_amount=Decimal("40000000.0000"),
+            )
+            session.add(inv_line3)
+
+            mr3 = MatchResultORM(
+                id="mr-demo-003",
+                tenant_id=t1_id,
+                invoice_id="inv-demo-003",
+                status="REQUIRES_REVIEW",
+                is_matched=False,
+                requires_review=True,
+                issues_json=json.dumps(
+                    [
+                        {
+                            "code": "LINE_ARITHMETIC_MISMATCH",
+                            "severity": "critical",
+                            "message": "Dòng 1: Thành tiền 40000000.0000 != SL 5.0000 * Đơn giá 10000000.0000",
+                            "field": "line_amount",
+                            "invoice_value": "40000000.0000",
+                            "reference_value": "50000000.0000",
+                        }
+                    ]
+                ),
+            )
+            session.add(mr3)
 
         await session.commit()
 

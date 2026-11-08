@@ -60,6 +60,7 @@ async def upload_document(
     if not is_replay:
         try:
             from invoiceflow.workers.actors import process_document_job
+
             process_document_job.send(job.id)
         except Exception:
             pass
@@ -208,7 +209,9 @@ async def render_document_page(
         response.headers["X-Page-Height"] = str(page_height)
         response.headers["X-Page-Count"] = str(page_count)
         response.headers["X-Page-Rotation"] = str(rotation)
-        response.headers["Access-Control-Expose-Headers"] = "X-Page-Width, X-Page-Height, X-Page-Count, X-Page-Rotation"
+        response.headers["Access-Control-Expose-Headers"] = (
+            "X-Page-Width, X-Page-Height, X-Page-Count, X-Page-Rotation"
+        )
         return response
     elif doc.mime_type.startswith("image/"):
         return Response(content=content, media_type=doc.mime_type)
@@ -217,4 +220,3 @@ async def render_document_page(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Document format does not support page image rendering.",
         )
-

@@ -41,6 +41,7 @@ class DoclingAdapter:
 
         try:
             import huggingface_hub.file_download as fd
+
             if os.name == "nt":
                 fd.are_symlinks_supported = lambda *args, **kwargs: False
         except Exception:
@@ -55,9 +56,7 @@ class DoclingAdapter:
         pipeline_options.do_table_structure = True
 
         converter = DocumentConverter(
-            format_options={
-                InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)
-            }
+            format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)}
         )
         self._converters[do_ocr] = converter
         return converter
@@ -225,10 +224,24 @@ class DoclingAdapter:
                 )
                 el_counter += 1
 
+            if not elements and not tables:
+                logger.warning(
+                    "Docling returned empty document without any elements or tables for document %s",
+                    document_id,
+                )
+                fallback_canonical = self._fallback_extractor.extract_canonical(
+                    tenant_id=tenant_id,
+                    document_id=document_id,
+                    pdf_bytes=pdf_bytes,
+                )
+                fallback_canonical.metadata["fallback_from"] = "docling_empty"
+                return fallback_canonical
+
             duration_ms = round((time.perf_counter() - start_time) * 1000, 2)
             config_hash = hashlib.sha256(f"docling-v2-ocr={do_ocr}".encode()).hexdigest()
 
             import importlib.metadata
+
             try:
                 version = importlib.metadata.version("docling")
             except Exception:

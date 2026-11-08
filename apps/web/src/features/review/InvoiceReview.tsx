@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { CheckCircle2, XCircle, Save, ArrowLeft, GitCompare, AlertTriangle, ShieldCheck } from "lucide-react";
-import { api, InvoiceItem } from "../../lib/api-client";
+import { api, InvoiceItem, InvoiceLineItem } from "../../lib/api-client";
 import { BBoxViewer } from "./BBoxViewer";
 
 interface InvoiceReviewProps {
@@ -87,6 +87,7 @@ export const InvoiceReview: React.FC<InvoiceReviewProps> = ({
 
   // Form edit state
   const [formData, setFormData] = useState<Partial<InvoiceItem>>({});
+  const [linesData, setLinesData] = useState<InvoiceLineItem[]>([]);
 
   const loadInvoice = async () => {
     setIsLoading(true);
@@ -94,6 +95,7 @@ export const InvoiceReview: React.FC<InvoiceReviewProps> = ({
     try {
       const data = await api.getInvoice(invoiceId);
       setInvoice(data);
+      setLinesData(data.lines || []);
       setFormData({
         supplier_tax_id: data.supplier_tax_id,
         supplier_name: data.supplier_name,
@@ -116,19 +118,57 @@ export const InvoiceReview: React.FC<InvoiceReviewProps> = ({
     loadInvoice();
   }, [invoiceId]);
 
+  const handleLineChange = (lineNo: number, field: "qty" | "unit_price" | "line_amount", value: string) => {
+    setLinesData((prev) => {
+      const updatedLines = prev.map((l) => (l.line_no === lineNo ? { ...l, [field]: value } : l));
+      // Recompute subtotal and amount_payable when line amount changes
+      const newSubtotal = updatedLines.reduce((acc, curr) => acc + Number(curr.line_amount || 0), 0);
+      const taxRate = Number(formData.tax_total || invoice?.tax_total || 0) > 0 ? 0.1 : 0;
+      const newTax = Math.round(newSubtotal * taxRate);
+      setFormData((f) => ({
+        ...f,
+        subtotal: String(newSubtotal),
+        tax_total: String(newTax),
+        amount_payable: String(newSubtotal + newTax),
+      }));
+      return updatedLines;
+    });
+  };
+
+  const hasArithmeticMismatch = linesData.some((ln) => {
+    const q = Number(ln.qty || 0);
+    const p = Number(ln.unit_price || 0);
+    const d = Number(ln.discount || 0);
+    const amt = Number(ln.line_amount || 0);
+    return Math.abs(amt - (q * p - d)) >= 0.01;
+  });
+
   const handleAction = async (action: "approve" | "reject" | "correct") => {
     if (!invoice) return;
     setIsSubmitting(true);
     setErrorMsg(null);
     setSuccessMsg(null);
     try {
+      const payload: Record<string, any> = {
+        ...formData,
+        lines: linesData.map((l) => ({
+          line_no: l.line_no,
+          qty: l.qty,
+          unit_price: l.unit_price,
+          line_amount: l.line_amount,
+          description: l.description,
+        })),
+      };
       const updated = await api.reviewInvoice(
         invoice.id,
         action,
         invoice.revision,
-        action === "correct" ? formData : {}
+        action === "correct"
+          ? payload
+          : ({ notes: "Phê duyệt bởi kiểm soát viên sau khi kiểm tra dữ liệu", reason: "Phê duyệt hóa đơn" } as any)
       );
       setInvoice(updated);
+      setLinesData(updated.lines || []);
       setSuccessMsg(
         action === "approve"
           ? "Hóa đơn đã được phê duyệt thành công!"
@@ -219,8 +259,15 @@ export const InvoiceReview: React.FC<InvoiceReviewProps> = ({
       </div>
 
       {/* Notifications */}
+      {hasArithmeticMismatch && (
+        <div data-testid="arithmetic-mismatch-banner" className="p-3 bg-rose-50 border border-rose-300 text-rose-800 text-xs rounded-lg flex items-center gap-2 font-medium">
+          <AlertTriangle className="w-4 h-4 text-rose-600 flex-shrink-0" />
+          <span>Cảnh báo đỏ: Phát hiện sai lệch số học dòng hàng (LINE_ARITHMETIC_MISMATCH). Phải đính chính trước khi phê duyệt!</span>
+        </div>
+      )}
+
       {errorMsg && (
-        <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-lg flex items-center justify-between">
+        <div data-testid="error-banner" className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-lg flex items-center justify-between">
           <div className="flex items-center gap-2">
             <AlertTriangle className="w-4 h-4 flex-shrink-0" />
             <span>{errorMsg}</span>
@@ -331,7 +378,7 @@ export const InvoiceReview: React.FC<InvoiceReviewProps> = ({
             <div>
               <div className="flex justify-between items-center mb-2">
                 <span className="text-xs font-semibold text-slate-700">Chi tiết từng dòng sản phẩm / dịch vụ</span>
-                <span className="text-[11px] text-slate-400">({invoice.lines.length} dòng hàng)</span>
+                <span className="text-[11px] text-slate-400">({linesData.length} dòng hàng)</span>
               </div>
               <div className="overflow-x-auto border border-slate-200 rounded-lg">
                 <table className="w-full text-xs text-left">
@@ -346,20 +393,45 @@ export const InvoiceReview: React.FC<InvoiceReviewProps> = ({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-mono">
-                    {invoice.lines.map((ln) => (
-                      <tr key={ln.id || ln.line_no} className="hover:bg-slate-50/50">
-                        <td className="p-2.5 text-slate-400">{ln.line_no}</td>
-                        <td className="p-2.5 font-sans font-medium text-slate-800 max-w-xs truncate">
-                          {ln.description}
-                        </td>
-                        <td className="p-2.5 text-right text-slate-700">{ln.qty}</td>
-                        <td className="p-2.5 text-right text-slate-700">{Number(ln.unit_price).toLocaleString("vi-VN")}</td>
-                        <td className="p-2.5 text-right text-slate-500">{ln.tax_rate ?? "0"}%</td>
-                        <td className="p-2.5 text-right font-semibold text-slate-900">
-                          {Number(ln.line_amount).toLocaleString("vi-VN")}
-                        </td>
-                      </tr>
-                    ))}
+                    {linesData.map((ln) => {
+                      const expectedAmount =
+                        Number(ln.qty || 0) * Number(ln.unit_price || 0) - Number(ln.discount || 0);
+                      const isMismatch = Math.abs(Number(ln.line_amount || 0) - expectedAmount) >= 0.01;
+                      return (
+                        <tr
+                          key={ln.id || ln.line_no}
+                          className={isMismatch ? "bg-rose-50/70" : "hover:bg-slate-50/50"}
+                        >
+                          <td className="p-2.5 text-slate-400">{ln.line_no}</td>
+                          <td className="p-2.5 font-sans font-medium text-slate-800 max-w-xs truncate">
+                            {ln.description}
+                            {isMismatch && (
+                              <span className="ml-2 text-[10px] bg-rose-100 text-rose-700 font-bold px-1.5 py-0.5 rounded">
+                                LỆCH SỐ HỌC
+                              </span>
+                            )}
+                          </td>
+                          <td className="p-2.5 text-right text-slate-700">{ln.qty}</td>
+                          <td className="p-2.5 text-right text-slate-700">
+                            {Number(ln.unit_price).toLocaleString("vi-VN")}
+                          </td>
+                          <td className="p-2.5 text-right text-slate-500">{ln.tax_rate ?? "0"}%</td>
+                          <td className="p-2.5 text-right">
+                            <input
+                              data-testid={`input-line-amount-${ln.line_no}`}
+                              type="text"
+                              value={ln.line_amount}
+                              onChange={(e) => handleLineChange(ln.line_no, "line_amount", e.target.value)}
+                              className={`w-32 text-right px-2 py-1 border rounded text-xs font-mono font-semibold ${
+                                isMismatch
+                                  ? "border-rose-400 bg-rose-50 text-rose-900 focus:ring-rose-500"
+                                  : "border-slate-200 bg-white text-slate-900 focus:ring-sky-500"
+                              }`}
+                            />
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

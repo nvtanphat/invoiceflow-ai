@@ -48,7 +48,7 @@ class InvoiceValidator:
                 issues.append(
                     MatchIssue(
                         code="LINE_ARITHMETIC_MISMATCH",
-                        severity=IssueSeverity.WARNING,
+                        severity=IssueSeverity.CRITICAL,
                         message=f"Line {line.line_no}: qty * price - discount != line_amount ({line.line_amount} != {expected_line_amount})",
                         line_no=line.line_no,
                         field_path=f"lines[{line.line_no}].line_amount",
@@ -74,9 +74,14 @@ class InvoiceValidator:
 
         # 4. Total payable arithmetic balance
         expected_payable = (
-            invoice.subtotal - invoice.discount_total + invoice.tax_total + invoice.rounding_adjustment
+            invoice.subtotal
+            - invoice.discount_total
+            + invoice.tax_total
+            + invoice.rounding_adjustment
         )
-        if invoice.subtotal > Decimal("0.0000") and abs(invoice.amount_payable - expected_payable) >= Decimal("0.0100"):
+        if invoice.subtotal > Decimal("0.0000") and abs(
+            invoice.amount_payable - expected_payable
+        ) >= Decimal("0.0100"):
             issues.append(
                 MatchIssue(
                     code="TOTAL_PAYABLE_MISMATCH",
@@ -87,5 +92,37 @@ class InvoiceValidator:
                     expected_value=str(expected_payable),
                 )
             )
+
+        # 5. Document-level parser issues propagation
+        for p_issue in getattr(invoice, "parser_issues", []):
+            is_critical = any(k in p_issue for k in ["MISMATCH", "ERROR", "AMBIGUOUS"])
+            issues.append(
+                MatchIssue(
+                    code=p_issue,
+                    severity=IssueSeverity.CRITICAL if is_critical else IssueSeverity.WARNING,
+                    message=f"Phát hiện cảnh báo trích xuất tài liệu: {p_issue}",
+                )
+            )
+
+        # 6. Line-level parser issues propagation (e.g. ARITHMETIC_MISMATCH, AMBIGUOUS_NUMBER, PARSE_ERROR)
+        for line in invoice.lines:
+            for l_issue in getattr(line, "issues", []):
+                if l_issue == "ARITHMETIC_MISMATCH" and any(
+                    i.code == "LINE_ARITHMETIC_MISMATCH" and i.line_no == line.line_no
+                    for i in issues
+                ):
+                    continue
+                is_crit = l_issue in ("ARITHMETIC_MISMATCH", "PARSE_ERROR", "AMBIGUOUS_NUMBER")
+                issues.append(
+                    MatchIssue(
+                        code=l_issue,
+                        severity=IssueSeverity.CRITICAL if is_crit else IssueSeverity.WARNING,
+                        message=f"Dòng {line.line_no}: Cảnh báo bóc tách số học ({l_issue})",
+                        line_no=line.line_no,
+                        field_path=f"lines[{line.line_no}]",
+                        actual_value=getattr(line, "raw_line_amount", None)
+                        or str(line.line_amount),
+                    )
+                )
 
         return issues

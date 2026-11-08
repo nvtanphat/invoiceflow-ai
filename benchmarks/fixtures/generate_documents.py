@@ -37,12 +37,18 @@ def create_digital_pdf(
     page.insert_text((350, 130), "Tien te (Currency): VND", fontsize=10, fontname="helv")
 
     # Supplier info
-    page.insert_text((50, 160), f"Don vi ban (Supplier): {supplier_name}", fontsize=10, fontname="helv")
-    page.insert_text((50, 180), f"Ma so thue (Tax ID): {supplier_tax_id}", fontsize=10, fontname="helv")
+    page.insert_text(
+        (50, 160), f"Don vi ban (Supplier): {supplier_name}", fontsize=10, fontname="helv"
+    )
+    page.insert_text(
+        (50, 180), f"Ma so thue (Tax ID): {supplier_tax_id}", fontsize=10, fontname="helv"
+    )
 
     # Buyer info
     page.insert_text((50, 210), f"Don vi mua (Buyer): {buyer_name}", fontsize=10, fontname="helv")
-    page.insert_text((50, 230), f"Ma so thue (Tax ID): {buyer_tax_id}", fontsize=10, fontname="helv")
+    page.insert_text(
+        (50, 230), f"Ma so thue (Tax ID): {buyer_tax_id}", fontsize=10, fontname="helv"
+    )
 
     # Line item table headers
     page.draw_rect(fitz.Rect(50, 260, 545, 285), fill=(0.9, 0.9, 0.9), color=(0.5, 0.5, 0.5))
@@ -63,8 +69,12 @@ def create_digital_pdf(
     page.insert_text((480, 303), subtotal, fontsize=9, fontname="helv")
 
     # Totals
-    page.insert_text((350, 340), f"Cong tien hang (Subtotal): {subtotal}", fontsize=10, fontname="helv")
-    page.insert_text((350, 360), f"Tien thue GTGT (Tax Total): {tax_total}", fontsize=10, fontname="helv")
+    page.insert_text(
+        (350, 340), f"Cong tien hang (Subtotal): {subtotal}", fontsize=10, fontname="helv"
+    )
+    page.insert_text(
+        (350, 360), f"Tien thue GTGT (Tax Total): {tax_total}", fontsize=10, fontname="helv"
+    )
     page.insert_text((350, 380), f"Tong cong (Total Amount): {total}", fontsize=10, fontname="helv")
 
     out_path = DOCS_DIR / filename
@@ -95,12 +105,34 @@ def create_scanned_pdf(
     temp_doc = fitz.open()
     temp_page = temp_doc.new_page(width=595, height=842)
     temp_page.insert_text((160, 60), "HOA DON BAN HANG (SCAN)", fontsize=16, fontname="helv")
-    temp_page.insert_text((50, 110), f"Ky hieu: {series}  So: {invoice_no}  Ngay: {date_str}", fontsize=10, fontname="helv")
-    temp_page.insert_text((50, 140), f"Ben ban: {supplier_name} - MST: {supplier_tax_id}", fontsize=10, fontname="helv")
-    temp_page.insert_text((50, 170), f"Ben mua: {buyer_name} - MST: {buyer_tax_id}", fontsize=10, fontname="helv")
+    temp_page.insert_text(
+        (50, 110),
+        f"Ky hieu: {series}  So: {invoice_no}  Ngay: {date_str}",
+        fontsize=10,
+        fontname="helv",
+    )
+    temp_page.insert_text(
+        (50, 140),
+        f"Ben ban: {supplier_name} - MST: {supplier_tax_id}",
+        fontsize=10,
+        fontname="helv",
+    )
+    temp_page.insert_text(
+        (50, 170), f"Ben mua: {buyer_name} - MST: {buyer_tax_id}", fontsize=10, fontname="helv"
+    )
     temp_page.insert_text((50, 210), f"Hang hoa: {desc} [{sku}]", fontsize=10, fontname="helv")
-    temp_page.insert_text((50, 230), f"So luong: {qty}  Don gia: {unit_price}  Thue: {tax_rate}%", fontsize=10, fontname="helv")
-    temp_page.insert_text((50, 260), f"Tien hang: {subtotal}  Thue GTGT: {tax_total}  Tong cong: {total}", fontsize=10, fontname="helv")
+    temp_page.insert_text(
+        (50, 230),
+        f"So luong: {qty}  Don gia: {unit_price}  Thue: {tax_rate}%",
+        fontsize=10,
+        fontname="helv",
+    )
+    temp_page.insert_text(
+        (50, 260),
+        f"Tien hang: {subtotal}  Thue GTGT: {tax_total}  Tong cong: {total}",
+        fontsize=10,
+        fontname="helv",
+    )
 
     # Render to image pixmap
     pix = temp_page.get_pixmap(dpi=96)

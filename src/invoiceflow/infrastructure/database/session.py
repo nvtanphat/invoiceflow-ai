@@ -31,10 +31,13 @@ class DatabaseSessionManager:
             await conn.run_sync(Base.metadata.create_all)
             if "sqlite" in str(self._engine.url):
                 from sqlalchemy import text
+
                 res = await conn.execute(text("PRAGMA table_info(documents)"))
                 cols = [row[1] for row in res.fetchall()]
                 if cols and "uploaded_by" not in cols:
-                    await conn.execute(text("ALTER TABLE documents ADD COLUMN uploaded_by VARCHAR(64)"))
+                    await conn.execute(
+                        text("ALTER TABLE documents ADD COLUMN uploaded_by VARCHAR(64)")
+                    )
 
     @asynccontextmanager
     async def session(self) -> AsyncGenerator[AsyncSession, None]:

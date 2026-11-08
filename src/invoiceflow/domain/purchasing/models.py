@@ -1,7 +1,7 @@
 from datetime import date, datetime, timezone
 from decimal import Decimal
 from enum import Enum
-from typing import Any, List, Optional
+from typing import Any, List, Optional, Union
 from uuid import UUID, uuid4
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -26,8 +26,8 @@ class IssueSeverity(str, Enum):
 class POLine(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    id: UUID = Field(default_factory=uuid4)
-    po_id: UUID
+    id: Union[UUID, str] = Field(default_factory=uuid4)
+    po_id: Union[UUID, str]
     line_no: int
     sku: Optional[str] = None
     description: str
@@ -47,8 +47,8 @@ class POLine(BaseModel):
 class PurchaseOrder(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    id: UUID = Field(default_factory=uuid4)
-    tenant_id: UUID
+    id: Union[UUID, str] = Field(default_factory=uuid4)
+    tenant_id: Union[UUID, str]
     vendor_tax_id: str
     vendor_name: str
     po_number: str
@@ -68,9 +68,9 @@ class PurchaseOrder(BaseModel):
 class GRNLine(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    id: UUID = Field(default_factory=uuid4)
-    grn_id: UUID
-    po_line_id: UUID
+    id: Union[UUID, str] = Field(default_factory=uuid4)
+    grn_id: Union[UUID, str]
+    po_line_id: Union[UUID, str]
     line_no: int
     received_qty: Decimal = Field(..., ge=Decimal("0.0000"))
     rejected_qty: Decimal = Field(default=Decimal("0.0000"), ge=Decimal("0.0000"))
@@ -86,9 +86,9 @@ class GRNLine(BaseModel):
 class GoodsReceipt(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    id: UUID = Field(default_factory=uuid4)
-    tenant_id: UUID
-    po_id: UUID
+    id: Union[UUID, str] = Field(default_factory=uuid4)
+    tenant_id: Union[UUID, str]
+    po_id: Union[UUID, str]
     grn_number: str
     receipt_date: date
     lines: List[GRNLine] = Field(default_factory=list)
@@ -109,7 +109,7 @@ class MatchIssue(BaseModel):
 class MatchReport(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    invoice_id: UUID
+    invoice_id: Union[UUID, str]
     status: MatchStatus
     is_matched: bool
     requires_review: bool

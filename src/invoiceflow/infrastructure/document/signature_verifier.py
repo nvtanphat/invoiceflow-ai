@@ -123,15 +123,21 @@ class XMLSignatureVerifier(SignatureVerifierPort):
             if res.status == VerificationStatus.FAILED:
                 return res
 
-        # If any signature reached VERIFIED
-        verified = [r for r in results if r.status == VerificationStatus.VERIFIED]
-        if verified:
-            return verified[0]
+        # Strict Multi-Signature Policy:
+        # 1. Any FAILED signature fails the whole document.
+        failed = [r for r in results if r.status == VerificationStatus.FAILED]
+        if failed:
+            return failed[0]
 
-        # If unverified (valid crypto but unverified CA)
+        # 2. If any signature is UNVERIFIED, the document cannot be marked fully VERIFIED.
         unverified = [r for r in results if r.status == VerificationStatus.UNVERIFIED]
         if unverified:
             return unverified[0]
+
+        # 3. All signatures must be VERIFIED for the document to be VERIFIED.
+        verified = [r for r in results if r.status == VerificationStatus.VERIFIED]
+        if verified and len(verified) == len(results):
+            return verified[0]
 
         return results[0]
 
@@ -298,11 +304,24 @@ class XMLSignatureVerifier(SignatureVerifierPort):
         # Anti-wrapping & target element resolution
         if uri.startswith("#"):
             target_id = uri.lstrip("#")
-            candidates = root.xpath(f"//*[@id='{target_id}' or @Id='{target_id}']")
+            import re
+
+            if not re.match(r"^[A-Za-z0-9_-]+$", target_id):
+                return (
+                    False,
+                    f"Bảo mật vi phạm: id tham chiếu '{target_id}' không hợp lệ hoặc chứa ký tự đặc biệt.",
+                )
+            candidates = root.xpath("//*[@id=$tid or @Id=$tid or @ID=$tid]", tid=target_id)
             if len(candidates) == 0:
-                return False, f"Cảnh báo cấu trúc: không tìm thấy phần tử được ký có id '{target_id}'."
+                return (
+                    False,
+                    f"Cảnh báo cấu trúc: không tìm thấy phần tử được ký có id '{target_id}'.",
+                )
             if len(candidates) > 1:
-                return False, f"Cảnh báo XML Signature Wrapping: phát hiện {len(candidates)} phần tử trùng lặp id '{target_id}'."
+                return (
+                    False,
+                    f"Cảnh báo XML Signature Wrapping: phát hiện {len(candidates)} phần tử trùng lặp id '{target_id}'.",
+                )
             target_el = candidates[0]
         else:
             # Empty URI refers to root document
@@ -321,11 +340,16 @@ class XMLSignatureVerifier(SignatureVerifierPort):
                 or dlhdon_node in target_el.iterdescendants()
             )
             if not is_valid_scope:
-                return False, "Cảnh báo bảo mật: Dữ liệu hóa đơn không nằm trong phạm vi được bảo vệ bởi chữ ký số (Detached target mismatch)."
+                return (
+                    False,
+                    "Cảnh báo bảo mật: Dữ liệu hóa đơn không nằm trong phạm vi được bảo vệ bởi chữ ký số (Detached target mismatch).",
+                )
 
         # Check Transforms
         is_enveloped = False
-        transforms = ref_node.findall(f".//{{{DS_NS}}}Transform") or ref_node.findall(".//Transform")
+        transforms = ref_node.findall(f".//{{{DS_NS}}}Transform") or ref_node.findall(
+            ".//Transform"
+        )
         for tr in transforms:
             algo = tr.get("Algorithm", "")
             if algo not in self.ALLOWED_TRANSFORMS:
@@ -423,7 +447,9 @@ class XMLSignatureVerifier(SignatureVerifierPort):
                 details="Chứng thư số tự ký hoặc không thuộc danh sách các Tổ chức chứng thực chữ ký số (CA) được tin cậy.",
             )
 
-    def _get_signature_algorithm(self, si_node: etree._Element) -> tuple[Optional[hashes.HashAlgorithm], Optional[str]]:
+    def _get_signature_algorithm(
+        self, si_node: etree._Element
+    ) -> tuple[Optional[hashes.HashAlgorithm], Optional[str]]:
         sm_node = si_node.find(f"{{{DS_NS}}}SignatureMethod")
         if sm_node is None:
             sm_node = si_node.find("SignatureMethod")
@@ -433,7 +459,10 @@ class XMLSignatureVerifier(SignatureVerifierPort):
         algo_uri = sm_node.get("Algorithm", "").strip()
         if "rsa-sha1" in algo_uri.lower():
             if not self.allow_sha1:
-                return None, "Thuật toán chữ ký SHA-1 bị từ chối theo chính sách bảo mật production."
+                return (
+                    None,
+                    "Thuật toán chữ ký SHA-1 bị từ chối theo chính sách bảo mật production.",
+                )
             return hashes.SHA1(), None
 
         if algo_uri in self.ALLOWED_SIGNATURE_ALGORITHMS:
@@ -441,7 +470,9 @@ class XMLSignatureVerifier(SignatureVerifierPort):
 
         return None, f"Thuật toán chữ ký không được hỗ trợ hoặc không an toàn: '{algo_uri}'."
 
-    def _get_digest_algorithm(self, ref_node: etree._Element) -> tuple[Optional[Any], Optional[str]]:
+    def _get_digest_algorithm(
+        self, ref_node: etree._Element
+    ) -> tuple[Optional[Any], Optional[str]]:
         dm_node = ref_node.find(f"{{{DS_NS}}}DigestMethod")
         if dm_node is None:
             dm_node = ref_node.find("DigestMethod")
@@ -451,7 +482,10 @@ class XMLSignatureVerifier(SignatureVerifierPort):
         algo_uri = dm_node.get("Algorithm", "").strip()
         if "sha1" in algo_uri.lower():
             if not self.allow_sha1:
-                return None, "Thuật toán DigestMethod SHA-1 bị từ chối theo chính sách bảo mật production."
+                return (
+                    None,
+                    "Thuật toán DigestMethod SHA-1 bị từ chối theo chính sách bảo mật production.",
+                )
             return hashlib.sha1, None
 
         if algo_uri in self.ALLOWED_DIGEST_ALGORITHMS:

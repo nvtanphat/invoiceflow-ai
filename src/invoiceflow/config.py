@@ -78,7 +78,9 @@ class Settings(BaseSettings):
                 raise ValueError(
                     "In production (APP_ENV=production), a strong non-default JWT_SECRET is strictly required."
                 )
-            if self.STORAGE_KIND == "s3" and (self.S3_ACCESS_KEY == "minioadmin" or self.S3_SECRET_KEY == "minioadmin"):
+            if self.STORAGE_KIND == "s3" and (
+                self.S3_ACCESS_KEY == "minioadmin" or self.S3_SECRET_KEY == "minioadmin"
+            ):
                 raise ValueError(
                     "In production with S3 storage, default credentials 'minioadmin' are strictly forbidden."
                 )

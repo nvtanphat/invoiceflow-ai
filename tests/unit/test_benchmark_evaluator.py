@@ -42,12 +42,32 @@ def test_compute_field_exact_match():
 
 def test_compute_line_items_f1():
     gt_lines = [
-        {"sku": "DELL-XPS-13", "qty": "5.0000", "unit_price": "10000000.0000", "line_amount": "50000000.0000"},
-        {"sku": "MOUSE-LOGI", "qty": "5.0000", "unit_price": "200000.0000", "line_amount": "1000000.0000"},
+        {
+            "sku": "DELL-XPS-13",
+            "qty": "5.0000",
+            "unit_price": "10000000.0000",
+            "line_amount": "50000000.0000",
+        },
+        {
+            "sku": "MOUSE-LOGI",
+            "qty": "5.0000",
+            "unit_price": "200000.0000",
+            "line_amount": "1000000.0000",
+        },
     ]
     pred_lines = [
-        {"sku": "DELL-XPS-13", "qty": "5.0000", "unit_price": "10000000.0000", "line_amount": "50000000.0000"},
-        {"sku": "MOUSE-LOGI", "qty": "5.0000", "unit_price": "200000.0000", "line_amount": "1000000.0000"},
+        {
+            "sku": "DELL-XPS-13",
+            "qty": "5.0000",
+            "unit_price": "10000000.0000",
+            "line_amount": "50000000.0000",
+        },
+        {
+            "sku": "MOUSE-LOGI",
+            "qty": "5.0000",
+            "unit_price": "200000.0000",
+            "line_amount": "1000000.0000",
+        },
     ]
     precision, recall, f1 = compute_line_items_f1(gt_lines, pred_lines)
     assert precision == 1.0
@@ -56,7 +76,12 @@ def test_compute_line_items_f1():
 
     # One missing line in prediction
     pred_missing = [
-        {"sku": "DELL-XPS-13", "qty": "5.0000", "unit_price": "10000000.0000", "line_amount": "50000000.0000"},
+        {
+            "sku": "DELL-XPS-13",
+            "qty": "5.0000",
+            "unit_price": "10000000.0000",
+            "line_amount": "50000000.0000",
+        },
     ]
     p, r, f = compute_line_items_f1(gt_lines, pred_missing)
     assert p == 1.0
@@ -72,7 +97,12 @@ def test_evaluate_prediction_overall():
             "amount_payable": "55000000.0000",
         },
         "lines": [
-            {"sku": "DELL-XPS-13", "qty": "5.0000", "unit_price": "10000000.0000", "line_amount": "50000000.0000"},
+            {
+                "sku": "DELL-XPS-13",
+                "qty": "5.0000",
+                "unit_price": "10000000.0000",
+                "line_amount": "50000000.0000",
+            },
         ],
         "expected_discrepancies": ["PRICE_MISMATCH"],
     }
@@ -83,7 +113,12 @@ def test_evaluate_prediction_overall():
             "amount_payable": "55000000.0000",
         },
         "lines": [
-            {"sku": "DELL-XPS-13", "qty": "5.0000", "unit_price": "10000000.0000", "line_amount": "50000000.0000"},
+            {
+                "sku": "DELL-XPS-13",
+                "qty": "5.0000",
+                "unit_price": "10000000.0000",
+                "line_amount": "50000000.0000",
+            },
         ],
         "detected_discrepancies": ["PRICE_MISMATCH"],
         "latency_ms": 120.5,
