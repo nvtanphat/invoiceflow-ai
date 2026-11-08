@@ -60,6 +60,7 @@ class DocumentORM(Base, TimestampMixin):
     storage_uri: Mapped[str] = mapped_column(String(512), nullable=False)
     status: Mapped[str] = mapped_column(String(50), default="RECEIVED", nullable=False)
     page_count: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    uploaded_by: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
 
     __table_args__ = (
         Index("ix_documents_tenant_sha256", "tenant_id", "sha256"),

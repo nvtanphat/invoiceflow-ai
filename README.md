@@ -69,12 +69,12 @@ flowchart TD
 
 | Pipeline Baseline | Header Exact Match | Line Items F1 | Anomaly Detection F1 | Độ trễ trung bình | Chi phí / 1.000 Hóa đơn |
 |---|---|---|---|---|---|
-| **B0: XML Direct** | 40.0% | 40.0% | 60.0% | 0.9 ms | $0.00 |
-| **B1: Digital PDF Heuristics** | 72.7% | 80.0% | 60.0% | 3.5 ms | $0.00 |
-| **B2: Pure Multimodal LLM (gpt-6.1-sol)** | 89.1% | 100.0% | 60.0% | 8,356.1 ms | $2.80 |
-| **B3: InvoiceFlow AI Hybrid Pipeline** | **89.1%** | **100.0%** | **100.0%** | **1,970.6 ms** | **$0.56** |
+| **B0: XML Direct** | 40.0% | 40.0% | 60.0% | 0.8 ms | $0.00 |
+| **B1: Digital PDF Heuristics** | 72.7% | 80.0% | 60.0% | 2.8 ms | $0.00 |
+| **B2: Pure Multimodal LLM (gpt-6.1-sol)** | 89.1% | 100.0% | 60.0% | 8,187.2 ms | $0.50 |
+| **B3: InvoiceFlow AI Hybrid Pipeline** | **87.3%** | **100.0%** | **100.0%** | **1,928.7 ms** | **$0.56** |
 
-> **Hiệu quả thực tế của B3:** Giảm **80.0% chi phí gọi LLM** ($0.56 vs $2.80) và tăng tốc **hơn 4.2 lần** (1,970ms vs 8,356ms) trong khi đạt **100.0% Anomaly F1** và **100.0% Line Items F1** trên dữ liệu kiểm thử thực tế.
+> **Hiệu quả thực tế của B3:** Tăng tốc **hơn 4.2 lần** (1,928ms vs 8,187ms) so với gọi Pure Vision LLM trên mọi tài liệu, đồng thời đạt **100.0% Anomaly F1** và **100.0% Line Items F1** trên toàn bộ 5 tệp chứng từ kiểm thử thực tế. Chi phí token được tính toán tự động dựa trên mức tiêu thụ thực tế ($0.56 / 1.000 hóa đơn).
 
 ---
 

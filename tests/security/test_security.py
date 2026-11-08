@@ -1,10 +1,20 @@
+from datetime import date
+from decimal import Decimal
 import uuid
 import pytest
 from httpx import ASGITransport, AsyncClient
 from invoiceflow.api.dependencies import create_access_token
 from invoiceflow.api.main import create_app
 from invoiceflow.config import get_settings
-from invoiceflow.infrastructure.database.models import MembershipORM, TenantORM, UserORM
+from invoiceflow.infrastructure.database.models import (
+    DocumentORM,
+    InvoiceORM,
+    MembershipORM,
+    PurchaseOrderLineORM,
+    PurchaseOrderORM,
+    TenantORM,
+    UserORM,
+)
 from invoiceflow.infrastructure.database.session import DatabaseSessionManager
 from invoiceflow.infrastructure.security.password import hash_password, verify_password
 from invoiceflow.infrastructure.storage.exporter import sanitize_csv_cell
@@ -111,3 +121,345 @@ async def test_auth_inactive_user_and_revoked_membership():
         )
         assert res.status_code == 403
         assert "revoked" in res.json()["detail"].lower() or "not found" in res.json()["detail"].lower()
+
+    await db_manager.close()
+
+
+@pytest.mark.asyncio
+async def test_separation_of_duties_uploader_cannot_approve():
+    db_url = "sqlite+aiosqlite:///:memory:"
+    db_manager = DatabaseSessionManager(database_url=db_url)
+    await db_manager.create_tables()
+
+    tenant_id = str(uuid.uuid4())
+    uploader_id = str(uuid.uuid4())
+    approver_id = str(uuid.uuid4())
+    doc_id = str(uuid.uuid4())
+    invoice_id = str(uuid.uuid4())
+
+    async with db_manager.session() as session:
+        t = TenantORM(id=tenant_id, name="SoD Tenant")
+        u_uploader = UserORM(
+            id=uploader_id,
+            email="uploader@sod.vn",
+            hashed_password=hash_password("Pass123!"),
+            full_name="Uploader User",
+            is_active=True,
+        )
+        u_approver = UserORM(
+            id=approver_id,
+            email="approver@sod.vn",
+            hashed_password=hash_password("Pass123!"),
+            full_name="Approver User",
+            is_active=True,
+        )
+        m1 = MembershipORM(id=str(uuid.uuid4()), tenant_id=tenant_id, user_id=uploader_id, role="accountant")
+        m2 = MembershipORM(id=str(uuid.uuid4()), tenant_id=tenant_id, user_id=approver_id, role="accountant")
+        doc = DocumentORM(
+            id=doc_id,
+            tenant_id=tenant_id,
+            filename="test_inv.pdf",
+            mime_type="application/pdf",
+            file_size_bytes=1024,
+            sha256="abc123sha",
+            storage_uri="local://test_inv.pdf",
+            status="READY",
+            uploaded_by=uploader_id,
+        )
+        inv = InvoiceORM(
+            id=invoice_id,
+            tenant_id=tenant_id,
+            document_id=doc_id,
+            revision=1,
+            status="READY_FOR_REVIEW",
+            supplier_tax_id="0101234567",
+            supplier_name="Vendor A",
+            subtotal=Decimal("1000000"),
+            tax_total=Decimal("100000"),
+            amount_payable=Decimal("1100000"),
+        )
+        session.add_all([t, u_uploader, u_approver, m1, m2, doc, inv])
+
+    app = create_app(database_url=db_url, db_manager=db_manager)
+    transport = ASGITransport(app=app)
+    settings = get_settings()
+
+    uploader_token = create_access_token(
+        user_id=uploader_id, tenant_id=tenant_id, role="accountant", email="uploader@sod.vn", settings=settings
+    )
+    approver_token = create_access_token(
+        user_id=approver_id, tenant_id=tenant_id, role="accountant", email="approver@sod.vn", settings=settings
+    )
+
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        # 1. Uploader attempts to approve own uploaded invoice -> 403 Forbidden (SoD)
+        fail_res = await client.post(
+            f"/api/v1/invoices/{invoice_id}/review",
+            headers={"Authorization": f"Bearer {uploader_token}", "If-Match": '"1"'},
+            json={"action": "approve", "notes": "Self approval attempt"},
+        )
+        assert fail_res.status_code == 403
+        assert "separation of duties" in fail_res.json()["detail"].lower()
+
+        # 2. Independent approver approves the invoice -> 200 OK
+        ok_res = await client.post(
+            f"/api/v1/invoices/{invoice_id}/review",
+            headers={"Authorization": f"Bearer {approver_token}", "If-Match": '"1"'},
+            json={"action": "approve", "notes": "Independent approval"},
+        )
+        assert ok_res.status_code == 200
+        assert ok_res.json()["status"] == "APPROVED"
+        assert ok_res.json()["revision"] == 2
+
+    await db_manager.close()
+
+
+@pytest.mark.asyncio
+async def test_cross_tenant_grn_isolation():
+    db_url = "sqlite+aiosqlite:///:memory:"
+    db_manager = DatabaseSessionManager(database_url=db_url)
+    await db_manager.create_tables()
+
+    tenant_a = str(uuid.uuid4())
+    tenant_b = str(uuid.uuid4())
+    user_b_id = str(uuid.uuid4())
+    po_a_id = str(uuid.uuid4())
+    po_line_a_id = str(uuid.uuid4())
+
+    async with db_manager.session() as session:
+        t_a = TenantORM(id=tenant_a, name="Tenant A")
+        t_b = TenantORM(id=tenant_b, name="Tenant B")
+        u_b = UserORM(
+            id=user_b_id,
+            email="user_b@tenantb.vn",
+            hashed_password=hash_password("Pass123!"),
+            full_name="User B",
+            is_active=True,
+        )
+        m_b = MembershipORM(id=str(uuid.uuid4()), tenant_id=tenant_b, user_id=user_b_id, role="accountant")
+        po_a = PurchaseOrderORM(
+            id=po_a_id,
+            tenant_id=tenant_a,
+            vendor_tax_id="0101234567",
+            vendor_name="Vendor A",
+            po_number="PO-TENANT-A-001",
+            order_date=date(2026, 1, 15),
+            currency="VND",
+            subtotal=Decimal("5000000"),
+        )
+        po_line_a = PurchaseOrderLineORM(
+            id=po_line_a_id,
+            po_id=po_a_id,
+            line_no=1,
+            sku="SKU-001",
+            description="Item from Tenant A",
+            ordered_qty=Decimal("10"),
+            unit_price=Decimal("500000"),
+            line_total=Decimal("5000000"),
+        )
+        session.add_all([t_a, t_b, u_b, m_b, po_a, po_line_a])
+
+    app = create_app(database_url=db_url, db_manager=db_manager)
+    transport = ASGITransport(app=app)
+    settings = get_settings()
+
+    user_b_token = create_access_token(
+        user_id=user_b_id, tenant_id=tenant_b, role="accountant", email="user_b@tenantb.vn", settings=settings
+    )
+
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        # Tenant B attempts to create GRN linked to PO from Tenant A -> 404 Not Found
+        res = await client.post(
+            "/api/v1/goods-receipts",
+            headers={"Authorization": f"Bearer {user_b_token}"},
+            json={
+                "po_id": po_a_id,
+                "grn_number": "GRN-ATTACK-001",
+                "receipt_date": "2026-01-20",
+                "lines": [
+                    {
+                        "po_line_id": po_line_a_id,
+                        "line_no": 1,
+                        "received_qty": "10",
+                        "rejected_qty": "0",
+                    }
+                ],
+            },
+        )
+        assert res.status_code == 404
+        assert "not found" in res.json()["detail"].lower()
+
+    await db_manager.close()
+
+
+@pytest.mark.asyncio
+async def test_export_invoices_decimal_preservation():
+    db_url = "sqlite+aiosqlite:///:memory:"
+    db_manager = DatabaseSessionManager(database_url=db_url)
+    await db_manager.create_tables()
+
+    tenant_id = str(uuid.uuid4())
+    user_id = str(uuid.uuid4())
+    doc_id = str(uuid.uuid4())
+    inv_id = str(uuid.uuid4())
+
+    async with db_manager.session() as session:
+        t = TenantORM(id=tenant_id, name="Export Tenant")
+        u = UserORM(
+            id=user_id,
+            email="export@tenant.vn",
+            hashed_password=hash_password("Pass123!"),
+            full_name="Export User",
+            is_active=True,
+        )
+        m = MembershipORM(id=str(uuid.uuid4()), tenant_id=tenant_id, user_id=user_id, role="accountant")
+        doc = DocumentORM(
+            id=doc_id,
+            tenant_id=tenant_id,
+            filename="export_inv.pdf",
+            mime_type="application/pdf",
+            file_size_bytes=2048,
+            sha256="shaexport123",
+            storage_uri="local://export_inv.pdf",
+            status="READY",
+        )
+        inv = InvoiceORM(
+            id=inv_id,
+            tenant_id=tenant_id,
+            document_id=doc_id,
+            revision=1,
+            status="APPROVED",
+            supplier_tax_id="0312345678",
+            supplier_name="Công Ty TNHH Dịch Vụ Kế Toán",
+            invoice_number="INV-2026-999",
+            invoice_series="1C26TAA",
+            issue_date=date(2026, 2, 1),
+            currency="VND",
+            subtotal=Decimal("1234567.8900"),
+            tax_total=Decimal("123456.7900"),
+            amount_payable=Decimal("1358024.6800"),
+        )
+        session.add_all([t, u, m, doc, inv])
+
+    app = create_app(database_url=db_url, db_manager=db_manager)
+    transport = ASGITransport(app=app)
+    settings = get_settings()
+
+    token = create_access_token(
+        user_id=user_id, tenant_id=tenant_id, role="accountant", email="export@tenant.vn", settings=settings
+    )
+
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        # Test JSON export format
+        res_json = await client.get(
+            "/api/v1/exports/invoices?format=json",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert res_json.status_code == 200
+        data = res_json.json()
+        assert len(data) == 1
+        assert Decimal(str(data[0]["subtotal"])) == Decimal("1234567.8900")
+        assert Decimal(str(data[0]["amount_payable"])) == Decimal("1358024.6800")
+
+        # Test CSV export format
+        res_csv = await client.get(
+            "/api/v1/exports/invoices?format=csv",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert res_csv.status_code == 200
+        csv_text = res_csv.text
+        assert "INV-2026-999" in csv_text
+        assert "1234567.89" in csv_text or "1234567.8900" in csv_text
+        assert "1358024.68" in csv_text or "1358024.6800" in csv_text
+
+    await db_manager.close()
+
+
+@pytest.mark.asyncio
+async def test_unified_review_actions_and_concurrency():
+    db_url = "sqlite+aiosqlite:///:memory:"
+    db_manager = DatabaseSessionManager(database_url=db_url)
+    await db_manager.create_tables()
+
+    tenant_id = str(uuid.uuid4())
+    reviewer_id = str(uuid.uuid4())
+    doc_id = str(uuid.uuid4())
+    inv_id = str(uuid.uuid4())
+
+    async with db_manager.session() as session:
+        t = TenantORM(id=tenant_id, name="Review Tenant")
+        u = UserORM(
+            id=reviewer_id,
+            email="reviewer@test.vn",
+            hashed_password=hash_password("Pass123!"),
+            full_name="Reviewer User",
+            is_active=True,
+        )
+        m = MembershipORM(id=str(uuid.uuid4()), tenant_id=tenant_id, user_id=reviewer_id, role="reviewer")
+        doc = DocumentORM(
+            id=doc_id,
+            tenant_id=tenant_id,
+            filename="review_inv.pdf",
+            mime_type="application/pdf",
+            file_size_bytes=1024,
+            sha256="shatest456",
+            storage_uri="local://review_inv.pdf",
+            status="READY",
+            uploaded_by="different_uploader_id",
+        )
+        inv = InvoiceORM(
+            id=inv_id,
+            tenant_id=tenant_id,
+            document_id=doc_id,
+            revision=1,
+            status="READY_FOR_REVIEW",
+            supplier_tax_id="0109999999",
+            supplier_name="Old Vendor Name",
+            subtotal=Decimal("500000"),
+            tax_total=Decimal("50000"),
+            amount_payable=Decimal("550000"),
+        )
+        session.add_all([t, u, m, doc, inv])
+
+    app = create_app(database_url=db_url, db_manager=db_manager)
+    transport = ASGITransport(app=app)
+    settings = get_settings()
+
+    token = create_access_token(
+        user_id=reviewer_id, tenant_id=tenant_id, role="reviewer", email="reviewer@test.vn", settings=settings
+    )
+
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        # 1. Action "correct": update supplier_name with valid revision 1
+        res_correct = await client.post(
+            f"/api/v1/invoices/{inv_id}/review",
+            headers={"Authorization": f"Bearer {token}", "If-Match": '"1"'},
+            json={
+                "action": "correct",
+                "corrections": {"supplier_name": "Corrected Vendor Name"},
+                "reason": "Name spelling corrected",
+            },
+        )
+        assert res_correct.status_code == 200
+        assert res_correct.json()["revision"] == 2
+
+        # 2. Concurrency Conflict: try to modify using stale revision 1 -> 409 Conflict
+        res_stale = await client.post(
+            f"/api/v1/invoices/{inv_id}/review",
+            headers={"Authorization": f"Bearer {token}", "If-Match": '"1"'},
+            json={"action": "reject", "reason": "Late rejection with stale revision"},
+        )
+        assert res_stale.status_code == 409
+
+        # 3. Action "reject" with fresh revision 2 -> 200 OK
+        res_reject = await client.post(
+            f"/api/v1/invoices/{inv_id}/review",
+            headers={"Authorization": f"Bearer {token}", "If-Match": '"2"'},
+            json={"action": "reject", "reason": "Vendor tax ID mismatch"},
+        )
+        assert res_reject.status_code == 200
+        assert res_reject.json()["status"] == "REJECTED"
+        assert res_reject.json()["revision"] == 3
+
+    await db_manager.close()
+

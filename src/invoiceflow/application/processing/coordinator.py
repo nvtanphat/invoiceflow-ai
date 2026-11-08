@@ -79,8 +79,21 @@ class JobCoordinator:
                     .values(status="READY_FOR_REVIEW", stage="COMPLETED")
                 )
             return True
+        except (TimeoutError, ConnectionError, OSError) as e:
+            logger.warning("Transient error processing job %s: %s; flagging for retry", job_id, e)
+            async with self._db_manager.session() as session:
+                await session.execute(
+                    update(ProcessingJobORM)
+                    .where(ProcessingJobORM.id == job_id)
+                    .values(
+                        status="RETRYING",
+                        stage="RETRY",
+                        error_message=f"Transient error: {str(e)}",
+                    )
+                )
+            raise e
         except Exception as e:
-            logger.exception("Error processing job %s", job_id)
+            logger.exception("Permanent error processing job %s: %s", job_id, e)
             async with self._db_manager.session() as session:
                 await session.execute(
                     update(ProcessingJobORM)
@@ -143,9 +156,9 @@ class JobCoordinator:
                 .values(stage="EXTRACTING")
             )
 
-        # Render image for vision if scanned/mixed
+        # Render image for vision if scanned/mixed or insufficient text layer
         image_bytes: Optional[bytes] = None
-        if inspection.classification in ("scanned", "mixed"):
+        if inspection.classification in ("pdf_scan", "scanned", "mixed") or not inspection.has_sufficient_text:
             import fitz
             doc_pdf = fitz.open(stream=content, filetype="pdf")
             if len(doc_pdf) > 0:

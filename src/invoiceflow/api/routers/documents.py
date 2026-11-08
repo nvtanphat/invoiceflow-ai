@@ -28,6 +28,7 @@ router = APIRouter(prefix="/documents", tags=["Documents"])
 
 
 @router.post("", status_code=status.HTTP_202_ACCEPTED)
+@router.post("/upload", status_code=status.HTTP_202_ACCEPTED)
 async def upload_document(
     response: Response,
     file: UploadFile = File(...),
@@ -46,9 +47,15 @@ async def upload_document(
             filename=file.filename or "upload.bin",
             content=content,
             idempotency_key=idempotency_key,
+            uploaded_by=ctx.user_id,
         )
+        await session.commit()
     except PreflightError as e:
+        await session.rollback()
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+    except Exception:
+        await session.rollback()
+        raise
 
     if not is_replay:
         try:
@@ -58,6 +65,7 @@ async def upload_document(
             pass
 
     response.headers["Location"] = f"/api/v1/jobs/{job.id}"
+    created_at_str = doc.created_at.isoformat() if getattr(doc, "created_at", None) else ""
     return {
         "document_id": doc.id,
         "job_id": job.id,
@@ -65,6 +73,20 @@ async def upload_document(
         "sha256": doc.sha256,
         "is_idempotent_replay": is_replay,
         "status_url": f"/api/v1/jobs/{job.id}",
+        "document": {
+            "id": doc.id,
+            "filename": doc.filename,
+            "mime_type": doc.mime_type,
+            "file_size_bytes": doc.file_size_bytes,
+            "status": doc.status,
+            "created_at": created_at_str,
+        },
+        "job": {
+            "id": job.id,
+            "document_id": job.document_id,
+            "status": job.status,
+            "stage": job.stage,
+        },
     }
 
 

@@ -215,7 +215,7 @@ class ApiClient {
       const err = await res.json().catch(() => ({ detail: "Review action failed" }));
       throw new Error(err.detail || "Review action failed");
     }
-    return res.json();
+    return this.getInvoice(invoiceId);
   }
 
   public async reconcile(invoiceId: string): Promise<ReconciliationResult> {

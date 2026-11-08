@@ -47,6 +47,7 @@ class DocumentRepository:
         sha256: str,
         storage_uri: str,
         page_count: int = 1,
+        uploaded_by: Optional[str] = None,
     ) -> DocumentORM:
         doc = DocumentORM(
             id=str(uuid.uuid4()),
@@ -58,6 +59,7 @@ class DocumentRepository:
             storage_uri=storage_uri,
             page_count=page_count,
             status="RECEIVED",
+            uploaded_by=uploaded_by,
         )
         self._session.add(doc)
         await self._session.flush()

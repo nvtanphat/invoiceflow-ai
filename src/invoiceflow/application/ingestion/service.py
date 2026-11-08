@@ -31,6 +31,7 @@ class IngestionService:
         filename: str,
         content: bytes,
         idempotency_key: Optional[str] = None,
+        uploaded_by: Optional[str] = None,
     ) -> tuple[DocumentORM, ProcessingJobORM, bool]:
         """Returns (DocumentORM, ProcessingJobORM, is_idempotent_replay)."""
         if idempotency_key:
@@ -63,6 +64,7 @@ class IngestionService:
             sha256=meta.sha256,
             storage_uri=storage_uri,
             page_count=meta.page_count,
+            uploaded_by=uploaded_by,
         )
 
         job = ProcessingJobORM(

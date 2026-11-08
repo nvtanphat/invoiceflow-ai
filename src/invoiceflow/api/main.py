@@ -41,12 +41,12 @@ def create_app(
         lifespan=lifespan,
     )
 
-    # CORS configuration
+    # CORS configuration with explicit allowlist (avoid wildcard when credentials enabled)
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=settings.CORS_ORIGINS or ["http://localhost:3000", "http://localhost:5173"],
         allow_credentials=True,
-        allow_methods=["*"],
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
         allow_headers=["*"],
         expose_headers=["Location", "If-Match"],
     )

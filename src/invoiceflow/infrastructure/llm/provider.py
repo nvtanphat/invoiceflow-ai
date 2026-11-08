@@ -8,6 +8,7 @@ class ExtractedLine(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     line_no: int
+    sku: Optional[str] = None
     description: str
     unit: Optional[str] = None
     qty: Decimal
@@ -34,6 +35,9 @@ class ExtractionResult(BaseModel):
     line_items: List[ExtractedLine] = Field(default_factory=list)
     raw_response: dict = Field(default_factory=dict)
     prompt_version: str = "2026.11.1"
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    cost_usd: float = 0.0
 
 
 class LLMProviderPort(ABC):

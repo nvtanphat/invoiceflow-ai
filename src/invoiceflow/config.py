@@ -16,6 +16,13 @@ class Settings(BaseSettings):
     API_V1_STR: str = "/api/v1"
     DEBUG: bool = False
 
+    CORS_ORIGINS: list[str] = [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ]
+
     JWT_SECRET: str = Field(
         default="dev-insecure-secret-key-must-be-changed-in-production-32-chars",
         min_length=32,

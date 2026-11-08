@@ -80,16 +80,35 @@ class OpenAIAdapter(LLMProviderPort):
         )
 
         content = response.choices[0].message.content or "{}"
-        return json.loads(content)
+        try:
+            data = json.loads(content)
+        except Exception:
+            data = {}
+
+        usage = getattr(response, "usage", None)
+        if usage:
+            data["_usage"] = {
+                "prompt_tokens": getattr(usage, "prompt_tokens", 0) or 0,
+                "completion_tokens": getattr(usage, "completion_tokens", 0) or 0,
+            }
+        return data
 
     def _map_to_result(self, data: dict[str, Any]) -> ExtractionResult:
         lines = []
         raw_lines = data.get("line_items") or data.get("items") or []
         for idx, raw_line in enumerate(raw_lines, start=1):
+            desc_val = str(raw_line.get("description") or raw_line.get("item_name") or "")
+            sku_val = raw_line.get("sku") or raw_line.get("sku_ref")
+            if not sku_val and "[" in desc_val:
+                m_sku = re.search(r"\[([A-Z0-9_-]+)\]", desc_val)
+                if m_sku:
+                    sku_val = m_sku.group(1)
+
             lines.append(
                 ExtractedLine(
                     line_no=int(raw_line.get("line_no", idx)),
-                    description=str(raw_line.get("description") or raw_line.get("item_name") or ""),
+                    sku=str(sku_val).strip() if sku_val else None,
+                    description=desc_val,
                     unit=raw_line.get("unit"),
                     qty=self._parse_decimal(raw_line.get("qty") or raw_line.get("quantity")),
                     unit_price=self._parse_decimal(raw_line.get("unit_price") or raw_line.get("price")),
@@ -107,6 +126,14 @@ class OpenAIAdapter(LLMProviderPort):
         inv_series = data.get("invoice_series") or data.get("series") or data.get("invoice_template")
         i_date = data.get("issue_date") or data.get("invoice_date") or data.get("date")
 
+        usage = data.get("_usage", {})
+        prompt_tokens = int(usage.get("prompt_tokens", 0))
+        completion_tokens = int(usage.get("completion_tokens", 0))
+        # Precise token-based cost accounting ($0.15/1M prompt, $0.60/1M completion)
+        cost_usd = (prompt_tokens * 0.00000015) + (completion_tokens * 0.0000006)
+        if cost_usd == 0 and (prompt_tokens > 0 or completion_tokens > 0):
+            cost_usd = 0.0001
+
         return ExtractionResult(
             supplier_tax_id=str(s_tax).strip() if s_tax else None,
             supplier_name=str(s_name).strip() if s_name else None,
@@ -122,6 +149,9 @@ class OpenAIAdapter(LLMProviderPort):
             line_items=lines,
             raw_response=data,
             prompt_version=PROMPT_VERSION,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            cost_usd=round(cost_usd, 6),
         )
 
     def _parse_decimal(self, val: Any) -> Decimal:

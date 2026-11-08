@@ -42,6 +42,7 @@ def process_document_job(job_id: str) -> None:
         success = loop.run_until_complete(coordinator.process_job(job_id))
         if not success:
             logger.error("Job %s did not complete successfully.", job_id)
+            raise RuntimeError(f"Processing failed for job {job_id}")
     finally:
         loop.run_until_complete(db_manager.close())
         loop.close()

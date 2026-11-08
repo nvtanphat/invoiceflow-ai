@@ -285,8 +285,10 @@ def run_b0_xml_direct(case: Dict[str, Any], file_path: Path) -> Dict[str, Any]:
                 "amount_payable": str(inv.amount_payable),
             }
             for line in inv.lines:
+                m_sku = re.search(r"\[([A-Z0-9_-]+)\]", line.description)
+                sku_val = line.sku_ref or (m_sku.group(1) if m_sku else "")
                 lines.append({
-                    "sku": line.sku_ref or "DELL-XPS-13" if "DELL" in line.description else (line.sku_ref or "PAPER-A4-70"),
+                    "sku": sku_val,
                     "description": line.description,
                     "qty": str(line.qty),
                     "unit_price": str(line.unit_price),
@@ -342,7 +344,7 @@ async def run_b2_pure_vision_llm(
     start = time.perf_counter()
     header: Dict[str, Any] = {}
     lines: List[Dict[str, Any]] = []
-    cost = 0.0028
+    cost = 0.0000
 
     with open(file_path, "rb") as f:
         content = f.read()
@@ -354,7 +356,7 @@ async def run_b2_pure_vision_llm(
     else:
         doc = fitz.open(stream=content, filetype="pdf")
         doc_text = doc[0].get_text()
-        pix = doc[0].get_pixmap(dpi=150)
+        pix = doc[0].get_pixmap(dpi=96)
         img_bytes = pix.tobytes("png")
         doc.close()
 
@@ -363,6 +365,7 @@ async def run_b2_pure_vision_llm(
             document_text=doc_text,
             image_bytes=img_bytes,
         )
+        cost = ext_res.cost_usd
         header = {
             "supplier_tax_id": ext_res.supplier_tax_id,
             "supplier_name": ext_res.supplier_name,
@@ -377,8 +380,10 @@ async def run_b2_pure_vision_llm(
             "amount_payable": str(ext_res.amount_payable),
         }
         for item in ext_res.line_items:
+            m_sku = re.search(r"\[([A-Z0-9_-]+)\]", item.description)
+            sku_val = item.sku or (m_sku.group(1) if m_sku else "")
             lines.append({
-                "sku": case["lines"][0]["sku"] if case["lines"] else "",
+                "sku": sku_val,
                 "description": item.description,
                 "qty": str(item.qty),
                 "unit_price": str(item.unit_price),
@@ -510,34 +515,43 @@ async def run_benchmark_async() -> Dict[str, Any]:
     results_dir = ROOT_DIR / "benchmarks" / "results"
     results_dir.mkdir(parents=True, exist_ok=True)
     summary_rows = []
+    all_predictions = []
 
     # Run B0
     b0_scores = []
     for c in cases:
         p = get_fixture_file(c["case_id"])
         pred = run_b0_xml_direct(c, p)
-        b0_scores.append(evaluate_prediction(c, pred))
+        ev = evaluate_prediction(c, pred)
+        b0_scores.append(ev)
+        all_predictions.append({"case_id": c["case_id"], "baseline": "B0_XML_DIRECT", "prediction": pred, "evaluation": ev})
 
     # Run B1
     b1_scores = []
     for c in cases:
         p = get_fixture_file(c["case_id"])
         pred = run_b1_digital_heuristics(c, p)
-        b1_scores.append(evaluate_prediction(c, pred))
+        ev = evaluate_prediction(c, pred)
+        b1_scores.append(ev)
+        all_predictions.append({"case_id": c["case_id"], "baseline": "B1_DIGITAL_HEURISTICS", "prediction": pred, "evaluation": ev})
 
     # Run B2
     b2_scores = []
     for c in cases:
         p = get_fixture_file(c["case_id"])
         pred = await run_b2_pure_vision_llm(c, p, adapter)
-        b2_scores.append(evaluate_prediction(c, pred))
+        ev = evaluate_prediction(c, pred)
+        b2_scores.append(ev)
+        all_predictions.append({"case_id": c["case_id"], "baseline": "B2_PURE_VISION_LLM", "prediction": pred, "evaluation": ev})
 
     # Run B3
     b3_scores = []
     for c in cases:
         p = get_fixture_file(c["case_id"])
         pred = await run_b3_invoiceflow_hybrid(c, p, adapter)
-        b3_scores.append(evaluate_prediction(c, pred))
+        ev = evaluate_prediction(c, pred)
+        b3_scores.append(ev)
+        all_predictions.append({"case_id": c["case_id"], "baseline": "B3_INVOICEFLOW_HYBRID", "prediction": pred, "evaluation": ev})
 
     baseline_results = {
         "B0_XML_DIRECT": b0_scores,
@@ -582,6 +596,11 @@ async def run_benchmark_async() -> Dict[str, Any]:
         writer = csv.DictWriter(f, fieldnames=list(summary_rows[0].keys()))
         writer.writeheader()
         writer.writerows(summary_rows)
+
+    predictions_file = results_dir / "predictions.jsonl"
+    with open(predictions_file, "w", encoding="utf-8") as f:
+        for item in all_predictions:
+            f.write(json.dumps(item, ensure_ascii=False) + "\n")
 
     return report
 

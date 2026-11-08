@@ -59,6 +59,7 @@ def upgrade() -> None:
         sa.Column('storage_uri', sa.String(length=512), nullable=False),
         sa.Column('status', sa.String(length=50), nullable=False, default='RECEIVED'),
         sa.Column('page_count', sa.Integer(), nullable=False, default=1),
+        sa.Column('uploaded_by', sa.String(length=64), nullable=True),
         sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
         sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
     )

@@ -109,12 +109,16 @@ class ReviewService:
         if not invoice or invoice.tenant_id != tenant_id:
             raise ValueError(f"Invoice {invoice_id} not found.")
 
-        # 1. Check Reconciliation Match Status
-        match_stmt = select(MatchResultORM).where(
-            MatchResultORM.tenant_id == tenant_id,
-            MatchResultORM.invoice_id == invoice_id,
+        # 1. Check Reconciliation Match Status (query latest result by creation time)
+        match_stmt = (
+            select(MatchResultORM)
+            .where(
+                MatchResultORM.tenant_id == tenant_id,
+                MatchResultORM.invoice_id == invoice_id,
+            )
+            .order_by(MatchResultORM.created_at.desc())
         )
-        match_res = (await self._session.execute(match_stmt)).scalar_one_or_none()
+        match_res = (await self._session.execute(match_stmt)).scalars().first()
         if match_res and match_res.requires_review and not match_res.is_matched:
             if not notes or not notes.strip():
                 raise ValueError(
@@ -124,11 +128,11 @@ class ReviewService:
         # 2. Check Separation of Duties (SoD)
         policy_stmt = select(TolerancePolicyORM).where(TolerancePolicyORM.tenant_id == tenant_id)
         policy = (await self._session.execute(policy_stmt)).scalars().first()
-        if policy and policy.separation_of_duties_required:
-            # Verify approving user is not the uploader/author
+        sod_required = policy.separation_of_duties_required if policy is not None else True
+        if sod_required:
             doc = await self._session.get(DocumentORM, invoice.document_id)
-            if doc and getattr(doc, "uploaded_by", None) == actor_id:
-                raise PermissionError("Separation of duties violation: Document creator cannot approve invoice.")
+            if doc and doc.uploaded_by and doc.uploaded_by == actor_id:
+                raise PermissionError("Separation of duties violation: Document uploader cannot approve invoice.")
 
         # 3. Atomic CAS update
         stmt = (

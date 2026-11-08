@@ -29,13 +29,21 @@ jobs:
       - name: Install Python Dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[dev]" pytest pytest-asyncio pytest-cov ruff mypy
+          pip install -e ".[dev]" pytest pytest-asyncio pytest-cov ruff mypy email-validator openai argon2-cffi
 
       - name: Run Pytest Test Suite
+        env:
+          JWT_SECRET: ci-jwt-secret-very-secure-key-32-chars-long
+          DATABASE_URL: sqlite+aiosqlite:///:memory:
         run: |
           python -m pytest --cov=invoiceflow --cov-report=term-missing
 
       - name: Run Frozen Benchmark Verification
+        env:
+          JWT_SECRET: ci-jwt-secret-very-secure-key-32-chars-long
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_BASE_URL: ${{ secrets.OPENAI_BASE_URL || 'https://api.modelapi.vn/v1' }}
+          OPENAI_MODEL_ID: gpt-6.1-sol
         run: |
           python benchmarks/scripts/run_benchmark.py
 

@@ -126,8 +126,11 @@ def evaluate_prediction(
             else 0.0
         )
 
+    doc_em = 1.0 if (len(header_mismatches) == 0 and len(gt.get("header", {})) > 0) else 0.0
+
     return {
         "header_exact_match": header_score,
+        "header_document_exact_match": doc_em,
         "header_mismatches": header_mismatches,
         "lines_precision": lines_p,
         "lines_recall": lines_r,

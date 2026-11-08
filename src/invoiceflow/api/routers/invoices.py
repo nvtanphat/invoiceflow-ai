@@ -21,6 +21,13 @@ from invoiceflow.infrastructure.database.models import (
 router = APIRouter(prefix="/invoices", tags=["Invoices"])
 
 
+class UnifiedReviewRequest(BaseModel):
+    action: str  # "approve", "reject", "correct"
+    notes: Optional[str] = None
+    reason: Optional[str] = None
+    corrections: Optional[dict[str, Any]] = None
+
+
 class PatchInvoiceRequest(BaseModel):
     patches: dict[str, Any]
     reason: Optional[str] = "Reviewer modification"
@@ -144,17 +151,82 @@ async def get_invoice(
         ],
         "evidence": [
             {
+                "field_name": e.field_path,
                 "field_path": e.field_path,
+                "source": e.source_kind,
                 "source_kind": e.source_kind,
-                "page_index": e.page_index,
+                "page": e.page_index or 1,
+                "page_index": e.page_index or 1,
                 "bbox": json.loads(e.bbox_json) if e.bbox_json else None,
-                "raw_value": e.raw_value,
-                "normalized_value": e.normalized_value,
+                "bbox_json": e.bbox_json or "",
+                "raw_value": e.raw_value or "",
+                "normalized_value": e.normalized_value or "",
+                "confidence": float(e.confidence) if getattr(e, "confidence", None) is not None else 1.0,
             }
             for e in evidence
         ],
         "issues": issues,
     }
+
+
+@router.post("/{invoice_id}/review")
+async def review_invoice_unified(
+    invoice_id: str,
+    req: UnifiedReviewRequest,
+    if_match: Optional[str] = Header(None, alias="If-Match"),
+    ctx: AuthenticatedContext = Depends(require_role(["admin", "accountant", "reviewer"])),
+    session: AsyncSession = Depends(get_db),
+):
+    if not if_match:
+        raise HTTPException(
+            status_code=status.HTTP_428_PRECONDITION_REQUIRED,
+            detail="Header 'If-Match' containing expected revision integer is required.",
+        )
+    try:
+        expected_revision = int(if_match.strip('"'))
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid If-Match header.")
+
+    review_service = ReviewService(session)
+    try:
+        if req.action == "approve":
+            updated = await review_service.approve_invoice(
+                tenant_id=ctx.tenant_id,
+                invoice_id=invoice_id,
+                expected_revision=expected_revision,
+                actor_id=ctx.user_id,
+                notes=req.notes or req.reason,
+            )
+        elif req.action == "reject":
+            updated = await review_service.reject_invoice(
+                tenant_id=ctx.tenant_id,
+                invoice_id=invoice_id,
+                expected_revision=expected_revision,
+                actor_id=ctx.user_id,
+                reason=req.reason or "Rejected by reviewer",
+            )
+        else:
+            updated = await review_service.update_invoice_fields(
+                tenant_id=ctx.tenant_id,
+                invoice_id=invoice_id,
+                expected_revision=expected_revision,
+                actor_id=ctx.user_id,
+                patches=req.corrections or {},
+                reason=req.reason or "Reviewer corrections",
+            )
+        return {
+            "id": updated.id,
+            "invoice_id": updated.id,
+            "revision": updated.revision,
+            "status": updated.status,
+            "message": f"Invoice review action '{req.action}' completed successfully.",
+        }
+    except ConcurrencyConflictError as e:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
+    except PermissionError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 @router.patch("/{invoice_id}/revisions")

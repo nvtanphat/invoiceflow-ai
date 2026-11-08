@@ -111,6 +111,31 @@ async def import_goods_receipt(
     ctx: AuthenticatedContext = Depends(require_role(["admin", "accountant"])),
     session: AsyncSession = Depends(get_db),
 ):
+    # Verify PO exists and belongs to the current tenant
+    po_stmt = select(PurchaseOrderORM).where(
+        PurchaseOrderORM.id == req.po_id,
+        PurchaseOrderORM.tenant_id == ctx.tenant_id,
+    )
+    po = (await session.execute(po_stmt)).scalar_one_or_none()
+    if not po:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Purchase Order not found in the current tenant.",
+        )
+
+    # Verify all PO lines belong to this PO
+    po_lines_stmt = select(PurchaseOrderLineORM.id).where(
+        PurchaseOrderLineORM.po_id == po.id
+    )
+    valid_po_line_ids = set((await session.execute(po_lines_stmt)).scalars().all())
+
+    for line in req.lines:
+        if line.po_line_id not in valid_po_line_ids:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"PO line '{line.po_line_id}' does not belong to Purchase Order '{po.id}'.",
+            )
+
     grn_orm = GoodsReceiptORM(
         id=str(uuid.uuid4()),
         tenant_id=ctx.tenant_id,
@@ -141,6 +166,7 @@ async def import_goods_receipt(
 
 
 @router.post("/invoices/{invoice_id}/match")
+@router.post("/matching/reconcile/{invoice_id}")
 async def match_invoice(
     invoice_id: str,
     ctx: AuthenticatedContext = Depends(require_role(["admin", "accountant", "reviewer"])),
