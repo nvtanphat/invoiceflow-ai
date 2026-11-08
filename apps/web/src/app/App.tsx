@@ -284,7 +284,8 @@ export const App: React.FC = () => {
               onClick={() => {
                 if (!selectedInvoiceId) {
                   api.getInvoices().then((invs) => {
-                    if (invs.length > 0) setSelectedInvoiceId(invs[0].id);
+                    const target = invs.find((i) => i.status === "MATCHED" || i.status === "READY_FOR_REVIEW") || invs[0];
+                    if (target) setSelectedInvoiceId(target.id);
                   });
                 }
                 setActiveTab("review");

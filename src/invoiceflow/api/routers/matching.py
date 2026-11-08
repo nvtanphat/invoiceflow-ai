@@ -185,9 +185,9 @@ async def match_invoice(
     lines_orm = lines_res.scalars().all()
 
     inv_aggregate = InvoiceAggregate(
-        id=uuid.UUID(inv.id),
-        tenant_id=uuid.UUID(inv.tenant_id),
-        document_id=uuid.UUID(inv.document_id),
+        id=inv.id,
+        tenant_id=inv.tenant_id,
+        document_id=inv.document_id,
         revision=inv.revision,
         status=InvoiceStatus(inv.status),
         supplier_tax_id=inv.supplier_tax_id,
@@ -212,7 +212,7 @@ async def match_invoice(
                 tax_rate=line.tax_rate,
                 tax=line.tax,
                 line_amount=line.line_amount,
-                purchase_order_line_id=uuid.UUID(line.po_line_id) if line.po_line_id else None,
+                purchase_order_line_id=line.po_line_id if line.po_line_id else None,
             )
             for line in lines_orm
         ],
@@ -234,8 +234,8 @@ async def match_invoice(
             select(PurchaseOrderLineORM).where(PurchaseOrderLineORM.po_id == po_orm.id)
         )
         domain_po = PurchaseOrder(
-            id=uuid.UUID(po_orm.id),
-            tenant_id=uuid.UUID(po_orm.tenant_id),
+            id=po_orm.id,
+            tenant_id=po_orm.tenant_id,
             vendor_tax_id=po_orm.vendor_tax_id,
             vendor_name=po_orm.vendor_name,
             po_number=po_orm.po_number,
@@ -244,8 +244,8 @@ async def match_invoice(
             subtotal=po_orm.subtotal,
             lines=[
                 POLine(
-                    id=uuid.UUID(pl.id),
-                    po_id=uuid.UUID(pl.po_id),
+                    id=pl.id,
+                    po_id=pl.po_id,
                     line_no=pl.line_no,
                     sku=pl.sku,
                     description=pl.description,
@@ -268,16 +268,16 @@ async def match_invoice(
             )
             domain_receipts.append(
                 GoodsReceipt(
-                    id=uuid.UUID(grn_o.id),
-                    tenant_id=uuid.UUID(grn_o.tenant_id),
-                    po_id=uuid.UUID(grn_o.po_id),
+                    id=grn_o.id,
+                    tenant_id=grn_o.tenant_id,
+                    po_id=grn_o.po_id,
                     grn_number=grn_o.grn_number,
                     receipt_date=grn_o.receipt_date,
                     lines=[
                         GRNLine(
-                            id=uuid.UUID(gl.id),
-                            grn_id=uuid.UUID(gl.grn_id),
-                            po_line_id=uuid.UUID(gl.po_line_id),
+                            id=gl.id,
+                            grn_id=gl.grn_id,
+                            po_line_id=gl.po_line_id,
                             line_no=gl.line_no,
                             received_qty=gl.received_qty,
                             rejected_qty=gl.rejected_qty,

@@ -67,7 +67,7 @@ class InvoiceLine(BaseModel):
     tax_rate: Optional[Decimal] = None
     tax: Decimal = Field(default=Decimal("0.0000"), ge=Decimal("0.0000"))
     line_amount: Decimal = Field(..., ge=Decimal("0.0000"))
-    purchase_order_line_id: Optional[UUID] = None
+    purchase_order_line_id: Optional[Union[UUID, str]] = None
     raw_qty: Optional[str] = None
     raw_unit_price: Optional[str] = None
     raw_line_amount: Optional[str] = None

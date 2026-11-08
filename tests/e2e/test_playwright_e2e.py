@@ -87,8 +87,8 @@ def test_playwright_e2e_full_lifecycle(e2e_server):
         assert page.is_visible("text=Hộp thư Hóa đơn & Chứng từ")
         assert page.is_visible("text=Tải lên hóa đơn điện tử")
 
-        # 3. Switch to Review Tab
-        page.click("button:has-text('Xem xét & Phê duyệt')")
+        # 3. Open invoice from inbox to review
+        page.click("tr:has-text('e_invoice_thang_long.xml') button:has-text('Xem chi tiết')")
         page.wait_for_selector("text=Dữ liệu trường thông tin hóa đơn", timeout=12000)
 
         # 4. Check Verification Badges
