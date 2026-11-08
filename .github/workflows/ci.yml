@@ -45,7 +45,18 @@ jobs:
           JWT_SECRET: "ci-jwt-secret-very-secure-key-32-chars-long"
           DATABASE_URL: "sqlite+aiosqlite:///:memory:"
         run: |
-          python -m pytest --ignore=tests/e2e -v --tb=short --cov=invoiceflow --cov-report=term-missing
+          set -o pipefail
+          python -m pytest --ignore=tests/e2e -v --tb=short --cov=invoiceflow --cov-report=term-missing 2>&1 | tee pytest_output.log
+
+      - name: Report Pytest Failures in Summary
+        if: always()
+        run: |
+          if [ -f pytest_output.log ]; then
+            echo "### Pytest Execution Summary" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            tail -n 120 pytest_output.log >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi
 
       - name: Run Application QA Verification
         env:
