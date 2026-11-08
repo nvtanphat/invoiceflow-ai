@@ -53,7 +53,8 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: str = ""
     GEMINI_MODEL_ID: str = "gemini-2.5-flash"
     MAX_PROVIDER_BUDGET_PER_DOC_USD: float = 0.05
-    REQUEST_TIMEOUT_SECONDS: int = 30
+    REQUEST_TIMEOUT_SECONDS: int = 60
+    LLM_MAX_RETRIES: int = 2
 
     MAX_UPLOAD_SIZE_BYTES: int = 25 * 1024 * 1024
     MAX_DOCUMENT_PAGES: int = 50
@@ -62,6 +63,10 @@ class Settings(BaseSettings):
     DEFAULT_PRICE_TOLERANCE_PCT: float = 2.0
     DEFAULT_QTY_TOLERANCE_PCT: float = 0.0
     DOCLING_TIMEOUT_SECONDS: int = 60
+
+    OCR_ENGINE: Literal["easyocr", "rapidocr"] = "easyocr"
+    OCR_LANGUAGES: list[str] = ["vi", "en"]
+    VIETOCR_VERIFICATION_ENABLED: bool = False
 
     @field_validator("JWT_SECRET")
     @classmethod

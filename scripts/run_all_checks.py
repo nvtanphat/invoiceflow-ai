@@ -71,8 +71,8 @@ def main() -> int:
             ROOT_DIR,
         ),
         (
-            "Step 7: Frozen Benchmark Suite Evaluation",
-            ["python", "benchmarks/scripts/run_benchmark.py"],
+            "Step 7: Application Quality Assurance Verification",
+            ["python", "scripts/run_application_qa.py"],
             ROOT_DIR,
         ),
         (

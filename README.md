@@ -124,8 +124,8 @@ Truy cập:
 # Chạy toàn bộ 40 bài test tự động (Unit, Integration, Contract, Security)
 python -m pytest
 
-# Chạy kiểm thử benchmark tái lập
-python benchmarks/scripts/run_benchmark.py
+# Chạy kiểm thử chất lượng ứng dụng thực tế (10 casebook documents)
+python scripts/run_application_qa.py
 
 # Kiểm tra typecheck và build frontend
 pnpm --dir apps/web build

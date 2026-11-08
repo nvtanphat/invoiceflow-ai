@@ -3,6 +3,7 @@ boxes drawn on top, as visual proof that evidence grounding (table_id,
 cell_id, page_index, bbox) resolves to the correct location on the source
 document rather than just existing as unverified metadata.
 """
+
 import sys
 from pathlib import Path
 
@@ -56,7 +57,9 @@ def render(case_filename: str, do_ocr: bool = False) -> Path:
     print(f"Lines extracted: {len(lines)}")
     print(f"Evidence entries: {len(evidence)}")
     for ev in evidence:
-        print(f"  {ev.field_path}: table_id={ev.table_id} cell_id={ev.cell_id} page={ev.page_index}")
+        print(
+            f"  {ev.field_path}: table_id={ev.table_id} cell_id={ev.cell_id} page={ev.page_index}"
+        )
     print(f"Rendered: {out_path}")
     return out_path
 

@@ -82,6 +82,34 @@ def test_docling_adapter_converter_cache_separation():
     assert True in adapter._converters
 
 
+def test_docling_adapter_defaults_ocr_engine_from_settings():
+    from invoiceflow.config import get_settings
+
+    settings = get_settings()
+    adapter = DoclingAdapter()
+    assert adapter._ocr_engine == settings.OCR_ENGINE
+    assert adapter._ocr_languages == list(settings.OCR_LANGUAGES)
+
+
+def test_docling_adapter_explicit_ocr_engine_overrides_settings():
+    adapter = DoclingAdapter(ocr_engine="rapidocr", ocr_languages=["en"])
+    assert adapter._ocr_engine == "rapidocr"
+    assert adapter._ocr_languages == ["en"]
+
+
+def test_docling_adapter_builds_easyocr_pipeline_options():
+    pytest.importorskip("docling")
+    from docling.datamodel.base_models import InputFormat
+    from docling.datamodel.pipeline_options import EasyOcrOptions
+
+    adapter = DoclingAdapter(ocr_engine="easyocr", ocr_languages=["vi", "en"])
+    converter = adapter._get_converter(do_ocr=True)
+    pdf_opts = converter.format_to_options[InputFormat.PDF].pipeline_options
+
+    assert isinstance(pdf_opts.ocr_options, EasyOcrOptions)
+    assert pdf_opts.ocr_options.lang == ["vi", "en"]
+
+
 def test_docling_adapter_empty_document_fallback():
     import fitz
 

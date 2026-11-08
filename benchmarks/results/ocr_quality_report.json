@@ -1,37 +1,14 @@
 {
   "suite": "InvoiceFlow AI OCR Quality Verification v1.0",
-  "timestamp": "2026-11-08T14:20:40Z",
+  "timestamp": "2026-11-08T14:51:53Z",
   "text_cases": [
     {
       "case_id": "CASE-03-PDF-SCAN",
       "description": "Scanned (image-only) Vietnamese invoice, no rotation",
       "used_fallback": false,
-      "latency_ms": 20883.34,
-      "cer": 0.2321,
-      "wer": 0.5972,
-      "unmatched_hypothesis_lines": [],
-      "expected_amounts": [
-        "680000",
-        "850000",
-        "8500000",
-        "9180000"
-      ],
-      "missing_amounts": [
-        "680000",
-        "8500000",
-        "9180000"
-      ],
-      "all_amounts_recognized": false,
-      "reference_text": "HOA DON BAN HANG (SCAN)\nKy hieu: 2C26TCC  So: 0003412  Ngay: 2026-03-08\nBen ban: Công ty TNHH Dịch vụ Vệ sinh Công nghiệp Hà Nội - MST: 0105554321\nBen mua: Công ty Cổ phần Thương mại Alpha VN - MST: 0109998888\nHang hoa: Bộ dụng cụ và hóa chất vệ sinh sàn văn phòng [CLEAN-SET-01]\nSo luong: 10.0000  Don gia: 850000.0000  Thue: 8.00%\nTien hang: 8500000.0000  Thue GTGT: 680000.0000  Tong cong: 9180000.0000",
-      "recognized_text": "HOA DON BAN HANG (SCAN)\nKyhieu:2C26TCC So:0003412 Ngay:2026-03-08 Ben ban: Cong ty TNHH Dich vu Ve sinh Cong nghiep Ha Noi-MST: 0105554321 Ben mua: Cong ty Co phan Thuong mai Alpha VN -MST: 0109998888 Hang hoa: Bo dung cu va hoa chat ve sinh san van phong [CLEAN-SET-01] So luong: 10.0000 Don gia: 850000.0000 Thue: 8.00% 00000000006 :u00 6u01 00000000089 :1010 0001 00000000000 :u0y u0"
-    },
-    {
-      "case_id": "CASE-07-PDF-ROTATED-SCAN",
-      "description": "Scanned (image-only) Vietnamese invoice, rotated 90 degrees",
-      "used_fallback": false,
-      "latency_ms": 4861.58,
-      "cer": 0.0726,
-      "wer": 0.3151,
+      "latency_ms": 37381.44,
+      "cer": 0.1235,
+      "wer": 0.1111,
       "unmatched_hypothesis_lines": [],
       "expected_amounts": [
         "680000",
@@ -41,14 +18,42 @@
       ],
       "missing_amounts": [],
       "all_amounts_recognized": true,
+      "reference_text": "HOA DON BAN HANG (SCAN)\nKy hieu: 2C26TCC  So: 0003412  Ngay: 2026-03-08\nBen ban: Công ty TNHH Dịch vụ Vệ sinh Công nghiệp Hà Nội - MST: 0105554321\nBen mua: Công ty Cổ phần Thương mại Alpha VN - MST: 0109998888\nHang hoa: Bộ dụng cụ và hóa chất vệ sinh sàn văn phòng [CLEAN-SET-01]\nSo luong: 10.0000  Don gia: 850000.0000  Thue: 8.00%\nTien hang: 8500000.0000  Thue GTGT: 680000.0000  Tong cong: 9180000.0000",
+      "recognized_text": "HOA DON BAN HANG (SCAN)\nKy hieu: 2C26TCC So: 0003412 Ngay: 2026-03-08 Ben ban: ty TNHH Dịch vụ Vệ sinh nghiệp Hà Nội MST: 0105554321 Ben mua: ty Cổ phần Thương mại Alpha VN MST: 0109998888 Hang hoa: Bộ dụng cụ và hóa chất vệ sinh sàn văn phòng [CLEAN-SET-01] So luong: 10.0000 Don gia: 850000.0000 Thue: 8.00% Tien hang: 8500000.0000 Thue GTGT: 680000.0000 Tong cong: 9180000.0000 Công Công Công"
+    },
+    {
+      "case_id": "CASE-07-PDF-ROTATED-SCAN",
+      "description": "Scanned (image-only) Vietnamese invoice, rotated 90 degrees",
+      "used_fallback": false,
+      "latency_ms": 25044.73,
+      "cer": 0.9322,
+      "wer": 1.0,
+      "unmatched_hypothesis_lines": [
+        "0",
+        "g",
+        "2"
+      ],
+      "expected_amounts": [
+        "680000",
+        "850000",
+        "8500000",
+        "9180000"
+      ],
+      "missing_amounts": [
+        "680000",
+        "850000",
+        "8500000",
+        "9180000"
+      ],
+      "all_amounts_recognized": false,
       "reference_text": "HOA DON BAN HANG (ROTATED SCAN)\nKy hieu: 2C26TCC  So: 0003499  Ngay: 2026-03-12\nBen ban: Công ty TNHH Dịch vụ Vệ sinh Công nghiệp Hà Nội - MST: 0105554321\nBen mua: Công ty Cổ phần Thương mại Alpha VN - MST: 0109998888\nHang hoa: Bộ dụng cụ và hóa chất vệ sinh sàn văn phòng [CLEAN-SET-01]\nSo luong: 10.0000  Don gia: 850000.0000  Thue: 8.00%\nTien hang: 8500000.0000  Thue GTGT: 680000.0000  Tong cong: 9180000.0000",
-      "recognized_text": "Tien hang: 8500000.0000 Thue GTGT: 680000.0000 Tong cong: 9180000.0000\nSo luong: 10.0000 Don gia: 850000.0000 Thue: 8.00%\nHang hoa: Bo dung cu va hoa chat ve sinh san van phong [CLEAN-SET-01]\nBen mua: Cong ty Co phan Thuong mai Alpha VN - MST: 0109998888\nBen ban: Cong ty TNHH Dich vu Ve sinh Cong nghiep Ha Noi - MST: 0105554321\nKy hieu: 2C26TCC So: 0003499 Ngay: 2026-03-12\nHOA DON BAN HANG (ROTATED SCAN)"
+      "recognized_text": "ẵ 9 ; 1 ẵ\n8\n8\n0\ng g 9\ng g 2 8 1 1\ng\ng 2\n2 8 8\n2"
     },
     {
       "case_id": "CASE-09-PDF-MIXED",
       "description": "Mixed PDF: page 1 digital text, page 2 scanned attachment image",
       "used_fallback": false,
-      "latency_ms": 4597.65,
+      "latency_ms": 21218.66,
       "cer": 0.0185,
       "wer": 0.0556,
       "unmatched_hypothesis_lines": [],
@@ -58,14 +63,14 @@
       "missing_amounts": [],
       "all_amounts_recognized": true,
       "reference_text": "PHIEU GIAO HANG DINH KEM (SCAN)\nHang hoa: Giấy photocopy Double A A4 70gsm [PAPER-A4-70]  So luong: 200.0000",
-      "recognized_text": "PHIEU GIAO HANG DINH KEM (SCAN)\nHang hoa: Giay photocopy Double A A4 70gsm [PAPER-A4-70] So luong: 200.0000"
+      "recognized_text": "PHIEU GIAO HANG DINH KEM (SCAN)\nHang hoa: Giấy photocopy Double A A4 7Ogsm [PAPER-A4-70] So luong: 200.0000"
     }
   ],
   "table_case": {
     "case_id": "CASE-10-PDF-SCAN-TABLE",
     "description": "Scanned pure-image invoice with a multi-row line-item table",
     "used_fallback": false,
-    "latency_ms": 6934.4,
+    "latency_ms": 25318.5,
     "tables_detected_by_ocr": 1,
     "lines_extracted": 2,
     "evidence_entries": 10,

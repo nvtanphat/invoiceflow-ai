@@ -1,7 +1,0 @@
-Condition,Description,Header EM (%),Table F1 (%),Arith Valid (%),Anomaly F1 (%),Avg Latency (ms)
-A0_FULL_HYBRID_SYSTEM,"Full hybrid pipeline with structure-aware table extraction, OCR & verification",81.8%,70.0%,73.8%,76.7%,4503.2
-A1_NO_TABLE_EXTRACTOR,Without structure-aware table extraction (plain text regex fallback),81.8%,66.7%,100.0%,100.0%,3363.5
-A2_NO_OCR,Without local OCR on scanned/rotated documents,70.0%,60.0%,77.8%,86.7%,2326.4
-A3_NO_VALIDATION,Without deterministic arithmetic sanity check & matching,81.8%,70.0%,73.8%,80.0%,3595.2
-A4_NO_VISION_FALLBACK,Without Vision LLM fallback on difficult scans,81.8%,70.0%,73.8%,76.7%,3566.0
-A5_NO_HYBRID_ROUTING,Without hybrid routing (uniform naive digital execution),51.8%,40.0%,66.7%,76.7%,2636.6

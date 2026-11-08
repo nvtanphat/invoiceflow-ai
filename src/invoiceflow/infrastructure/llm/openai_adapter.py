@@ -1,4 +1,5 @@
 import json
+import logging
 import re
 from decimal import Decimal
 from typing import Any, Optional
@@ -12,37 +13,47 @@ from invoiceflow.prompts.invoice_extraction import (
     PROMPT_VERSION,
 )
 
+logger = logging.getLogger(__name__)
+
 
 class OpenAIAdapter(LLMProviderPort):
     def __init__(
         self,
-        api_key: str = "",
-        base_url: str = "https://api.modelapi.vn/v1",
-        model_id: str = "gpt-6.1-sol",
-        timeout: float = 30.0,
-        max_retries: int = 2,
+        api_key: Optional[str] = None,
+        base_url: Optional[str] = None,
+        model_id: Optional[str] = None,
+        timeout: Optional[float] = None,
+        max_retries: Optional[int] = None,
     ):
-        self.api_key = api_key
-        self.base_url = base_url
-        self.model_id = model_id
-        self.timeout = timeout
-        self.max_retries = max_retries
+        from invoiceflow.config import get_settings
+
+        settings = get_settings()
+        self.api_key = api_key if api_key is not None else settings.OPENAI_API_KEY
+        self.base_url = base_url if base_url is not None else settings.OPENAI_BASE_URL
+        self.model_id = model_id if model_id is not None else settings.OPENAI_MODEL_ID
+        self.timeout = float(
+            timeout if timeout is not None else getattr(settings, "REQUEST_TIMEOUT_SECONDS", 30)
+        )
+        self.max_retries = int(
+            max_retries if max_retries is not None else getattr(settings, "LLM_MAX_RETRIES", 2)
+        )
         self._client = None
 
-        if api_key and api_key != "mock-key":
+        if self.api_key and self.api_key != "mock-key":
             try:
                 from openai import AsyncOpenAI
 
                 self._client = AsyncOpenAI(
-                    api_key=api_key,
-                    base_url=base_url,
-                    timeout=timeout,
-                    max_retries=max_retries,
+                    api_key=self.api_key,
+                    base_url=self.base_url,
+                    timeout=self.timeout,
+                    max_retries=self.max_retries,
                     default_headers={
                         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) InvoiceFlow-AI/1.0"
                     },
                 )
-            except Exception:
+            except Exception as e:
+                logger.warning("Failed to initialize AsyncOpenAI client: %s", e)
                 self._client = None
 
     async def extract_invoice_data(
@@ -53,13 +64,22 @@ class OpenAIAdapter(LLMProviderPort):
         request_id: Optional[str] = None,
     ) -> ExtractionResult:
         if not self._client:
+            logger.warning("OpenAI client not configured or missing API key.")
             return ExtractionResult(
                 supplier_name=None,
                 supplier_tax_id=None,
                 raw_response={"error": "OpenAI client not configured or missing API key"},
             )
-        raw_dict = await self._call_openai_api(document_text, image_bytes)
-        return self._map_to_result(raw_dict)
+        try:
+            raw_dict = await self._call_openai_api(document_text, image_bytes)
+            return self._map_to_result(raw_dict)
+        except Exception as exc:
+            logger.error("Vision LLM call to %s failed: %s", self.base_url, exc)
+            return ExtractionResult(
+                supplier_name=None,
+                supplier_tax_id=None,
+                raw_response={"error": str(exc)},
+            )
 
     async def _call_openai_api(
         self, document_text: str, image_bytes: Optional[bytes | list[bytes]] = None
@@ -76,10 +96,11 @@ class OpenAIAdapter(LLMProviderPort):
             imgs = image_bytes if isinstance(image_bytes, list) else [image_bytes]
             for img in imgs:
                 b64_img = base64.b64encode(img).decode("utf-8")
+                mime = "image/jpeg" if img.startswith(b"\xff\xd8") else "image/png"
                 user_msg.append(
                     {
                         "type": "image_url",
-                        "image_url": {"url": f"data:image/png;base64,{b64_img}"},
+                        "image_url": {"url": f"data:{mime};base64,{b64_img}"},
                     }
                 )
 
@@ -183,7 +204,32 @@ class OpenAIAdapter(LLMProviderPort):
     def _parse_decimal(self, val: Any) -> Decimal:
         if val is None or val == "":
             return Decimal("0.0000")
-        clean = re.sub(r"[^\d.-]", "", str(val).replace(",", "."))
+        s = str(val).strip()
+        if s.endswith("%"):
+            s = s[:-1].strip()
+        if not re.search(r"\d", s):
+            return Decimal("0.0000")
+        # Handle Vietnamese and US thousand/decimal separators
+        if "." in s and "," in s:
+            if s.rfind(",") > s.rfind("."):
+                # 12.000.000,00 -> standard VN decimal
+                s = s.replace(".", "").replace(",", ".")
+            else:
+                # 12,000,000.00 -> US decimal
+                s = s.replace(",", "")
+        elif "." in s:
+            parts = s.split(".")
+            if len(parts) > 1 and all(len(p) == 3 for p in parts[1:]):
+                # 12.000.000 -> Vietnamese thousand dots
+                s = s.replace(".", "")
+        elif "," in s:
+            parts = s.split(",")
+            if len(parts) > 1 and all(len(p) == 3 for p in parts[1:]):
+                s = s.replace(",", "")
+            elif len(parts) == 2 and len(parts[1]) != 3:
+                s = s.replace(",", ".")
+
+        clean = re.sub(r"[^\d.-]", "", s)
         try:
             return Decimal(clean)
         except Exception:

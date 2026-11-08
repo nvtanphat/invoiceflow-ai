@@ -182,6 +182,9 @@ class JobCoordinator:
 
     async def _process_pdf(self, job_id: str, doc: DocumentORM, content: bytes) -> None:
         inspection = self._pdf_inspector.inspect(content)
+        if inspection.has_rotated_pages:
+            content = self._docling_adapter._normalize_page_rotation(content)
+
         route = self._router.decide_route(
             detected_kind="pdf",
             file_size_bytes=len(content),
@@ -302,7 +305,7 @@ class JobCoordinator:
             ocr_dpi = getattr(settings, "DOCLING_OCR_DPI", 150)
             for p_no in range(max_pages):
                 pix = doc_pdf.load_page(p_no).get_pixmap(dpi=ocr_dpi)
-                image_bytes_list.append(pix.tobytes("png"))
+                image_bytes_list.append(pix.tobytes("jpeg"))
             doc_pdf.close()
 
             image_payload = (
