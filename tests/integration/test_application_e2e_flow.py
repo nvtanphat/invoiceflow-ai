@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 import shutil
 import tempfile
 import uuid
@@ -25,10 +26,12 @@ from invoiceflow.infrastructure.llm.openai_adapter import OpenAIAdapter
 from invoiceflow.infrastructure.storage.exporter import DocumentExporter
 from invoiceflow.infrastructure.storage.service import LocalStorageService
 
+ROOT_DIR = Path(__file__).resolve().parent.parent.parent
+
 
 @pytest.mark.asyncio
 async def test_full_application_lifecycle_upload_to_export():
-    """Verify complete application lifecycle:
+    """Verify complete application lifecycle with XML e-invoice:
     Upload -> Document AI -> JSON -> Review & Correct -> Approve -> Multi-format Export.
     """
     tmp_dir = tempfile.mkdtemp()
@@ -217,7 +220,142 @@ async def test_full_application_lifecycle_upload_to_export():
             # Excel XLSX Export
             excel_bytes = DocumentExporter.to_excel(export_data)
             assert len(excel_bytes) > 0
-            assert excel_bytes[:4] == b"PK\x03\x04"  # Valid ZIP / XLSX signature
+            assert excel_bytes[:4] == b"PK\x03\x04"
+
+    finally:
+        await db_manager.close()
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+
+
+@pytest.mark.asyncio
+async def test_full_application_lifecycle_scanned_pdf_upload_to_export():
+    """Verify complete application lifecycle with real scanned PDF:
+    Upload (PDF scan) -> Document AI (Docling + OCR + Vision API) -> JSON -> Review -> Approve -> Export.
+    """
+    fixture_path = ROOT_DIR / "benchmarks" / "fixtures" / "documents" / "case_03.pdf"
+    if not fixture_path.exists():
+        pytest.skip("Scanned PDF fixture case_03.pdf not found.")
+
+    pdf_content = fixture_path.read_bytes()
+    tmp_dir = tempfile.mkdtemp()
+    db_manager = DatabaseSessionManager(database_url="sqlite+aiosqlite:///:memory:", echo=False)
+    await db_manager.create_tables()
+
+    try:
+        storage = LocalStorageService(base_dir=tmp_dir)
+        preflight = IngestionPreflight()
+        tenant_id = str(uuid.uuid4())
+        reviewer_id = str(uuid.uuid4())
+
+        # 1. UPLOAD: Ingest real scanned PDF
+        async with db_manager.session() as session:
+            ingestion = IngestionService(session, storage, preflight)
+            doc, job, _ = await ingestion.ingest_document(
+                tenant_id=tenant_id,
+                filename="case_03.pdf",
+                content=pdf_content,
+            )
+            job_id = job.id
+
+        # 2. DOCUMENT AI: Pipeline execution with real DocumentAIService & OpenAIAdapter
+        coordinator = JobCoordinator(
+            db_manager=db_manager,
+            storage=storage,
+            llm_adapter=OpenAIAdapter(),
+        )
+
+        success = await coordinator.process_job(job_id)
+        assert success is True
+
+        # 3. VERIFY EXTRACTED INVOICE IN DATABASE
+        invoice_id = None
+        current_revision = None
+        async with db_manager.session() as session:
+            job_orm = (
+                await session.execute(select(ProcessingJobORM).where(ProcessingJobORM.id == job_id))
+            ).scalar_one()
+            assert job_orm.status == "READY_FOR_REVIEW"
+
+            inv_repo = InvoiceRepository(session)
+            invoices = await inv_repo.list_invoices(tenant_id=tenant_id)
+            assert len(invoices) == 1
+            inv = invoices[0]
+            invoice_id = inv.id
+            current_revision = inv.revision
+
+            assert inv.invoice_number == "0003412"
+            assert inv.supplier_tax_id == "0105554321"
+            assert inv.amount_payable == Decimal("9180000.0000")
+            assert inv.status == "READY_FOR_REVIEW"
+
+            lines_res = await session.execute(
+                select(InvoiceLineORM).where(InvoiceLineORM.invoice_id == invoice_id)
+            )
+            lines = lines_res.scalars().all()
+            assert len(lines) >= 1
+            assert lines[0].qty == Decimal("10.0000")
+            assert lines[0].unit_price == Decimal("850000.0000")
+            assert lines[0].line_amount == Decimal("8500000.0000")
+
+            ev_res = await session.execute(
+                select(FieldEvidenceORM).where(FieldEvidenceORM.invoice_id == invoice_id)
+            )
+            evidence = ev_res.scalars().all()
+            assert len(evidence) > 0
+
+        # 4. REVIEW & APPROVE
+        async with db_manager.session() as session:
+            review_svc = ReviewService(session)
+            approved_inv = await review_svc.approve_invoice(
+                tenant_id=tenant_id,
+                invoice_id=invoice_id,
+                expected_revision=current_revision,
+                actor_id=reviewer_id,
+                notes="Đã kiểm tra chứng từ quét thực tế, phê duyệt thanh toán",
+            )
+            assert approved_inv.status == "APPROVED"
+
+        # 5. EXPORT: Multi-format verification
+        async with db_manager.session() as session:
+            res = await session.execute(
+                select(InvoiceORM).where(
+                    InvoiceORM.tenant_id == tenant_id,
+                    InvoiceORM.status == "APPROVED",
+                )
+            )
+            approved_invoices = res.scalars().all()
+            assert len(approved_invoices) == 1
+
+            export_data = [
+                {
+                    "id": i.id,
+                    "supplier_name": i.supplier_name or "",
+                    "supplier_tax_id": i.supplier_tax_id or "",
+                    "invoice_number": i.invoice_number or "",
+                    "invoice_series": i.invoice_series or "",
+                    "issue_date": i.issue_date.isoformat() if i.issue_date else "",
+                    "currency": i.currency,
+                    "subtotal": Decimal(str(i.subtotal)),
+                    "tax_total": Decimal(str(i.tax_total)),
+                    "amount_payable": Decimal(str(i.amount_payable)),
+                    "status": i.status,
+                }
+                for i in approved_invoices
+            ]
+
+            csv_output = DocumentExporter.to_csv(export_data)
+            assert "0003412" in csv_output
+            assert "0105554321" in csv_output
+            assert "9180000.0000" in csv_output
+
+            json_output = DocumentExporter.to_json(export_data)
+            parsed_json = json.loads(json_output)
+            assert len(parsed_json) == 1
+            assert parsed_json[0]["invoice_number"] == "0003412"
+
+            excel_bytes = DocumentExporter.to_excel(export_data)
+            assert len(excel_bytes) > 0
+            assert excel_bytes[:4] == b"PK\x03\x04"
 
     finally:
         await db_manager.close()

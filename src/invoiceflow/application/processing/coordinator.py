@@ -1,26 +1,18 @@
-from datetime import date
-from decimal import Decimal
 import json
 import logging
 from typing import Optional
 from sqlalchemy import select, update
+
 from invoiceflow.application.processing.document_router import DocumentRouter, ProcessingRoute
 from invoiceflow.application.processing.evidence_mapper import EvidenceMapper
+from invoiceflow.application.processing.service import DocumentAIService
 from invoiceflow.application.reconciliation.service import ReconciliationService
-from invoiceflow.domain.invoices.models import (
-    FieldEvidence,
-    InvoiceAggregate,
-    InvoiceLine,
-    InvoiceStatus,
-)
-from invoiceflow.infrastructure.database.models import AuditLogORM, DocumentORM, ProcessingJobORM
+from invoiceflow.infrastructure.database.models import AuditLogORM, ProcessingJobORM
 from invoiceflow.infrastructure.database.repositories import DocumentRepository, InvoiceRepository
 from invoiceflow.infrastructure.database.session import DatabaseSessionManager
-from invoiceflow.infrastructure.document.digital_pdf_parser import DigitalPDFParser
 from invoiceflow.infrastructure.document.docling_adapter import DoclingAdapter
 from invoiceflow.infrastructure.document.layout_extractor import LayoutExtractor
 from invoiceflow.infrastructure.document.pdf_inspector import PDFInspector
-from invoiceflow.infrastructure.document.table_extractor import StructureAwareTableExtractor
 from invoiceflow.infrastructure.document.signature_verifier import (
     SignatureVerifierPort,
     XMLSignatureVerifier,
@@ -33,29 +25,43 @@ logger = logging.getLogger(__name__)
 
 
 class JobCoordinator:
+    """Asynchronous job execution coordinator for document ingestion and processing."""
+
     def __init__(
         self,
         db_manager: DatabaseSessionManager,
         storage: StoragePort,
-        xml_parser: SecureXMLParser,
-        pdf_inspector: PDFInspector,
-        layout_extractor: LayoutExtractor,
-        llm_adapter: LLMProviderPort,
+        xml_parser: Optional[SecureXMLParser] = None,
+        pdf_inspector: Optional[PDFInspector] = None,
+        layout_extractor: Optional[LayoutExtractor] = None,
+        llm_adapter: Optional[LLMProviderPort] = None,
         docling_adapter: Optional[DoclingAdapter] = None,
         signature_verifier: Optional[SignatureVerifierPort] = None,
+        document_ai_service: Optional[DocumentAIService] = None,
     ):
         self._db_manager = db_manager
         self._storage = storage
-        self._xml_parser = xml_parser
-        self._pdf_inspector = pdf_inspector
-        self._layout_extractor = layout_extractor
+        self._xml_parser = xml_parser or SecureXMLParser()
+        self._pdf_inspector = pdf_inspector or PDFInspector()
+        self._layout_extractor = layout_extractor or LayoutExtractor()
         self._llm_adapter = llm_adapter
         self._docling_adapter = docling_adapter or DoclingAdapter(
-            fallback_extractor=layout_extractor
+            fallback_extractor=self._layout_extractor
         )
         self._signature_verifier = signature_verifier or XMLSignatureVerifier()
         self._router = DocumentRouter()
         self._evidence_mapper = EvidenceMapper()
+
+        self._document_ai_service = document_ai_service or DocumentAIService(
+            xml_parser=self._xml_parser,
+            pdf_inspector=self._pdf_inspector,
+            layout_extractor=self._layout_extractor,
+            llm_adapter=self._llm_adapter,
+            docling_adapter=self._docling_adapter,
+            signature_verifier=self._signature_verifier,
+            router=self._router,
+            evidence_mapper=self._evidence_mapper,
+        )
 
     async def process_job(self, job_id: str) -> bool:
         """Processes a single processing job through the document ingestion pipeline."""
@@ -64,7 +70,7 @@ class JobCoordinator:
             res = await session.execute(stmt)
             job = res.scalar_one_or_none()
             if not job or job.status in ("READY_FOR_REVIEW", "APPROVED", "FAILED_PERMANENT"):
-                return True  # idempotent no-op
+                return True
 
             doc_repo = DocumentRepository(session)
             doc = await doc_repo.get_document(job.tenant_id, job.document_id)
@@ -77,23 +83,89 @@ class JobCoordinator:
             job.stage = "INSPECTING"
             await session.flush()
 
-        # Execute processing steps
         try:
             content = await self._storage.get(doc.storage_uri)
-
-            # Determine route
-            if doc.mime_type == "application/xml" or doc.filename.lower().endswith(".xml"):
-                await self._process_xml(job_id, doc, content)
-            else:
-                await self._process_pdf(job_id, doc, content)
 
             async with self._db_manager.session() as session:
                 await session.execute(
                     update(ProcessingJobORM)
                     .where(ProcessingJobORM.id == job_id)
+                    .values(stage="PARSING")
+                )
+
+            result = await self._document_ai_service.process_document(
+                tenant_id=doc.tenant_id,
+                document_id=doc.id,
+                filename=doc.filename,
+                content=content,
+                mime_type=doc.mime_type,
+            )
+
+            async with self._db_manager.session() as session:
+                await session.execute(
+                    update(ProcessingJobORM)
+                    .where(ProcessingJobORM.id == job_id)
+                    .values(stage="EXTRACTING")
+                )
+
+                inv_repo = InvoiceRepository(session)
+                await inv_repo.create_invoice(result.invoice_aggregate)
+
+                # Record audit logs for signature or Vision AI
+                if result.route == ProcessingRoute.XML_DETERMINISTIC:
+                    sig_status = result.invoice_aggregate.signature_status
+                    audit_details = json.dumps(
+                        {
+                            "signature_status": sig_status.value if sig_status else "unknown",
+                            "evidence_count": len(result.invoice_aggregate.evidence),
+                        }
+                    )
+                    session.add(
+                        AuditLogORM(
+                            tenant_id=doc.tenant_id,
+                            action="XMLDSIG_CHECKED",
+                            aggregate_type="INVOICE",
+                            aggregate_id=str(result.invoice_aggregate.id),
+                            details_json=audit_details,
+                        )
+                    )
+
+                if result.used_vision:
+                    vision_audit = json.dumps(
+                        {
+                            "reason": result.fallback_reason,
+                            "cost_usd": result.cost_usd,
+                            "failure": result.provider_failure,
+                            "latency_ms": result.latency_ms,
+                        }
+                    )
+                    session.add(
+                        AuditLogORM(
+                            tenant_id=doc.tenant_id,
+                            action="VISION_FALLBACK_EXECUTED",
+                            aggregate_type="INVOICE",
+                            aggregate_id=str(result.invoice_aggregate.id),
+                            details_json=vision_audit,
+                        )
+                    )
+
+                await session.execute(
+                    update(ProcessingJobORM)
+                    .where(ProcessingJobORM.id == job_id)
+                    .values(stage="VALIDATING")
+                )
+
+                reconciliation = ReconciliationService(session)
+                await reconciliation.reconcile_invoice(result.invoice_aggregate)
+
+                await session.execute(
+                    update(ProcessingJobORM)
+                    .where(ProcessingJobORM.id == job_id)
                     .values(status="READY_FOR_REVIEW", stage="COMPLETED")
                 )
+
             return True
+
         except (TimeoutError, ConnectionError, OSError) as e:
             logger.warning("Transient error processing job %s: %s; flagging for retry", job_id, e)
             async with self._db_manager.session() as session:
@@ -120,269 +192,3 @@ class JobCoordinator:
                     )
                 )
             return False
-
-    async def _process_xml(self, job_id: str, doc: DocumentORM, content: bytes) -> None:
-        async with self._db_manager.session() as session:
-            await session.execute(
-                update(ProcessingJobORM)
-                .where(ProcessingJobORM.id == job_id)
-                .values(stage="PARSING")
-            )
-
-        invoice_aggregate = self._xml_parser.parse_invoice_xml(
-            tenant_id=doc.tenant_id,
-            document_id=doc.id,
-            xml_content=content,
-        )
-
-        # Cryptographic verification of XMLDSig digital signature
-        sig_res = self._signature_verifier.verify_xml_signature(content)
-        invoice_aggregate.signature_status = sig_res.status
-
-        # Add signature verification evidence
-        invoice_aggregate.evidence.append(
-            FieldEvidence(
-                field_path="signature_verification",
-                source_kind="xml_signature",
-                raw_value=sig_res.signer_name or "Unknown Signer",
-                normalized_value=sig_res.status.value,
-                confidence=1.0 if sig_res.is_valid else 0.0,
-                extractor="xml_signature_verifier",
-            )
-        )
-
-        async with self._db_manager.session() as session:
-            inv_repo = InvoiceRepository(session)
-            await inv_repo.create_invoice(invoice_aggregate)
-
-            # Record audit provenance for XMLDSig verification
-            audit_details = json.dumps(
-                {
-                    "signature_status": sig_res.status.value,
-                    "is_valid": sig_res.is_valid,
-                    "signer_name": sig_res.signer_name,
-                    "issuer": sig_res.issuer,
-                    "certificate_serial": sig_res.certificate_serial,
-                    "valid_from": sig_res.valid_from.isoformat() if sig_res.valid_from else None,
-                    "valid_to": sig_res.valid_to.isoformat() if sig_res.valid_to else None,
-                    "details": sig_res.details,
-                }
-            )
-            audit = AuditLogORM(
-                tenant_id=doc.tenant_id,
-                action="XMLDSIG_CHECKED",
-                aggregate_type="INVOICE",
-                aggregate_id=str(invoice_aggregate.id),
-                details_json=audit_details,
-            )
-            session.add(audit)
-
-            reconciliation = ReconciliationService(session)
-            await reconciliation.reconcile_invoice(invoice_aggregate)
-
-    async def _process_pdf(self, job_id: str, doc: DocumentORM, content: bytes) -> None:
-        inspection = self._pdf_inspector.inspect(content)
-        if inspection.has_rotated_pages:
-            content = self._docling_adapter._normalize_page_rotation(content)
-
-        route = self._router.decide_route(
-            detected_kind="pdf",
-            file_size_bytes=len(content),
-            pdf_classification=inspection.classification,
-            has_rotated_pages=inspection.has_rotated_pages,
-        )
-
-        async with self._db_manager.session() as session:
-            await session.execute(
-                update(ProcessingJobORM)
-                .where(ProcessingJobORM.id == job_id)
-                .values(stage="PARSING")
-            )
-
-        # Pass do_ocr dynamically based on inspection route
-        canonical_doc = self._docling_adapter.extract_canonical(
-            tenant_id=doc.tenant_id,
-            document_id=doc.id,
-            pdf_bytes=content,
-            do_ocr=(
-                route in (ProcessingRoute.VISION_FALLBACK, ProcessingRoute.DOCLING_OCR_STRUCTURED)
-                or inspection.classification == "SCANNED_IMAGE"
-            ),
-        )
-
-        # Extraction phase
-        async with self._db_manager.session() as session:
-            await session.execute(
-                update(ProcessingJobORM)
-                .where(ProcessingJobORM.id == job_id)
-                .values(stage="EXTRACTING")
-            )
-
-        full_text = "\n".join([el.text for el in canonical_doc.elements])
-        digital_parser = DigitalPDFParser()
-        digital_res = digital_parser.parse(full_text)
-
-        # Structure-aware table extraction from CanonicalDocument
-        table_extractor = StructureAwareTableExtractor()
-        table_lines, table_line_evidence = table_extractor.extract_lines_with_evidence(
-            canonical_doc.tables
-        )
-
-        effective_lines: list[InvoiceLine] = []
-        if table_lines:
-            effective_lines = table_lines
-        elif digital_res.lines:
-            effective_lines = [
-                InvoiceLine(
-                    line_no=line.line_no,
-                    sku_ref=line.sku,
-                    description=line.description,
-                    unit=line.unit,
-                    qty=line.qty,
-                    unit_price=line.unit_price,
-                    discount=line.discount,
-                    tax_rate=line.tax_rate,
-                    line_amount=line.line_amount,
-                    raw_qty=line.raw_qty,
-                    raw_unit_price=line.raw_unit_price,
-                    raw_line_amount=line.raw_line_amount,
-                    issues=line.issues,
-                )
-                for line in digital_res.lines
-            ]
-
-        # 1. Deterministic Extraction: Digital or OCR PDF with structured invoice data
-        can_use_digital = (
-            (route in (ProcessingRoute.PDF_DIGITAL, ProcessingRoute.DOCLING_OCR_STRUCTURED))
-            and bool(digital_res.supplier_tax_id)
-            and bool(digital_res.invoice_number)
-            and len(effective_lines) > 0
-        )
-        if can_use_digital:
-            lines = effective_lines
-            extracted_fields = {
-                "supplier_tax_id": digital_res.supplier_tax_id,
-                "supplier_name": digital_res.supplier_name,
-                "invoice_number": digital_res.invoice_number,
-                "amount_payable": str(digital_res.amount_payable),
-            }
-            evidence = self._evidence_mapper.map_evidence(extracted_fields, canonical_doc)
-            if lines is table_lines:
-                evidence = evidence + table_line_evidence
-            invoice_aggregate = InvoiceAggregate(
-                tenant_id=doc.tenant_id,
-                document_id=doc.id,
-                revision=1,
-                status=InvoiceStatus.READY_FOR_REVIEW,
-                supplier_tax_id=digital_res.supplier_tax_id,
-                supplier_name=digital_res.supplier_name,
-                buyer_tax_id=digital_res.buyer_tax_id,
-                buyer_name=digital_res.buyer_name,
-                invoice_number=digital_res.invoice_number,
-                invoice_series=digital_res.invoice_series,
-                issue_date=date.fromisoformat(digital_res.issue_date)
-                if digital_res.issue_date
-                else None,
-                currency=digital_res.currency,
-                subtotal=digital_res.subtotal,
-                tax_total=digital_res.tax_total,
-                amount_payable=digital_res.amount_payable,
-                lines=lines,
-                evidence=evidence,
-                parser_issues=digital_res.issues,
-            )
-        else:
-            # 2. Vision Fallback Path: Scanned, mixed, or unconfident digital PDFs
-            from invoiceflow.config import get_settings
-
-            settings = get_settings()
-
-            image_bytes_list: list[bytes] = []
-            import fitz
-
-            doc_pdf = fitz.open(stream=content, filetype="pdf")
-            max_pages = min(len(doc_pdf), getattr(settings, "DOCLING_MAX_PAGES", 20))
-            ocr_dpi = getattr(settings, "DOCLING_OCR_DPI", 150)
-            for p_no in range(max_pages):
-                pix = doc_pdf.load_page(p_no).get_pixmap(dpi=ocr_dpi)
-                image_bytes_list.append(pix.tobytes("jpeg"))
-            doc_pdf.close()
-
-            image_payload = (
-                image_bytes_list
-                if len(image_bytes_list) > 1
-                else (image_bytes_list[0] if image_bytes_list else None)
-            )
-
-            try:
-                budget = float(getattr(settings, "DOCLING_BUDGET_USD", 0.05))
-                llm_result = await self._llm_adapter.extract_invoice_data(
-                    document_text=full_text,
-                    image_bytes=image_payload,
-                    budget_usd=budget,
-                )
-                extracted_fields = {
-                    "supplier_tax_id": llm_result.supplier_tax_id,
-                    "supplier_name": llm_result.supplier_name,
-                    "invoice_number": llm_result.invoice_number,
-                    "amount_payable": str(llm_result.amount_payable),
-                }
-                evidence = self._evidence_mapper.map_evidence(extracted_fields, canonical_doc)
-
-                lines = []
-                for line in llm_result.line_items:
-                    line_issues: list[str] = []
-                    expected_amount = (line.qty * line.unit_price) - line.discount
-                    if abs(line.line_amount - expected_amount) >= Decimal("0.0100"):
-                        line_issues.append("ARITHMETIC_MISMATCH")
-                    lines.append(
-                        InvoiceLine(
-                            line_no=line.line_no,
-                            sku_ref=line.sku,
-                            description=line.description,
-                            unit=line.unit,
-                            qty=line.qty,
-                            unit_price=line.unit_price,
-                            discount=line.discount,
-                            tax_rate=line.tax_rate,
-                            line_amount=line.line_amount,
-                            raw_qty=str(line.qty),
-                            raw_unit_price=str(line.unit_price),
-                            raw_line_amount=str(line.line_amount),
-                            issues=line_issues,
-                        )
-                    )
-
-                invoice_aggregate = InvoiceAggregate(
-                    tenant_id=doc.tenant_id,
-                    document_id=doc.id,
-                    revision=1,
-                    status=InvoiceStatus.READY_FOR_REVIEW,
-                    supplier_tax_id=llm_result.supplier_tax_id,
-                    supplier_name=llm_result.supplier_name,
-                    buyer_tax_id=llm_result.buyer_tax_id,
-                    buyer_name=llm_result.buyer_name,
-                    invoice_number=llm_result.invoice_number,
-                    invoice_series=llm_result.invoice_series,
-                    currency=llm_result.currency,
-                    subtotal=llm_result.subtotal,
-                    tax_total=llm_result.tax_total,
-                    amount_payable=llm_result.amount_payable,
-                    lines=lines,
-                    evidence=evidence,
-                )
-            except Exception as e:
-                logger.error("Document extraction failed for job %s: %s", job_id, e)
-                raise RuntimeError(f"Extraction failed for {doc.filename}: {e}") from e
-
-        async with self._db_manager.session() as session:
-            await session.execute(
-                update(ProcessingJobORM)
-                .where(ProcessingJobORM.id == job_id)
-                .values(stage="VALIDATING")
-            )
-            inv_repo = InvoiceRepository(session)
-            await inv_repo.create_invoice(invoice_aggregate)
-
-            reconciliation = ReconciliationService(session)
-            await reconciliation.reconcile_invoice(invoice_aggregate)

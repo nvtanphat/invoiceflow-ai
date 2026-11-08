@@ -1,12 +1,12 @@
 {
   "suite": "InvoiceFlow AI OCR Quality Verification v1.0",
-  "timestamp": "2026-11-08T14:51:53Z",
+  "timestamp": "2026-11-08T21:25:04Z",
   "text_cases": [
     {
       "case_id": "CASE-03-PDF-SCAN",
       "description": "Scanned (image-only) Vietnamese invoice, no rotation",
       "used_fallback": false,
-      "latency_ms": 37381.44,
+      "latency_ms": 59416.86,
       "cer": 0.1235,
       "wer": 0.1111,
       "unmatched_hypothesis_lines": [],
@@ -25,35 +25,26 @@
       "case_id": "CASE-07-PDF-ROTATED-SCAN",
       "description": "Scanned (image-only) Vietnamese invoice, rotated 90 degrees",
       "used_fallback": false,
-      "latency_ms": 25044.73,
-      "cer": 0.9322,
-      "wer": 1.0,
-      "unmatched_hypothesis_lines": [
-        "0",
-        "g",
-        "2"
-      ],
+      "latency_ms": 28094.66,
+      "cer": 0.1453,
+      "wer": 0.137,
+      "unmatched_hypothesis_lines": [],
       "expected_amounts": [
         "680000",
         "850000",
         "8500000",
         "9180000"
       ],
-      "missing_amounts": [
-        "680000",
-        "850000",
-        "8500000",
-        "9180000"
-      ],
-      "all_amounts_recognized": false,
+      "missing_amounts": [],
+      "all_amounts_recognized": true,
       "reference_text": "HOA DON BAN HANG (ROTATED SCAN)\nKy hieu: 2C26TCC  So: 0003499  Ngay: 2026-03-12\nBen ban: Công ty TNHH Dịch vụ Vệ sinh Công nghiệp Hà Nội - MST: 0105554321\nBen mua: Công ty Cổ phần Thương mại Alpha VN - MST: 0109998888\nHang hoa: Bộ dụng cụ và hóa chất vệ sinh sàn văn phòng [CLEAN-SET-01]\nSo luong: 10.0000  Don gia: 850000.0000  Thue: 8.00%\nTien hang: 8500000.0000  Thue GTGT: 680000.0000  Tong cong: 9180000.0000",
-      "recognized_text": "ẵ 9 ; 1 ẵ\n8\n8\n0\ng g 9\ng g 2 8 1 1\ng\ng 2\n2 8 8\n2"
+      "recognized_text": "HOA DON BAN HANG (ROTATED SCAN)\nKy hieu: 2C26TCC So: 0003499 Ngay: 2026-03-12 Ben ban: ty TNHH Dịch vụ Vệ sinh nghiệp Hà Nội MST: 0105554321 Ben mua: ty Cổ Thương mại Alpha VN MST: 0109998888 Hang hoa: Bộ dụng cụ và hóa chất vệ sinh sàn văn phòng [CLEAN-SET-01] So luong: 10.0000 Don gia: 850000.0000 Thue: 8.00% Tien hang: 8500000.0000 Thue GTGT: 680000.0000 Tong cong: 9180000.0000 Công Công phần Công"
     },
     {
       "case_id": "CASE-09-PDF-MIXED",
       "description": "Mixed PDF: page 1 digital text, page 2 scanned attachment image",
       "used_fallback": false,
-      "latency_ms": 21218.66,
+      "latency_ms": 25134.55,
       "cer": 0.0185,
       "wer": 0.0556,
       "unmatched_hypothesis_lines": [],
@@ -70,7 +61,7 @@
     "case_id": "CASE-10-PDF-SCAN-TABLE",
     "description": "Scanned pure-image invoice with a multi-row line-item table",
     "used_fallback": false,
-    "latency_ms": 25318.5,
+    "latency_ms": 21536.47,
     "tables_detected_by_ocr": 1,
     "lines_extracted": 2,
     "evidence_entries": 10,

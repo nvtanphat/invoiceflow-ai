@@ -3,30 +3,21 @@ from datetime import date
 from decimal import Decimal
 import json
 from pathlib import Path
-import re
 import sys
 import time
 from typing import Any, Dict, List, Optional
 import uuid
-import fitz
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT_DIR / "src"))
 sys.path.insert(0, str(ROOT_DIR))
 
 from benchmarks.scripts.evaluator import evaluate_prediction  # noqa: E402
-from invoiceflow.application.processing.document_router import DocumentRouter, ProcessingRoute  # noqa: E402
+from invoiceflow.application.processing.service import DocumentAIService  # noqa: E402
 from invoiceflow.application.reconciliation.matching_engine import MatchingEngine  # noqa: E402
-from invoiceflow.domain.invoices.models import InvoiceAggregate, InvoiceLine  # noqa: E402
+from invoiceflow.config import get_settings  # noqa: E402
 from invoiceflow.domain.policies.models import TolerancePolicy  # noqa: E402
 from invoiceflow.domain.purchasing.models import GoodsReceipt, GRNLine, POLine, PurchaseOrder  # noqa: E402
-from invoiceflow.infrastructure.document.digital_pdf_parser import DigitalPDFParser  # noqa: E402
-from invoiceflow.infrastructure.document.docling_adapter import DoclingAdapter  # noqa: E402
-from invoiceflow.infrastructure.document.pdf_inspector import PDFInspector  # noqa: E402
-from invoiceflow.infrastructure.document.signature_verifier import XMLSignatureVerifier  # noqa: E402
-from invoiceflow.infrastructure.document.table_extractor import StructureAwareTableExtractor  # noqa: E402
-from invoiceflow.infrastructure.document.xml_parser import SecureXMLParser  # noqa: E402
-from invoiceflow.infrastructure.llm.openai_adapter import OpenAIAdapter  # noqa: E402
 
 FIXTURES_DIR = ROOT_DIR / "benchmarks" / "fixtures"
 DOCS_DIR = FIXTURES_DIR / "documents"
@@ -310,190 +301,23 @@ def get_demo_po_and_grn(supplier_tax_id: Optional[str], case_id: Optional[str] =
 
 
 async def run_document_ai_pipeline(
-    case: Dict[str, Any], file_path: Path, adapter: OpenAIAdapter
+    case: Dict[str, Any],
+    file_path: Path,
+    service: DocumentAIService,
 ) -> Dict[str, Any]:
     start = time.perf_counter()
-    with open(file_path, "rb") as f:
-        content = f.read()
+    content = file_path.read_bytes()
 
-    header: Dict[str, Any] = {}
-    lines: List[Dict[str, Any]] = []
-    cost = 0.0000
-
-    if file_path.suffix == ".xml":
-        # XML Deterministic Processing
-        parser = SecureXMLParser()
-        inv_agg = parser.parse_invoice_xml(uuid.uuid4(), uuid.uuid4(), content)
-        sig_verifier = XMLSignatureVerifier()
-        sig_res = sig_verifier.verify_xml_signature(content)
-        header = {
-            "supplier_tax_id": inv_agg.supplier_tax_id or "",
-            "supplier_name": inv_agg.supplier_name or "",
-            "buyer_tax_id": inv_agg.buyer_tax_id or "",
-            "buyer_name": inv_agg.buyer_name or "",
-            "invoice_number": inv_agg.invoice_number or "",
-            "invoice_series": inv_agg.invoice_series or "",
-            "issue_date": inv_agg.issue_date.isoformat() if inv_agg.issue_date else "",
-            "currency": inv_agg.currency,
-            "subtotal": str(inv_agg.subtotal),
-            "tax_total": str(inv_agg.tax_total),
-            "amount_payable": str(inv_agg.amount_payable),
-            "signature_status": sig_res.status.value,
-        }
-        lines = [
-            {
-                "sku": line.sku_ref or "",
-                "description": line.description,
-                "qty": str(line.qty),
-                "unit_price": str(line.unit_price),
-                "tax_rate": str(line.tax_rate) if line.tax_rate else None,
-                "line_amount": str(line.line_amount),
-            }
-            for line in inv_agg.lines
-        ]
-    else:
-        # PDF Document AI Processing (Docling + EasyOCR + Table Extractor + Vision Fallback)
-        inspector = PDFInspector()
-        profile = inspector.inspect(content)
-        router = DocumentRouter()
-        route = router.decide_route(
-            detected_kind="pdf",
-            file_size_bytes=len(content),
-            pdf_classification=profile.classification,
-            table_count=profile.table_count,
-            has_rotated_pages=profile.has_rotated_pages,
-        )
-
-        docling_adapter = DoclingAdapter()
-        if profile.has_rotated_pages:
-            content = docling_adapter._normalize_page_rotation(content)
-
-        do_ocr = route == ProcessingRoute.DOCLING_OCR_STRUCTURED
-        canonical_doc = docling_adapter.extract_canonical(
-            tenant_id=uuid.uuid4(),
-            document_id=uuid.uuid4(),
-            pdf_bytes=content,
-            do_ocr=do_ocr,
-        )
-
-        table_extractor = StructureAwareTableExtractor()
-        extracted_lines = table_extractor.extract_lines(canonical_doc.tables)
-        if extracted_lines:
-            lines = [
-                {
-                    "sku": line_item.sku_ref or "",
-                    "description": line_item.description,
-                    "qty": str(line_item.qty),
-                    "unit_price": str(line_item.unit_price),
-                    "tax_rate": str(line_item.tax_rate) if line_item.tax_rate else None,
-                    "line_amount": str(line_item.line_amount),
-                }
-                for line_item in extracted_lines
-            ]
-
-        full_text = "\n".join([el.text for el in canonical_doc.elements])
-        digital_parser = DigitalPDFParser()
-        ext = digital_parser.parse(full_text)
-        header = {
-            "supplier_tax_id": ext.supplier_tax_id or "",
-            "supplier_name": ext.supplier_name or "",
-            "buyer_tax_id": ext.buyer_tax_id or "",
-            "buyer_name": ext.buyer_name or "",
-            "invoice_number": ext.invoice_number or "",
-            "invoice_series": ext.invoice_series or "",
-            "issue_date": ext.issue_date or "",
-            "currency": ext.currency,
-            "subtotal": str(ext.subtotal),
-            "tax_total": str(ext.tax_total),
-            "amount_payable": str(ext.amount_payable),
-        }
-        has_invalid_table_lines = any(
-            Decimal(item.get("qty", "0")) == Decimal("0.0000")
-            or Decimal(item.get("unit_price", "0")) == Decimal("0.0000")
-            for item in lines
-        )
-        if (not lines or has_invalid_table_lines) and ext.lines:
-            digital_lines_valid = all(
-                line_cand.qty > Decimal("0.0000") and line_cand.unit_price > Decimal("0.0000")
-                for line_cand in ext.lines
-            )
-            if digital_lines_valid:
-                lines = [
-                    {
-                        "sku": line.sku or "",
-                        "description": line.description,
-                        "qty": str(line.qty),
-                        "unit_price": str(line.unit_price),
-                        "tax_rate": str(line.tax_rate) if line.tax_rate else None,
-                        "line_amount": str(line.line_amount),
-                    }
-                    for line in ext.lines
-                ]
-
-        # Vision AI Fallback for scans or when extraction lacks critical identifiers/valid lines
-        has_zero_qty_lines = any(
-            Decimal(item.get("qty", "0")) == Decimal("0.0000") for item in lines
-        )
-        needs_vision = (
-            route == ProcessingRoute.VISION_FALLBACK
-            or not header.get("supplier_tax_id")
-            or not header.get("invoice_number")
-            or not lines
-            or has_zero_qty_lines
-            or profile.classification == "pdf_scan"
-        )
-        if needs_vision and adapter._client is not None:
-            doc_pdf = fitz.open(stream=content, filetype="pdf")
-            imgs = [p.get_pixmap(dpi=150).tobytes("jpeg") for p in doc_pdf]
-            doc_pdf.close()
-            # For pure scan/image PDFs, let Vision LLM inspect images directly without noisy OCR text bias
-            doc_text_for_vision = "" if profile.classification == "pdf_scan" else full_text
-            vision_res = await adapter.extract_invoice_data(
-                document_text=doc_text_for_vision, image_bytes=imgs
-            )
-            if vision_res.supplier_tax_id:
-                header["supplier_tax_id"] = vision_res.supplier_tax_id
-            if vision_res.supplier_name:
-                header["supplier_name"] = vision_res.supplier_name
-            if vision_res.invoice_number:
-                header["invoice_number"] = vision_res.invoice_number
-            if vision_res.issue_date:
-                header["issue_date"] = vision_res.issue_date
-            if vision_res.amount_payable > Decimal("0.0000"):
-                header["amount_payable"] = str(vision_res.amount_payable)
-            if vision_res.subtotal > Decimal("0.0000"):
-                header["subtotal"] = str(vision_res.subtotal)
-            if vision_res.tax_total > Decimal("0.0000"):
-                header["tax_total"] = str(vision_res.tax_total)
-            if vision_res.line_items and (
-                not lines
-                or profile.classification == "pdf_scan"
-                or len(lines) < len(vision_res.line_items)
-                or any(Decimal(item.get("qty", "0")) == Decimal("0.0000") for item in lines)
-            ):
-                lines = [
-                    {
-                        "sku": (
-                            item.sku
-                            or (
-                                re.search(r"\[([A-Z0-9_-]+)\]", item.description).group(1)
-                                if re.search(r"\[([A-Z0-9_-]+)\]", item.description)
-                                else ""
-                            )
-                        ),
-                        "description": (
-                            re.sub(r"\s*\[[A-Z0-9_-]+\]\s*$", "", item.description).strip()
-                            if re.search(r"\[([A-Z0-9_-]+)\]", item.description)
-                            else item.description
-                        ),
-                        "qty": str(item.qty),
-                        "unit_price": str(item.unit_price),
-                        "tax_rate": str(item.tax_rate) if item.tax_rate else None,
-                        "line_amount": str(item.line_amount),
-                    }
-                    for item in vision_res.line_items
-                ]
-            cost += getattr(vision_res, "cost_usd", 0.0)
+    result = await service.process_document(
+        tenant_id=uuid.uuid4(),
+        document_id=uuid.uuid4(),
+        filename=file_path.name,
+        content=content,
+    )
+    header = result.raw_header
+    lines = result.raw_lines
+    inv_agg = result.invoice_aggregate
+    cost = result.cost_usd
 
     # 3-Way Reconciliation with Tolerance Policy
     detected_discrepancies: List[str] = []
@@ -504,29 +328,9 @@ async def run_document_ai_pipeline(
         qty_tolerance_pct=Decimal("0.00"),
     )
 
-    if lines:
-        inv_lines = [
-            InvoiceLine(
-                line_no=idx,
-                sku_ref=item["sku"],
-                description=item["description"],
-                qty=Decimal(item["qty"]),
-                unit_price=Decimal(item["unit_price"]),
-                tax_rate=Decimal(item["tax_rate"]) if item.get("tax_rate") else None,
-                line_amount=Decimal(item["line_amount"]),
-            )
-            for idx, item in enumerate(lines, start=1)
-        ]
-        invoice_agg = InvoiceAggregate(
-            id=uuid.uuid4(),
-            tenant_id=po.tenant_id,
-            document_id=uuid.uuid4(),
-            supplier_tax_id=header.get("supplier_tax_id"),
-            invoice_number=header.get("invoice_number"),
-            lines=inv_lines,
-        )
+    if inv_agg.lines:
         engine = MatchingEngine()
-        report = engine.match_3_way(invoice_agg, po=po, receipts=receipts, policy=policy)
+        report = engine.match_3_way(inv_agg, po=po, receipts=receipts, policy=policy)
         for issue in report.issues:
             if "PRICE" in issue.code:
                 detected_discrepancies.append("PRICE_MISMATCH")
@@ -541,6 +345,8 @@ async def run_document_ai_pipeline(
         "detected_discrepancies": detected_discrepancies,
         "latency_ms": round(duration_ms, 2),
         "cost_usd": cost,
+        "provider_failure": result.provider_failure,
+        "fallback_reason": result.fallback_reason,
     }
 
 
@@ -550,10 +356,13 @@ async def main() -> int:
     print("=" * 88)
 
     cases = load_manifest()
-    adapter = OpenAIAdapter()
     print(f"[*] Loaded {len(cases)} production casebook documents.")
+
+    settings = get_settings()
+    service = DocumentAIService()
+
     print(
-        f"[*] AI Provider: {adapter.base_url} (model: {adapter.model_id}, timeout: {adapter.timeout}s)"
+        f"[*] AI Provider: {settings.OPENAI_BASE_URL} (model: {settings.OPENAI_MODEL_ID}, timeout: {settings.REQUEST_TIMEOUT_SECONDS:.1f}s)"
     )
     print("-" * 88)
     print(
@@ -567,7 +376,7 @@ async def main() -> int:
     for case in cases:
         case_id = case["case_id"]
         file_path = get_fixture_file(case_id)
-        pred = await run_document_ai_pipeline(case, file_path, adapter)
+        pred = await run_document_ai_pipeline(case, file_path, service)
         score = evaluate_prediction(case, pred)
         all_scores.append(score)
 
@@ -575,11 +384,22 @@ async def main() -> int:
         lines_pct = f"{score['lines_f1'] * 100:.1f}%"
         lat_str = f"{score['latency_ms']:.1f}ms"
 
-        # Application acceptance: Header >= 70%, Lines >= 70%, Anomaly F1 == 100%
+        # Rigorous Application Acceptance Criteria:
+        # 1. Header Exact Match >= 70%
+        # 2. Line Items F1 >= 70%
+        # 3. Anomaly Detection F1 == 100%
+        # 4. Arithmetic Validity: if lines exist, arithmetic validity must be 100% (never convert None/0.0 to 100%)
+        arith_rate = score.get("arithmetic_validity_rate")
+        arith_ok = (arith_rate is None and score["lines_f1"] == 0.0) or (
+            arith_rate is not None and arith_rate >= 0.99
+        )
+
         is_pass = (
             score["header_exact_match"] >= 0.70
             and score["lines_f1"] >= 0.70
             and score["anomaly_f1"] == 1.0
+            and arith_ok
+            and not pred.get("provider_failure")
         )
         status = "PASS" if is_pass else "FAIL"
         if not is_pass:
@@ -594,7 +414,15 @@ async def main() -> int:
     n = len(all_scores)
     avg_header = sum(s["header_exact_match"] for s in all_scores) / n
     avg_lines = sum(s["lines_f1"] for s in all_scores) / n
-    avg_arith = sum((s.get("arithmetic_validity_rate") or 1.0) for s in all_scores) / n
+
+    # Calculate real arithmetic validity without falsifying None or 0.0 into 1.0
+    valid_arith_rates = [
+        s["arithmetic_validity_rate"]
+        for s in all_scores
+        if s.get("arithmetic_validity_rate") is not None
+    ]
+    avg_arith = (sum(valid_arith_rates) / len(valid_arith_rates)) if valid_arith_rates else 0.0
+
     avg_anomaly = sum(s["anomaly_f1"] for s in all_scores) / n
     avg_latency = sum(s["latency_ms"] for s in all_scores) / n
 

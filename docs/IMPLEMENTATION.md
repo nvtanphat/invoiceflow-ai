@@ -191,7 +191,7 @@ Responsive desktop-first; loading/empty/error states rõ; mọi hành động th
 ### Sprint 8 — Frozen evaluation và performance (tuần 8–9)
 
 - Freeze dataset manifests/splits, GT, prompt+parser+model config, scoring implementation, seeds, commit hash.
-- Chạy B0 XML/rule, B1 Docling + rule, B2 Gemini PDF, B3 Hybrid router + targeted Gemini + deterministic validation, cùng input subsets; XML/scan riêng.
+- Chạy Application QA kiểm định chất lượng: XML parser, Docling + EasyOCR, Hybrid Router + targeted Vision AI fallback + deterministic validation, cùng bộ casebook tài liệu thực tế.
 - Separate official DocILE protocol if using benchmark (KILE/LIR); không suy từ DocILE score sang accuracy invoice.
 - Report field exact match, line F1, full-doc accuracy, review recall/precision, PO/GRN false approval, per-stage latency, cost/document; failure categories/CI.
 
