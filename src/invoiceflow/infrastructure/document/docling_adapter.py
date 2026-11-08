@@ -27,9 +27,28 @@ class DoclingAdapter:
     Docling dependencies are unavailable.
     """
 
-    def __init__(self, fallback_extractor: Optional[LayoutExtractor] = None):
+    def __init__(
+        self,
+        fallback_extractor: Optional[LayoutExtractor] = None,
+        ocr_engine: Optional[str] = None,
+        ocr_languages: Optional[List[str]] = None,
+        ocr_dpi: Optional[int] = None,
+    ):
         self._fallback_extractor = fallback_extractor or LayoutExtractor()
         self._converters: dict[bool, Any] = {}
+
+        if ocr_engine is None or ocr_languages is None or ocr_dpi is None:
+            from invoiceflow.config import get_settings
+
+            settings = get_settings()
+            ocr_engine = ocr_engine if ocr_engine is not None else settings.OCR_ENGINE
+            ocr_languages = (
+                ocr_languages if ocr_languages is not None else list(settings.OCR_LANGUAGES)
+            )
+            ocr_dpi = ocr_dpi if ocr_dpi is not None else settings.OCR_DPI
+        self._ocr_engine = ocr_engine
+        self._ocr_dpi = ocr_dpi
+        self._ocr_languages = ocr_languages
 
     def _get_converter(self, do_ocr: bool = False):
         if do_ocr in self._converters:
@@ -49,18 +68,75 @@ class DoclingAdapter:
             pass
 
         from docling.datamodel.base_models import InputFormat
-        from docling.datamodel.pipeline_options import PdfPipelineOptions
+        from docling.datamodel.pipeline_options import (
+            EasyOcrOptions,
+            PdfPipelineOptions,
+            RapidOcrOptions,
+        )
         from docling.document_converter import DocumentConverter, PdfFormatOption
 
         pipeline_options = PdfPipelineOptions()
         pipeline_options.do_ocr = do_ocr
         pipeline_options.do_table_structure = True
 
+        if do_ocr:
+            if self._ocr_engine == "easyocr":
+                # RapidOCR's bundled default model (ch_PP-OCRv4) is trained
+                # for Chinese/English and silently strips Vietnamese
+                # diacritics instead of erroring (verified: "Công ty" ->
+                # "Cong ty"). EasyOCR has an explicit Vietnamese character
+                # set and measurably recovers them (see
+                # benchmarks/results/ocr_quality_report.json).
+                pipeline_options.ocr_options = EasyOcrOptions(lang=self._ocr_languages)
+            elif self._ocr_engine == "rapidocr":
+                pipeline_options.ocr_options = RapidOcrOptions(lang=self._ocr_languages)
+
         converter = DocumentConverter(
             format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)}
         )
         self._converters[do_ocr] = converter
         return converter
+
+    def _normalize_page_rotation(self, pdf_bytes: bytes) -> bytes:
+        """Bakes each page's /Rotate metadata into its raster content.
+
+        RapidOCR's PP-OCRv4 pipeline includes a per-text-region angle
+        classifier that corrects rotated text internally, but Docling's
+        EasyOCR integration does not expose EasyOCR's own rotation_info
+        capability -- fed a page whose /Rotate flag says 90 but whose
+        underlying content is physically unrotated (a real scanner/phone
+        capture commonly produces exactly this), it reads the page as-is
+        and sees vertical text, producing near-total garbage (verified:
+        CER jumped from 7% to 93% on a 90-degree rotated fixture). Since
+        the orientation problem is about what pixels face which direction,
+        not which OCR engine is used, it is fixed once here rather than
+        inside each engine.
+        """
+        import fitz
+
+        src = fitz.open(stream=pdf_bytes, filetype="pdf")
+        try:
+            if not any(page.rotation != 0 for page in src):
+                return pdf_bytes
+
+            normalized = fitz.open()
+            for page_index in range(src.page_count):
+                page = src.load_page(page_index)
+                if page.rotation == 0:
+                    normalized.insert_pdf(src, from_page=page_index, to_page=page_index)
+                    continue
+                # get_pixmap() renders "as displayed" (rotation applied), which
+                # is exactly backwards for this: the physical content is
+                # already upright, and /Rotate is a display-time instruction to
+                # turn it -- so render with rotation un-set to get the content
+                # in its native, horizontal orientation.
+                page.set_rotation(0)
+                pix = page.get_pixmap(dpi=self._ocr_dpi)
+                new_page = normalized.new_page(width=pix.width, height=pix.height)
+                new_page.insert_image(new_page.rect, pixmap=pix)
+            return normalized.tobytes()
+        finally:
+            src.close()
 
     def extract_canonical(
         self,
@@ -71,6 +147,9 @@ class DoclingAdapter:
     ) -> CanonicalDocument:
         """Extracts structured elements, tables, and provenance from a PDF document into CanonicalDocument."""
         start_time = time.perf_counter()
+
+        if do_ocr:
+            pdf_bytes = self._normalize_page_rotation(pdf_bytes)
 
         try:
             import tempfile

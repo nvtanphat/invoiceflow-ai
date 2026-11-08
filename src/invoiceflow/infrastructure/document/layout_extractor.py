@@ -50,9 +50,7 @@ class LayoutExtractor:
                                         table_id=table_id,
                                         row_index=r_idx,
                                         col_index=c_idx,
-                                        text=normalize_extracted_text(
-                                            str(cell_text or "").strip()
-                                        ),
+                                        text=normalize_extracted_text(str(cell_text or "").strip()),
                                     )
                                 )
 

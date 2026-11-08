@@ -8,6 +8,7 @@ benchmarks/scripts/evaluate_ocr_quality.py for the full CER/WER report) with
 headroom for minor OCR engine version drift, not tuned to make an
 otherwise-broken pipeline pass.
 """
+
 from pathlib import Path
 import sys
 

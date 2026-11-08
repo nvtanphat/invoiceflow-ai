@@ -129,9 +129,7 @@ class StructureAwareTableExtractor:
 
         return lines, all_evidence
 
-    def _build_rows_map(
-        self, cells: List[DocumentCell]
-    ) -> Dict[int, Dict[int, DocumentCell]]:
+    def _build_rows_map(self, cells: List[DocumentCell]) -> Dict[int, Dict[int, DocumentCell]]:
         rows_map: Dict[int, Dict[int, DocumentCell]] = {}
         for cell in cells:
             for r in range(cell.row_index, cell.row_index + max(cell.rowspan, 1)):
@@ -142,9 +140,7 @@ class StructureAwareTableExtractor:
 
     def _has_line_identity(self, data: Dict[str, Any]) -> bool:
         return bool(
-            data.get("description")
-            or data.get("sku")
-            or data.get("line_amount") is not None
+            data.get("description") or data.get("sku") or data.get("line_amount") is not None
         )
 
     def _detect_column_headers(self, cells: Dict[int, DocumentCell]) -> Dict[int, str]:

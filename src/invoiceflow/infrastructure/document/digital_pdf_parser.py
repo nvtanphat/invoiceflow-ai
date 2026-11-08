@@ -64,6 +64,10 @@ class DigitalPDFParser:
         if not text or not text.strip():
             return DigitalInvoiceExtraction()
 
+        from invoiceflow.infrastructure.document.text_normalization import normalize_extracted_text
+
+        text = normalize_extracted_text(text)
+
         data: Dict[str, Any] = {"currency": "VND"}
         fields_found = 0
         doc_issues: List[str] = []
@@ -222,6 +226,45 @@ class DigitalPDFParser:
                     issues=line_issues,
                 )
             )
+
+        if not lines:
+            pattern_labeled = re.compile(
+                r"([^\r\n\[]+?)\s*(?:\[([A-Z0-9_-]+)\])?\s+(?:SL|So luong|Số lượng):\s*([0-9.,]+)\s+(?:Don gia|Đơn giá):\s*([0-9.,]+)",
+                re.IGNORECASE,
+            )
+            for idx, m_line in enumerate(pattern_labeled.finditer(text), start=1):
+                desc = m_line.group(1).strip()
+                if any(
+                    h in desc.lower() for h in ["hang hoa", "dich vu", "description", "stt", "item"]
+                ):
+                    continue
+                sku = m_line.group(2).strip() if m_line.group(2) else None
+                raw_qty = m_line.group(3).strip()
+                raw_price = m_line.group(4).strip()
+                qty, qty_issue = self._parse_decimal(raw_qty, is_qty=True)
+                unit_price, price_issue = self._parse_decimal(raw_price)
+                line_amount = qty * unit_price
+                line_issues = []
+                if qty_issue:
+                    line_issues.append(qty_issue)
+                if price_issue:
+                    line_issues.append(price_issue)
+                lines.append(
+                    DigitalExtractedLine(
+                        line_no=idx,
+                        sku=sku,
+                        description=desc,
+                        raw_qty=raw_qty,
+                        qty=qty,
+                        raw_unit_price=raw_price,
+                        unit_price=unit_price,
+                        discount=Decimal("0.0000"),
+                        tax_rate=None,
+                        raw_line_amount=str(line_amount),
+                        line_amount=line_amount,
+                        issues=line_issues,
+                    )
+                )
 
         if lines:
             fields_found += 2

@@ -77,6 +77,11 @@ class SecureXMLParser:
             for child in dshhdvu:
                 if child.tag.endswith("HHDVu") or child.tag.endswith("Item"):
                     desc = self._get_text(child, ["THHDVu", "TenHHDVu"]) or f"Item {line_no}"
+                    sku = self._get_text(child, ["MHHDVu", "MaHHDVu"])
+                    if not sku and "[" in desc and "]" in desc:
+                        m_sku = re.search(r"\[([A-Za-z0-9_-]+)\]", desc)
+                        if m_sku:
+                            sku = m_sku.group(1)
                     unit = self._get_text(child, ["DVTinh"])
                     qty = self._parse_decimal(
                         self._get_text(child, ["SLuong", "SoLuong"])
@@ -94,6 +99,7 @@ class SecureXMLParser:
                     lines.append(
                         InvoiceLine(
                             line_no=line_no,
+                            sku_ref=sku,
                             description=desc,
                             unit=unit,
                             qty=qty,

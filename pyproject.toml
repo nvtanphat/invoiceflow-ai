@@ -34,6 +34,8 @@ dependencies = [
 [project.optional-dependencies]
 documents = [
     "docling>=2.87.0",
+    "easyocr>=1.7.2",
+    "vietocr>=0.3.13",
 ]
 dev = [
     "pytest>=8.3.0",

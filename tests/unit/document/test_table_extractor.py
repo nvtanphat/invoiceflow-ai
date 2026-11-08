@@ -220,9 +220,7 @@ def test_combined_header_with_inline_sku_keyword_does_not_hijack_description_col
     ]
     row1 = [
         DocumentCell(row_index=1, col_index=0, text="1"),
-        DocumentCell(
-            row_index=1, col_index=1, text="May tinh xach tay Dell XPS 13 [DELL-XPS-13]"
-        ),
+        DocumentCell(row_index=1, col_index=1, text="May tinh xach tay Dell XPS 13 [DELL-XPS-13]"),
         DocumentCell(row_index=1, col_index=2, text="2.0000"),
         DocumentCell(row_index=1, col_index=3, text="25000000.0000"),
         DocumentCell(row_index=1, col_index=4, text="10.00%"),

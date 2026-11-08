@@ -11,6 +11,7 @@ no selectable text layer, and measures:
 
 Produces benchmarks/results/ocr_quality_report.json as evidence.
 """
+
 import json
 from pathlib import Path
 import re
@@ -157,9 +158,7 @@ def evaluate_text_case(case: dict[str, Any]) -> dict[str, Any]:
 
     page_filter = case.get("ocr_page_index")
     elements = [
-        el
-        for el in canonical_doc.elements
-        if page_filter is None or el.page_index == page_filter
+        el for el in canonical_doc.elements if page_filter is None or el.page_index == page_filter
     ]
     recognized_text = "\n".join(el.text for el in elements)
 

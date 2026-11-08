@@ -99,11 +99,13 @@ def _line_identity_and_amount_match(gt_item: dict[str, Any], pred_item: dict[str
     if gt_sku or pred_sku:
         identity_match = _sku_identity_match(gt_sku, pred_sku)
     else:
-        identity_match = bool(gt_desc) and bool(pred_desc) and (
-            gt_desc in pred_desc or pred_desc in gt_desc
+        identity_match = (
+            bool(gt_desc) and bool(pred_desc) and (gt_desc in pred_desc or pred_desc in gt_desc)
         )
 
-    return identity_match and _amount_match(gt_item.get("line_amount"), pred_item.get("line_amount"))
+    return identity_match and _amount_match(
+        gt_item.get("line_amount"), pred_item.get("line_amount")
+    )
 
 
 def compute_line_items_f1(
