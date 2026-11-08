@@ -11,7 +11,7 @@ class OutboxDispatcher:
         self._db_manager = db_manager
 
     async def dispatch_pending_events(self, limit: int = 50) -> int:
-        """Polls and dispatches unpublished outbox events to Dramatiq."""
+        """Polls and dispatches unpublished outbox events to Dramatiq with concurrency protection."""
         from invoiceflow.workers.actors import process_document_job
 
         dispatched_count = 0
@@ -22,6 +22,12 @@ class OutboxDispatcher:
                 .order_by(OutboxEventORM.created_at.asc())
                 .limit(limit)
             )
+
+            # Concurrent dispatcher protection: lock rows on PostgreSQL to prevent double-dispatch
+            bind = session.bind
+            if bind and bind.dialect.name == "postgresql":
+                stmt = stmt.with_for_update(skip_locked=True)
+
             res = await session.execute(stmt)
             events = res.scalars().all()
 
@@ -33,7 +39,7 @@ class OutboxDispatcher:
                     event.is_published = True
                     dispatched_count += 1
                 except Exception as exc:
-                    logger.warning("Failed to publish outbox event %s: %s", event.id, exc)
+                    logger.warning("Failed to publish outbox event %s to broker: %s", event.id, exc)
 
             await session.commit()
 

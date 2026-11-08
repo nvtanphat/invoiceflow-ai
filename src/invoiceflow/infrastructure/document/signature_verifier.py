@@ -1,14 +1,24 @@
 from abc import ABC, abstractmethod
+import base64
+import copy
 from dataclasses import dataclass
 from datetime import datetime, timezone
+import hashlib
 import logging
-from typing import Optional
-from xml.etree.ElementTree import Element as XmlElement
-import defusedxml.ElementTree as ET
+from typing import List, Optional
+
+from cryptography import x509
+from cryptography.exceptions import InvalidSignature
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.asymmetric import padding
+import defusedxml.ElementTree as DefusedET
+from lxml import etree
 
 from invoiceflow.domain.invoices.models import VerificationStatus
 
 logger = logging.getLogger(__name__)
+
+DS_NS = "http://www.w3.org/2000/09/xmldsig#"
 
 
 @dataclass
@@ -33,107 +43,324 @@ class SignatureVerifierPort(ABC):
 class XMLSignatureVerifier(SignatureVerifierPort):
     """Cryptographic and structural verifier for XMLDSig signatures on Vietnamese e-invoices."""
 
+    def __init__(self, trusted_ca_certs: Optional[List[x509.Certificate]] = None):
+        self.trusted_ca_certs = trusted_ca_certs or []
+
     def verify_xml_signature(self, xml_bytes: bytes) -> SignatureVerificationResult:
-        if not xml_bytes:
+        if not xml_bytes or not xml_bytes.strip():
             return SignatureVerificationResult(
                 status=VerificationStatus.NOT_CHECKED,
                 is_valid=False,
                 details="Empty document stream.",
             )
 
+        # 1. Defused XML safety parse to block XXE / entity expansion
         try:
-            root = ET.fromstring(xml_bytes)
-        except Exception as e:
+            DefusedET.fromstring(xml_bytes)
+        except Exception as exc:
             return SignatureVerificationResult(
                 status=VerificationStatus.FAILED,
                 is_valid=False,
-                details=f"Malformed XML: {e}",
+                details=f"Malformed or unsafe XML payload: {exc}",
+            )
+
+        # 2. Parse into lxml with strict security restrictions (no network, no entities)
+        try:
+            parser = etree.XMLParser(
+                resolve_entities=False,
+                no_network=True,
+                dtd_validation=False,
+                load_dtd=False,
+            )
+            root = etree.fromstring(xml_bytes, parser=parser)
+        except Exception as exc:
+            return SignatureVerificationResult(
+                status=VerificationStatus.FAILED,
+                is_valid=False,
+                details=f"LXML parser failed: {exc}",
             )
 
         # Locate XMLDSig Signature element
-        sig_el = None
-        for el in root.iter():
-            tag = el.tag.split("}")[-1] if "}" in el.tag else el.tag
-            if tag == "Signature":
-                sig_el = el
-                break
-
-        if sig_el is None:
+        sig_node = self._locate_signature_element(root)
+        if sig_node is None:
             return SignatureVerificationResult(
                 status=VerificationStatus.NOT_CHECKED,
                 is_valid=False,
                 details="Tài liệu không chứa khối chữ ký số điện tử (No <Signature> element found).",
             )
 
-        # Extract Signature components
-        digest_val = self._find_tag_text(sig_el, "DigestValue")
-        sig_val = self._find_tag_text(sig_el, "SignatureValue")
-        x509_cert = self._find_tag_text(sig_el, "X509Certificate")
+        return self._verify_cryptographic_signature(root, sig_node)
 
-        if not digest_val or not sig_val:
+    def _locate_signature_element(self, root: etree._Element) -> Optional[etree._Element]:
+        # Search namespaced then un-namespaced
+        sig = root.find(f".//{{{DS_NS}}}Signature")
+        if sig is None:
+            sig = root.find(".//Signature")
+        return sig
+
+    def _verify_cryptographic_signature(
+        self, root: etree._Element, sig_node: etree._Element
+    ) -> SignatureVerificationResult:
+        si_node = sig_node.find(f"{{{DS_NS}}}SignedInfo")
+        if si_node is None:
+            si_node = sig_node.find("SignedInfo")
+        if si_node is None:
             return SignatureVerificationResult(
                 status=VerificationStatus.FAILED,
                 is_valid=False,
-                details="Khối chữ ký số không hợp lệ: thiếu DigestValue hoặc SignatureValue.",
+                details="Khối chữ ký số không hợp lệ: thiếu thẻ <SignedInfo>.",
             )
 
-        if not x509_cert:
+        sig_val_text = self._find_text(sig_node, "SignatureValue")
+        cert_text = self._find_text(sig_node, "X509Certificate")
+
+        if not sig_val_text:
+            return SignatureVerificationResult(
+                status=VerificationStatus.FAILED,
+                is_valid=False,
+                details="Khối chữ ký số không hợp lệ: thiếu SignatureValue.",
+            )
+
+        if not cert_text:
             return SignatureVerificationResult(
                 status=VerificationStatus.UNVERIFIED,
                 is_valid=False,
-                details="Chữ ký số có Digest/Signature nhưng thiếu chứng thư số công khai X.509.",
+                details="Chữ ký số thiếu chứng thư số công khai X.509.",
             )
 
-        # Parse X.509 Certificate if cryptography is available
+        # Parse X.509 Certificate
         try:
-            import base64
-            from cryptography import x509
-
-            cert_der = base64.b64decode("".join(x509_cert.split()))
+            cert_der = base64.b64decode("".join(cert_text.split()))
             cert = x509.load_der_x509_certificate(cert_der)
+            public_key = cert.public_key()
+        except Exception as exc:
+            return SignatureVerificationResult(
+                status=VerificationStatus.FAILED,
+                is_valid=False,
+                details=f"Chứng thư số X.509 không hợp lệ hoặc bị lỗi định dạng DER: {exc}",
+            )
 
-            now = datetime.now(timezone.utc)
-            not_before = cert.not_valid_before_utc
-            not_after = cert.not_valid_after_utc
+        signer_name = cert.subject.rfc4514_string()
+        issuer = cert.issuer.rfc4514_string()
+        serial = hex(cert.serial_number)
+        now = datetime.now(timezone.utc)
+        valid_from = cert.not_valid_before_utc
+        valid_to = cert.not_valid_after_utc
 
-            signer = cert.subject.rfc4514_string()
-            issuer = cert.issuer.rfc4514_string()
-            serial = hex(cert.serial_number)
+        # Check Certificate Expiration
+        if now < valid_from or now > valid_to:
+            return SignatureVerificationResult(
+                status=VerificationStatus.FAILED,
+                is_valid=False,
+                signer_name=signer_name,
+                issuer=issuer,
+                certificate_serial=serial,
+                valid_from=valid_from,
+                valid_to=valid_to,
+                details=f"Chứng thư số đã hết hạn hoặc chưa tới thời hạn hiệu lực ({valid_from} đến {valid_to}).",
+            )
 
-            if now < not_before or now > not_after:
-                return SignatureVerificationResult(
-                    status=VerificationStatus.FAILED,
-                    is_valid=False,
-                    signer_name=signer,
-                    issuer=issuer,
-                    certificate_serial=serial,
-                    valid_from=not_before,
-                    valid_to=not_after,
-                    details=f"Chứng thư số đã hết hạn hoặc chưa tới thời hạn hiệu lực ({not_before} đến {not_after}).",
-                )
+        # 3. Anti-Wrapping & Digest Verification over Reference
+        ref_node = si_node.find(f"{{{DS_NS}}}Reference")
+        if ref_node is None:
+            ref_node = si_node.find("Reference")
+        if ref_node is None:
+            return SignatureVerificationResult(
+                status=VerificationStatus.FAILED,
+                is_valid=False,
+                signer_name=signer_name,
+                issuer=issuer,
+                certificate_serial=serial,
+                details="SignedInfo thiếu phần tử <Reference>.",
+            )
 
+        digest_ok, digest_err = self._verify_reference_digest(root, ref_node)
+        if not digest_ok:
+            return SignatureVerificationResult(
+                status=VerificationStatus.FAILED,
+                is_valid=False,
+                signer_name=signer_name,
+                issuer=issuer,
+                certificate_serial=serial,
+                valid_from=valid_from,
+                valid_to=valid_to,
+                details=digest_err,
+            )
+
+        # 4. Cryptographic Signature Verification over Canonicalized SignedInfo
+        sig_algo = self._get_signature_algorithm(si_node)
+        try:
+            # Canonicalize SignedInfo in-place in tree
+            c14n_signed_info = etree.tostring(si_node, method="c14n")
+            sig_bytes = base64.b64decode("".join(sig_val_text.split()))
+            public_key.verify(sig_bytes, c14n_signed_info, padding.PKCS1v15(), sig_algo)
+        except InvalidSignature:
+            return SignatureVerificationResult(
+                status=VerificationStatus.FAILED,
+                is_valid=False,
+                signer_name=signer_name,
+                issuer=issuer,
+                certificate_serial=serial,
+                valid_from=valid_from,
+                valid_to=valid_to,
+                details="Chữ ký số mật mã không hợp lệ: SignatureValue không khớp với SignedInfo (chữ ký giả mạo hoặc dữ liệu bị sửa đổi).",
+            )
+        except Exception as exc:
+            return SignatureVerificationResult(
+                status=VerificationStatus.FAILED,
+                is_valid=False,
+                signer_name=signer_name,
+                issuer=issuer,
+                certificate_serial=serial,
+                valid_from=valid_from,
+                valid_to=valid_to,
+                details=f"Lỗi kiểm tra mật mã chữ ký số: {exc}",
+            )
+
+        # 5. CA Trust Chain Verification
+        return self._evaluate_ca_trust(cert, signer_name, issuer, serial, valid_from, valid_to)
+
+    def _verify_reference_digest(
+        self, root: etree._Element, ref_node: etree._Element
+    ) -> tuple[bool, Optional[str]]:
+        uri = (ref_node.get("URI") or "").strip()
+
+        # Security check: Block external URI resolution
+        if ":" in uri and not uri.startswith("#"):
+            return False, "Bảo mật vi phạm: tham chiếu URI bên ngoài bị chặn hoàn toàn."
+
+        # Anti-wrapping & target element resolution
+        if uri.startswith("#"):
+            target_id = uri.lstrip("#")
+            candidates = root.xpath(f"//*[@id='{target_id}' or @Id='{target_id}']")
+            if len(candidates) == 0:
+                return False, f"Cảnh báo cấu trúc: không tìm thấy phần tử được ký có id '{target_id}'."
+            if len(candidates) > 1:
+                return False, f"Cảnh báo XML Signature Wrapping: phát hiện {len(candidates)} phần tử trùng lặp id '{target_id}'."
+            target_el = candidates[0]
+        else:
+            # Empty URI refers to root document
+            target_el = root
+
+        # Check Transforms
+        is_enveloped = False
+        transforms = ref_node.findall(f".//{{{DS_NS}}}Transform") or ref_node.findall(".//Transform")
+        for tr in transforms:
+            algo = tr.get("Algorithm", "")
+            if "enveloped-signature" in algo:
+                is_enveloped = True
+
+        # Copy target element and strip Signature if enveloped
+        work_node = copy.deepcopy(target_el)
+        if is_enveloped:
+            for s in work_node.xpath(f".//{{{DS_NS}}}Signature | .//Signature"):
+                parent = s.getparent()
+                if parent is not None:
+                    parent.remove(s)
+
+        # Canonicalize target element
+        c14n_bytes = etree.tostring(work_node, method="c14n")
+
+        # Extract and compare digest
+        expected_digest = self._find_text(ref_node, "DigestValue")
+        if not expected_digest:
+            return False, "Thiếu thẻ DigestValue trong Reference."
+
+        digest_algo = self._get_digest_algorithm(ref_node)
+        computed_digest = base64.b64encode(digest_algo(c14n_bytes).digest()).decode("ascii")
+
+        if computed_digest != "".join(expected_digest.split()):
+            return (
+                False,
+                f"Giá trị DigestValue không khớp (Computed: {computed_digest}, Expected: {expected_digest}): Dữ liệu hóa đơn đã bị chỉnh sửa sau khi ký.",
+            )
+
+        return True, None
+
+    def _evaluate_ca_trust(
+        self,
+        cert: x509.Certificate,
+        signer_name: str,
+        issuer: str,
+        serial: str,
+        valid_from: datetime,
+        valid_to: datetime,
+    ) -> SignatureVerificationResult:
+        if not self.trusted_ca_certs:
+            return SignatureVerificationResult(
+                status=VerificationStatus.UNVERIFIED,
+                is_valid=False,
+                signer_name=signer_name,
+                issuer=issuer,
+                certificate_serial=serial,
+                valid_from=valid_from,
+                valid_to=valid_to,
+                details="Chữ ký số mật mã và Digest hợp lệ, nhưng chưa thể thẩm định chuỗi tin cậy CA (Cần cấu hình CA Trust Anchor theo quy định).",
+            )
+
+        # Check against configured trusted CAs
+        matched_ca = None
+        for ca_cert in self.trusted_ca_certs:
+            if ca_cert.subject == cert.issuer:
+                try:
+                    ca_pub = ca_cert.public_key()
+                    # Verify signature of cert issued by CA
+                    ca_pub.verify(
+                        cert.signature,
+                        cert.tbs_certificate_bytes,
+                        padding.PKCS1v15(),
+                        cert.signature_hash_algorithm,
+                    )
+                    matched_ca = ca_cert
+                    break
+                except Exception:
+                    continue
+
+        if matched_ca is not None:
             return SignatureVerificationResult(
                 status=VerificationStatus.VERIFIED,
                 is_valid=True,
-                signer_name=signer,
+                signer_name=signer_name,
                 issuer=issuer,
                 certificate_serial=serial,
-                valid_from=not_before,
-                valid_to=not_after,
-                details="Chữ ký số và chứng thư số X.509 hợp lệ và còn hiệu lực.",
+                valid_from=valid_from,
+                valid_to=valid_to,
+                details=f"Chữ ký số và chuỗi tin cậy X.509 hợp lệ (Xác thực bởi CA tin cậy: {matched_ca.subject.rfc4514_string()}).",
             )
-
-        except Exception as exc:
-            logger.debug("X.509 certificate parsing fallback: %s", exc)
+        else:
             return SignatureVerificationResult(
-                status=VerificationStatus.UNVERIFIED,
+                status=VerificationStatus.FAILED,
                 is_valid=False,
-                details=f"Chứng thư số hợp lệ về cấu trúc nhưng chưa thể thẩm định chuỗi tin cậy CA: {exc}",
+                signer_name=signer_name,
+                issuer=issuer,
+                certificate_serial=serial,
+                valid_from=valid_from,
+                valid_to=valid_to,
+                details="Chứng thư số tự ký hoặc không thuộc danh sách các Tổ chức chứng thực chữ ký số (CA) được tin cậy.",
             )
 
-    def _find_tag_text(self, parent: XmlElement, tag_name: str) -> Optional[str]:
-        for el in parent.iter():
-            tag = el.tag.split("}")[-1] if "}" in el.tag else el.tag
-            if tag == tag_name and el.text:
-                return el.text.strip()
+    def _get_signature_algorithm(self, si_node: etree._Element):
+        sm_node = si_node.find(f"{{{DS_NS}}}SignatureMethod")
+        if sm_node is None:
+            sm_node = si_node.find("SignatureMethod")
+        algo_uri = sm_node.get("Algorithm", "") if sm_node is not None else ""
+        if "rsa-sha1" in algo_uri.lower():
+            return hashes.SHA1()
+        return hashes.SHA256()
+
+    def _get_digest_algorithm(self, ref_node: etree._Element):
+        dm_node = ref_node.find(f"{{{DS_NS}}}DigestMethod")
+        if dm_node is None:
+            dm_node = ref_node.find("DigestMethod")
+        algo_uri = dm_node.get("Algorithm", "") if dm_node is not None else ""
+        if "sha1" in algo_uri.lower():
+            return hashlib.sha1
+        return hashlib.sha256
+
+    def _find_text(self, parent: etree._Element, tag_name: str) -> Optional[str]:
+        el = parent.find(f".//{{{DS_NS}}}{tag_name}")
+        if el is None:
+            el = parent.find(f".//{tag_name}")
+        if el is not None and el.text:
+            return el.text.strip()
         return None

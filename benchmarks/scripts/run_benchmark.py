@@ -445,14 +445,15 @@ async def run_b3_invoiceflow_hybrid(
     if lines:
         inv_lines = [
             InvoiceLine(
-                line_no=1,
-                sku_ref=lines[0]["sku"],
-                description=lines[0]["description"],
-                qty=Decimal(lines[0]["qty"]),
-                unit_price=Decimal(lines[0]["unit_price"]),
-                tax_rate=Decimal(lines[0]["tax_rate"]) if lines[0].get("tax_rate") else None,
-                line_amount=Decimal(lines[0]["line_amount"]),
+                line_no=idx,
+                sku_ref=item["sku"],
+                description=item["description"],
+                qty=Decimal(item["qty"]),
+                unit_price=Decimal(item["unit_price"]),
+                tax_rate=Decimal(item["tax_rate"]) if item.get("tax_rate") else None,
+                line_amount=Decimal(item["line_amount"]),
             )
+            for idx, item in enumerate(lines, start=1)
         ]
         invoice_agg = InvoiceAggregate(
             id=uuid.uuid4(),

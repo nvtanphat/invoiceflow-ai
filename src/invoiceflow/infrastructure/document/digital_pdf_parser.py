@@ -62,7 +62,7 @@ class DigitalPDFParser:
             data["invoice_series"] = m_series.group(1).strip()
             fields_found += 1
 
-        # 2. Invoice Number
+        # 2. Invoice Number (preserving leading zeros as string)
         m_inv_no = re.search(r"(?:So|Số|Invoice No|No\.?)(?:\s*\([^)]*\))?:\s*([0-9]+)", text, re.IGNORECASE)
         if m_inv_no:
             data["invoice_number"] = m_inv_no.group(1).strip()
@@ -94,8 +94,8 @@ class DigitalPDFParser:
             data["buyer_name"] = m_buyer.group(1).strip()
             fields_found += 1
 
-        # 6. Tax IDs
-        tax_ids = re.findall(r"(?:Ma so thue|Mã số thuế|Tax ID)(?:\s*\([^)]*\))?:\s*(\d{10,14})", text, re.IGNORECASE)
+        # 6. Tax IDs (preserving leading zeros as string)
+        tax_ids = re.findall(r"(?:Ma so thue|Mã số thuế|Tax ID)(?:\s*\([^)]*\))?:\s*([0-9-]{10,14})", text, re.IGNORECASE)
         if len(tax_ids) >= 1:
             data["supplier_tax_id"] = tax_ids[0].strip()
             fields_found += 1
@@ -119,23 +119,34 @@ class DigitalPDFParser:
             data["amount_payable"] = self._parse_decimal(m_total.group(1))
             fields_found += 1
 
-        # 8. Line Items
+        # 8. Multi-line Items Extraction
         lines: List[DigitalExtractedLine] = []
-        # Pattern matching table row: Description [SKU] \n Qty \n Unit Price \n Tax Rate% \n Line Amount
-        m_line = re.search(
-            r"([^\r\n]+)\[([A-Z0-9_-]+)\]\s*\n\s*([0-9.,]+)\s*\n\s*([0-9.,]+)\s*\n\s*([0-9.,]+)%\s*\n\s*([0-9.,]+)",
-            text,
+        # Pattern matches description, optional [SKU], quantity, unit price, tax rate%, line amount
+        # Using flexible whitespace \s+ to handle newlines, spaces, or merged table cells
+        pattern_lines = re.compile(
+            r"([^\r\n\[]+?)\s*(?:\[([A-Z0-9_-]+)\])?\s+([0-9.,]+)\s+([0-9.,]+)\s+([0-9.,]+)%\s+([0-9.,]+)",
+            re.MULTILINE,
         )
-        if m_line:
+
+        for idx, m_line in enumerate(pattern_lines.finditer(text), start=1):
             desc = m_line.group(1).strip()
-            sku = m_line.group(2).strip()
-            qty = self._parse_decimal(m_line.group(3))
+            # Ignore table column header matches
+            if any(h in desc.lower() for h in ["hang hoa", "dich vu", "description", "stt", "item"]):
+                continue
+            sku = m_line.group(2).strip() if m_line.group(2) else None
+            qty = self._parse_decimal(m_line.group(3), is_qty=True)
             unit_price = self._parse_decimal(m_line.group(4))
             tax_rate = self._parse_decimal(m_line.group(5))
             line_amount = self._parse_decimal(m_line.group(6))
+
+            # Accounting consistency self-healing: if qty was parsed with thousand-multiplier
+            if qty > 0 and unit_price > 0 and line_amount > 0:
+                if qty * unit_price != line_amount and (qty / Decimal("1000")) * unit_price == line_amount:
+                    qty = qty / Decimal("1000")
+
             lines.append(
                 DigitalExtractedLine(
-                    line_no=1,
+                    line_no=idx,
                     sku=sku,
                     description=desc,
                     qty=qty,
@@ -144,9 +155,14 @@ class DigitalPDFParser:
                     line_amount=line_amount,
                 )
             )
+
+        if lines:
             fields_found += 2
 
-        confidence = round(min(fields_found / 10.0, 1.0), 2)
+        # Weighted confidence calibration: Core header fields (60%) + Lines (40%)
+        header_ratio = min(fields_found / 8.0, 1.0)
+        lines_ratio = 1.0 if lines else 0.0
+        confidence = round(0.6 * header_ratio + 0.4 * lines_ratio, 2)
 
         return DigitalInvoiceExtraction(
             supplier_tax_id=data.get("supplier_tax_id"),
@@ -164,10 +180,35 @@ class DigitalPDFParser:
             confidence=confidence,
         )
 
-    def _parse_decimal(self, val: Any) -> Decimal:
+    def _parse_decimal(self, val: Any, is_qty: bool = False) -> Decimal:
         if not val:
             return Decimal("0.0000")
-        clean = re.sub(r"[^\d.-]", "", str(val).replace(",", "."))
+        s = str(val).strip()
+
+        # Handle Vietnamese and International monetary formats
+        if "." in s and "," in s:
+            if s.rfind(",") > s.rfind("."):
+                # 12.000.000,00 -> standard VN notation
+                s = s.replace(".", "").replace(",", ".")
+            else:
+                # 12,000,000.00 -> US notation
+                s = s.replace(",", "")
+        elif "." in s:
+            parts = s.split(".")
+            if is_qty and len(parts) == 2:
+                # Quantities with a single dot are decimal representations e.g. 200.000 or 5.5
+                s = f"{parts[0]}.{parts[1]}"
+            elif len(parts) > 1 and all(len(p) == 3 for p in parts[1:]):
+                # Standard VN thousand separators e.g. 12.000.000 or 60.000
+                s = s.replace(".", "")
+        elif "," in s:
+            parts = s.split(",")
+            if len(parts) > 1 and all(len(p) == 3 for p in parts[1:]):
+                s = s.replace(",", "")
+            else:
+                s = s.replace(",", ".")
+
+        clean = re.sub(r"[^\d.-]", "", s)
         try:
             return Decimal(clean)
         except Exception:

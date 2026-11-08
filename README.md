@@ -70,12 +70,12 @@ flowchart TD
 
 | Pipeline Baseline | Header Exact Match | Line Items F1 | Anomaly Detection F1 | Độ trễ trung bình | Chi phí / 1.000 Hóa đơn |
 |---|---|---|---|---|---|
-| **B0: XML Direct** | 40.0% | 40.0% | 60.0% | 0.8 ms | $0.00 |
-| **B1: Digital PDF Heuristics** | 74.6% | 80.0% | 60.0% | 2.5 ms | $0.00 |
-| **B2: Pure Multimodal LLM (gpt-6.1-sol)** | 89.1% | 100.0% | 60.0% | 8,301.3 ms | $0.51 |
-| **B3: InvoiceFlow AI Hybrid (Docling + Rules + 3-Way)** | **87.3%** | **80.0%** | **80.0%** | **6,105.0 ms** | **$0.12** |
+| **B0: XML Direct** | 40.0% | 40.0% | 60.0% | 0.7 ms | $0.00 |
+| **B1: Digital PDF Heuristics** | 74.6% | 80.0% | 60.0% | 2.7 ms | $0.00 |
+| **B2: Pure Multimodal LLM (gpt-6.1-sol)** | 83.6% | 100.0% | 60.0% | 101,926.8 ms | $0.60 |
+| **B3: InvoiceFlow AI Hybrid (Docling + Rules + 3-Way)** | **89.1%** | **100.0%** | **100.0%** | **40,254.4 ms** | **$0.17** |
 
-> **Hiệu quả thực tế của B3:** Giảm **76.5% chi phí gọi LLM** ($0.12 vs $0.51) và giảm 26.5% độ trễ xử lý so với gọi Pure Vision LLM trên mọi tài liệu, kết hợp với Docling canonical document representation (bàn cờ tọa độ, bảng và ô) cùng động cơ đối soát 3 chiều Invoice–PO–GRN. Chi phí token được tính toán tự động dựa trên mức tiêu thụ token thực tế từ endpoint AI.
+> **Hiệu quả thực tế của B3:** Giảm **71.7% chi phí gọi LLM** ($0.17 vs $0.60) và giảm hơn 60% độ trễ xử lý so với gọi Pure Vision LLM trên mọi tài liệu, đồng thời đạt **100.0% Line Items F1** và **100.0% Anomaly Detection F1** nhờ kết hợp bóc tách tài liệu cấu trúc với Docling, luật kế toán số và động cơ đối soát 3 chiều Invoice–PO–GRN. Chi phí token được tính toán tự động dựa trên mức tiêu thụ token thực tế từ endpoint AI.
 
 ---
 

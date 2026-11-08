@@ -1,5 +1,5 @@
+from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
 
 from invoiceflow.domain.invoices.models import VerificationStatus
 from invoiceflow.infrastructure.tax.client import GeneralDepartmentOfTaxationClient
@@ -79,6 +79,88 @@ async def test_gdt_client_failed_when_portal_reports_invalid():
 
     assert result.status == VerificationStatus.FAILED
     assert result.is_valid is False
+
+
+@pytest.mark.asyncio
+async def test_gdt_client_missing_valid_field_fails_closed():
+    client = GeneralDepartmentOfTaxationClient(
+        api_token="test-secret-token",
+        api_url="https://hoadondientu.gdt.gov.vn/api/v1/lookup",
+    )
+
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    # Response missing 'valid' boolean field
+    mock_response.json.return_value = {"message": "Success without valid flag"}
+
+    mock_httpx_client = AsyncMock()
+    mock_httpx_client.get.return_value = mock_response
+    mock_httpx_client.__aenter__.return_value = mock_httpx_client
+
+    with patch("httpx.AsyncClient", return_value=mock_httpx_client):
+        result = await client.verify_invoice_status(
+            supplier_tax_id="0101234567",
+            invoice_series="1C26TAA",
+            invoice_number="0000001",
+        )
+
+    assert result.status == VerificationStatus.UNKNOWN
+    assert result.is_valid is False
+    assert "fail-closed" in result.message
+
+
+@pytest.mark.asyncio
+async def test_gdt_client_missing_tct_code_fails_closed():
+    client = GeneralDepartmentOfTaxationClient(
+        api_token="test-secret-token",
+        api_url="https://hoadondientu.gdt.gov.vn/api/v1/lookup",
+    )
+
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    # Valid is True but tct_code is missing
+    mock_response.json.return_value = {"valid": True, "tct_code": None}
+
+    mock_httpx_client = AsyncMock()
+    mock_httpx_client.get.return_value = mock_response
+    mock_httpx_client.__aenter__.return_value = mock_httpx_client
+
+    with patch("httpx.AsyncClient", return_value=mock_httpx_client):
+        result = await client.verify_invoice_status(
+            supplier_tax_id="0101234567",
+            invoice_series="1C26TAA",
+            invoice_number="0000001",
+        )
+
+    assert result.status == VerificationStatus.UNKNOWN
+    assert result.is_valid is False
+    assert "thiếu mã cấp phép" in result.message
+
+
+@pytest.mark.asyncio
+async def test_gdt_client_unauthorized():
+    client = GeneralDepartmentOfTaxationClient(
+        api_token="invalid-token",
+        api_url="https://hoadondientu.gdt.gov.vn/api/v1/lookup",
+    )
+
+    mock_response = MagicMock()
+    mock_response.status_code = 401
+
+    mock_httpx_client = AsyncMock()
+    mock_httpx_client.get.return_value = mock_response
+    mock_httpx_client.__aenter__.return_value = mock_httpx_client
+
+    with patch("httpx.AsyncClient", return_value=mock_httpx_client):
+        result = await client.verify_invoice_status(
+            supplier_tax_id="0101234567",
+            invoice_series="1C26TAA",
+            invoice_number="0000001",
+        )
+
+    assert result.status == VerificationStatus.UNKNOWN
+    assert result.is_valid is False
+    assert "Unauthorized" in result.message
 
 
 @pytest.mark.asyncio

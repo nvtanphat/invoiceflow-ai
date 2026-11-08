@@ -89,14 +89,47 @@ class GeneralDepartmentOfTaxationClient(TaxAuthorityPort):
                     headers=headers,
                 )
                 if resp.status_code == 200:
-                    data = resp.json()
-                    is_valid = data.get("valid", True)
+                    try:
+                        data = resp.json()
+                    except Exception:
+                        return TaxVerificationResult(
+                            status=VerificationStatus.UNKNOWN,
+                            is_valid=False,
+                            verification_time=datetime.now(timezone.utc),
+                            message="Phản hồi từ cổng TCT không phải định dạng JSON hợp lệ.",
+                        )
+
+                    if not isinstance(data, dict) or "valid" not in data or not isinstance(data["valid"], bool):
+                        return TaxVerificationResult(
+                            status=VerificationStatus.UNKNOWN,
+                            is_valid=False,
+                            verification_time=datetime.now(timezone.utc),
+                            message="Phản hồi từ cổng TCT thiếu trường dữ liệu 'valid' hoặc sai định dạng schema (fail-closed).",
+                        )
+
+                    is_valid = data["valid"]
+                    tct_code = data.get("tct_code")
+                    if is_valid and not tct_code:
+                        return TaxVerificationResult(
+                            status=VerificationStatus.UNKNOWN,
+                            is_valid=False,
+                            verification_time=datetime.now(timezone.utc),
+                            message="Cổng TCT báo hợp lệ nhưng thiếu mã cấp phép tra cứu 'tct_code'.",
+                        )
+
                     return TaxVerificationResult(
                         status=VerificationStatus.VERIFIED if is_valid else VerificationStatus.FAILED,
                         is_valid=is_valid,
-                        tax_authority_code=data.get("tct_code"),
+                        tax_authority_code=tct_code,
                         verification_time=datetime.now(timezone.utc),
-                        message=data.get("message", "Xác thực cơ quan thuế thành công."),
+                        message=data.get("message", "Xác thực cơ quan thuế thành công." if is_valid else "Hóa đơn không hợp lệ theo TCT."),
+                    )
+                elif resp.status_code in (401, 403):
+                    return TaxVerificationResult(
+                        status=VerificationStatus.UNKNOWN,
+                        is_valid=False,
+                        verification_time=datetime.now(timezone.utc),
+                        message=f"Lỗi xác thực quyền truy cập cổng TCT ({resp.status_code} Unauthorized/Forbidden).",
                     )
                 else:
                     return TaxVerificationResult(

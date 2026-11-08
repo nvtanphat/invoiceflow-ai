@@ -1,5 +1,9 @@
+from decimal import Decimal
 import fitz
 import pytest
+
+from invoiceflow.infrastructure.document.digital_pdf_parser import DigitalPDFParser
+from invoiceflow.infrastructure.document.pdf_inspector import PDFInspectionError, PDFInspector
 
 
 @pytest.fixture
@@ -15,8 +19,6 @@ def sample_digital_pdf_bytes() -> bytes:
 
 
 def test_pdf_inspector_inspects_digital_pdf(sample_digital_pdf_bytes):
-    from invoiceflow.infrastructure.document.pdf_inspector import PDFInspector
-
     inspector = PDFInspector()
     report = inspector.inspect(sample_digital_pdf_bytes)
 
@@ -29,17 +31,12 @@ def test_pdf_inspector_inspects_digital_pdf(sample_digital_pdf_bytes):
 
 
 def test_pdf_inspector_rejects_corrupted_pdf():
-    from invoiceflow.infrastructure.document.pdf_inspector import PDFInspector, PDFInspectionError
-
     inspector = PDFInspector()
     with pytest.raises(PDFInspectionError):
         inspector.inspect(b"%PDF-1.4 corrupt junk trailer broken %%EOF")
 
 
 def test_digital_pdf_parser_deterministic():
-    from decimal import Decimal
-    from invoiceflow.infrastructure.document.digital_pdf_parser import DigitalPDFParser
-
     sample_text = """
     Ky hieu (Series): 1C26TBB
     So (Invoice No): 0008890
@@ -69,3 +66,39 @@ def test_digital_pdf_parser_deterministic():
     assert res.lines[0].sku == "PAPER-A4-70"
     assert res.lines[0].qty == Decimal("200.0000")
 
+
+def test_digital_pdf_parser_multi_line_and_vietnamese_currency_format():
+    sample_text = """
+    Ký hiệu: 2C26TBB
+    Số: 0008899
+    Ngày: 06/03/2026
+    Đơn vị bán: Công ty CP Giấy Miền Nam
+    Mã số thuế: 0309876543
+    Đơn vị mua: Công ty Cổ phần Alpha VN
+    Mã số thuế: 0109998888
+    Cộng tiền hàng: 25.000.000
+    Tiền thuế GTGT: 2.000.000
+    Tổng cộng: 27.000.000
+    Giấy photocopy Double A A4 70gsm [PAPER-A4-70] 200 60.000 8% 12.000.000
+    Bút bi Thiên Long 0.5mm [PEN-TL-05] 500 26.000 8% 13.000.000
+    """
+    parser = DigitalPDFParser()
+    res = parser.parse(sample_text)
+
+    assert res.is_confident is True
+    assert res.invoice_number == "0008899"
+    assert res.supplier_tax_id == "0309876543"
+    assert res.issue_date == "2026-03-06"
+    assert res.subtotal == Decimal("25000000")
+    assert res.amount_payable == Decimal("27000000")
+
+    assert len(res.lines) == 2
+    assert res.lines[0].sku == "PAPER-A4-70"
+    assert res.lines[0].qty == Decimal("200")
+    assert res.lines[0].unit_price == Decimal("60000")
+    assert res.lines[0].line_amount == Decimal("12000000")
+
+    assert res.lines[1].sku == "PEN-TL-05"
+    assert res.lines[1].qty == Decimal("500")
+    assert res.lines[1].unit_price == Decimal("26000")
+    assert res.lines[1].line_amount == Decimal("13000000")

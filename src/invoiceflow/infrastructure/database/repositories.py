@@ -82,7 +82,25 @@ class InvoiceRepository:
     def __init__(self, session: AsyncSession):
         self._session = session
 
+    async def get_invoice_by_document(self, tenant_id: UUID | str, document_id: UUID | str) -> Optional[InvoiceORM]:
+        from sqlalchemy.orm import selectinload
+        stmt = (
+            select(InvoiceORM)
+            .options(selectinload(InvoiceORM.lines), selectinload(InvoiceORM.evidence))
+            .where(
+                InvoiceORM.tenant_id == str(tenant_id),
+                InvoiceORM.document_id == str(document_id),
+            )
+        )
+        res = await self._session.execute(stmt)
+        return res.scalar_one_or_none()
+
     async def create_invoice(self, aggregate: InvoiceAggregate) -> InvoiceORM:
+        # Idempotency check: if invoice already created for this document, return existing
+        existing = await self.get_invoice_by_document(aggregate.tenant_id, aggregate.document_id)
+        if existing:
+            return existing
+
         inv = InvoiceORM(
             id=str(aggregate.id),
             tenant_id=str(aggregate.tenant_id),
