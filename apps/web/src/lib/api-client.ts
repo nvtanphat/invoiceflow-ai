@@ -120,6 +120,10 @@ class ApiClient {
     }
   }
 
+  public logout(): void {
+    this.setSession(null);
+  }
+
   private headers(extra: Record<string, string> = {}): Record<string, string> {
     const res: Record<string, string> = { ...extra };
     if (this.session?.access_token) {
@@ -233,6 +237,25 @@ class ApiClient {
     });
     if (!res.ok) throw new Error("Export failed");
     return res.blob();
+  }
+
+  public async renderDocumentPage(
+    documentId: string,
+    pageIndex: number = 0
+  ): Promise<{ blobUrl: string; width: number; height: number; pageCount: number }> {
+    const res = await fetch(`${this.baseUrl}/documents/${documentId}/pages/${pageIndex}/render`, {
+      headers: this.headers(),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: `Render failed (${res.status})` }));
+      throw new Error(err.detail || `Render failed (${res.status})`);
+    }
+    const width = parseFloat(res.headers.get("X-Page-Width") || "595");
+    const height = parseFloat(res.headers.get("X-Page-Height") || "842");
+    const pageCount = parseInt(res.headers.get("X-Page-Count") || "1", 10);
+    const blob = await res.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    return { blobUrl, width, height, pageCount };
   }
 }
 

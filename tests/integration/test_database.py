@@ -7,7 +7,6 @@ from datetime import date
 @pytest.mark.asyncio
 async def test_database_tenant_isolation_and_repositories():
     from invoiceflow.infrastructure.database.session import DatabaseSessionManager
-    from invoiceflow.infrastructure.database.base import Base
     from invoiceflow.infrastructure.database.repositories import (
         TenantRepository,
         DocumentRepository,

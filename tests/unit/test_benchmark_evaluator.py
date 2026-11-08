@@ -1,4 +1,3 @@
-from decimal import Decimal
 import pytest
 from benchmarks.scripts.evaluator import (
     evaluate_prediction,

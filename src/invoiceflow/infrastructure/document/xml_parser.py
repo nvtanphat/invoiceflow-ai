@@ -2,7 +2,7 @@ from datetime import date, datetime
 from decimal import Decimal
 import io
 import re
-from typing import Any, Optional
+from typing import Optional
 from uuid import UUID
 from xml.etree.ElementTree import Element as XmlElement
 import defusedxml.ElementTree as ET
@@ -12,7 +12,6 @@ from invoiceflow.domain.invoices.models import (
     InvoiceAggregate,
     InvoiceLine,
     InvoiceStatus,
-    TaxBreakdown,
     VerificationStatus,
 )
 

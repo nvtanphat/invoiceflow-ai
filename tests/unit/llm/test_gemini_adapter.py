@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 @pytest.mark.asyncio
 async def test_gemini_adapter_conformance_with_mock_client():
-    from invoiceflow.infrastructure.llm.gemini_adapter import GeminiAdapter, ExtractionResult
+    from invoiceflow.infrastructure.llm.gemini_adapter import GeminiAdapter
 
     # Mock response payload conforming to strict JSON schema
     mock_json_response = {

@@ -468,7 +468,6 @@ async def test_unified_review_actions_and_concurrency():
 @pytest.mark.asyncio
 async def test_outbox_dispatcher_retries_on_broker_failure(monkeypatch):
     from invoiceflow.application.ingestion.outbox_dispatcher import OutboxDispatcher
-    import dramatiq
 
     db_url = "sqlite+aiosqlite:///:memory:"
     db_manager = DatabaseSessionManager(database_url=db_url)

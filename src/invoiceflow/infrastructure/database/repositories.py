@@ -6,14 +6,10 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from invoiceflow.domain.invoices.models import InvoiceAggregate, InvoiceStatus
 from invoiceflow.infrastructure.database.models import (
-    AuditLogORM,
     DocumentORM,
     FieldEvidenceORM,
-    IdempotencyKeyORM,
     InvoiceLineORM,
     InvoiceORM,
-    MatchResultORM,
-    OutboxEventORM,
     TenantORM,
 )
 
@@ -150,9 +146,14 @@ class InvoiceRepository:
         return inv
 
     async def get_invoice(self, tenant_id: UUID | str, invoice_id: UUID | str) -> Optional[InvoiceORM]:
-        stmt = select(InvoiceORM).where(
-            InvoiceORM.tenant_id == str(tenant_id),
-            InvoiceORM.id == str(invoice_id),
+        from sqlalchemy.orm import selectinload
+        stmt = (
+            select(InvoiceORM)
+            .options(selectinload(InvoiceORM.lines), selectinload(InvoiceORM.evidence))
+            .where(
+                InvoiceORM.tenant_id == str(tenant_id),
+                InvoiceORM.id == str(invoice_id),
+            )
         )
         res = await self._session.execute(stmt)
         return res.scalar_one_or_none()

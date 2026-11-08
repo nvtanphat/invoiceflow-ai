@@ -1,20 +1,28 @@
-import React, { useState } from "react";
-import { FieldEvidenceItem } from "../../lib/api-client";
+import React, { useState, useEffect } from "react";
+import { FieldEvidenceItem, api } from "../../lib/api-client";
 import {
   Eye,
   ShieldCheck,
+  ShieldAlert,
   ZoomIn,
   ZoomOut,
   RotateCcw,
   Layers,
   Table as TableIcon,
+  ChevronLeft,
+  ChevronRight,
+  AlertCircle,
+  RefreshCw,
+  Loader2,
 } from "lucide-react";
 
 interface BBoxViewerProps {
+  documentId?: string;
+  documentName: string;
   evidenceList: FieldEvidenceItem[];
   selectedField: string | null;
   onSelectField: (fieldName: string) => void;
-  documentName: string;
+  isVerifiedSignature?: boolean;
 }
 
 interface ParsedBBox {
@@ -25,17 +33,60 @@ interface ParsedBBox {
   page_index?: number;
 }
 
-const PAGE_WIDTH = 595;
-const PAGE_HEIGHT = 842;
-
 export const BBoxViewer: React.FC<BBoxViewerProps> = ({
+  documentId,
+  documentName,
   evidenceList,
   selectedField,
   onSelectField,
-  documentName,
+  isVerifiedSignature,
 }) => {
   const [zoom, setZoom] = useState<number>(1.0);
   const [activeTab, setActiveTab] = useState<"visual" | "table">("visual");
+  const [pageIndex, setPageIndex] = useState<number>(0);
+  const [pageCount, setPageCount] = useState<number>(1);
+  const [dimensions, setDimensions] = useState<{ width: number; height: number }>({
+    width: 595,
+    height: 842,
+  });
+  const [renderedImageUrl, setRenderedImageUrl] = useState<string | null>(null);
+  const [isLoadingImage, setIsLoadingImage] = useState<boolean>(false);
+  const [imageError, setImageError] = useState<string | null>(null);
+
+  // Fetch rendered document page using authenticated blob API
+  const fetchPageImage = async () => {
+    if (!documentId) return;
+    setIsLoadingImage(true);
+    setImageError(null);
+
+    try {
+      const res = await api.renderDocumentPage(documentId, pageIndex);
+      setRenderedImageUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return res.blobUrl;
+      });
+      if (res.width > 0 && res.height > 0) {
+        setDimensions({ width: res.width, height: res.height });
+      }
+      if (res.pageCount > 0) {
+        setPageCount(res.pageCount);
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Không thể kết xuất trang tài liệu";
+      setImageError(msg);
+    } finally {
+      setIsLoadingImage(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchPageImage();
+    return () => {
+      if (renderedImageUrl) {
+        URL.revokeObjectURL(renderedImageUrl);
+      }
+    };
+  }, [documentId, pageIndex]);
 
   const parseBBox = (bboxJson?: string): ParsedBBox | null => {
     if (!bboxJson) return null;
@@ -51,14 +102,21 @@ export const BBoxViewer: React.FC<BBoxViewerProps> = ({
         return parsed as ParsedBBox;
       }
     } catch {
-      // Fallback if not valid JSON
+      // Ignored non-json format
     }
     return null;
   };
 
-  const handleZoomIn = () => setZoom((prev) => Math.min(prev + 0.15, 2.0));
-  const handleZoomOut = () => setZoom((prev) => Math.max(prev - 0.15, 0.6));
+  const handleZoomIn = () => setZoom((prev) => Math.min(prev + 0.15, 2.5));
+  const handleZoomOut = () => setZoom((prev) => Math.max(prev - 0.15, 0.5));
   const handleResetZoom = () => setZoom(1.0);
+
+  // Filter evidence fields for current page
+  const pageEvidence = evidenceList.filter((ev) => {
+    const bbox = parseBBox(ev.bbox_json);
+    const itemPage = bbox?.page_index ?? ev.page ?? 0;
+    return itemPage === pageIndex;
+  });
 
   return (
     <div className="flex flex-col h-full bg-slate-900 rounded-xl overflow-hidden shadow-sm border border-slate-800 text-white select-none">
@@ -96,10 +154,10 @@ export const BBoxViewer: React.FC<BBoxViewerProps> = ({
         </div>
       </div>
 
-      {/* Sub-header Bar: Zoom & Doc info */}
+      {/* Sub-header Bar: Zoom, Doc info & Page Navigation */}
       <div className="px-4 py-2 bg-slate-950/40 border-b border-slate-800/80 flex items-center justify-between text-xs text-slate-400">
         <div className="flex items-center gap-2">
-          <span className="font-mono text-slate-300 truncate max-w-[220px]" title={documentName}>
+          <span className="font-mono text-slate-300 truncate max-w-[200px]" title={documentName}>
             {documentName}
           </span>
           <span className="px-1.5 py-0.5 rounded text-[10px] bg-slate-800 text-slate-300 border border-slate-700">
@@ -107,6 +165,32 @@ export const BBoxViewer: React.FC<BBoxViewerProps> = ({
           </span>
         </div>
 
+        {/* Page Switcher */}
+        {pageCount > 1 && (
+          <div className="flex items-center gap-1 bg-slate-900 px-2 py-0.5 rounded border border-slate-800 text-[11px]">
+            <button
+              onClick={() => setPageIndex((p) => Math.max(p - 1, 0))}
+              disabled={pageIndex === 0}
+              className="p-0.5 rounded hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed"
+              title="Trang trước"
+            >
+              <ChevronLeft className="w-3.5 h-3.5" />
+            </button>
+            <span className="font-mono px-1">
+              {pageIndex + 1} / {pageCount}
+            </span>
+            <button
+              onClick={() => setPageIndex((p) => Math.min(p + 1, pageCount - 1))}
+              disabled={pageIndex >= pageCount - 1}
+              className="p-0.5 rounded hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed"
+              title="Trang sau"
+            >
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
+        {/* Zoom Controls */}
         {activeTab === "visual" && (
           <div className="flex items-center gap-1">
             <button
@@ -138,151 +222,143 @@ export const BBoxViewer: React.FC<BBoxViewerProps> = ({
       {/* Content Body */}
       {activeTab === "visual" ? (
         <div className="relative flex-1 p-6 overflow-auto flex items-center justify-center bg-slate-950/80">
-          <div
-            style={{
-              width: `${PAGE_WIDTH * zoom}px`,
-              height: `${PAGE_HEIGHT * zoom}px`,
-              transformOrigin: "center center",
-            }}
-            className="relative bg-white text-slate-900 shadow-2xl rounded-sm border border-slate-200 transition-all duration-150 overflow-hidden"
-          >
-            {/* Header Document Decorative Elements */}
-            <div className="p-6 border-b border-slate-200 flex justify-between items-start bg-slate-50/50">
-              <div>
-                <div className="text-sm font-bold text-sky-900 tracking-wider">
-                  HÓA ĐƠN GIÁ TRỊ GIA TĂNG (ELECTRONIC INVOICE)
-                </div>
-                <div className="text-[10px] text-slate-500 mt-0.5">
-                  Bản thể hiện dữ liệu trích xuất kèm tọa độ Bounding Box
-                </div>
-              </div>
-              <div className="flex items-center gap-1 text-[11px] text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">
-                <ShieldCheck className="w-3.5 h-3.5" /> Chữ ký điện tử
-              </div>
+          {isLoadingImage ? (
+            <div className="flex flex-col items-center justify-center gap-3 text-slate-400">
+              <Loader2 className="w-8 h-8 animate-spin text-sky-500" />
+              <span className="text-xs">Đang tải trang tài liệu số {pageIndex + 1}...</span>
             </div>
-
-            {/* Real Rendered Document Page Background (PDF / Scan) */}
-            {documentName && (
-              <img
-                src={`/api/v1/documents/${documentName}/pages/0/render`}
-                alt="Tài liệu gốc"
-                className="absolute inset-0 w-full h-full object-contain pointer-events-none z-0"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).style.display = "none";
-                }}
-              />
-            )}
-
-            {/* Simulated Watermark */}
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-5">
-              <span className="text-6xl font-black uppercase text-slate-900 tracking-widest rotate-[-30deg]">
-                InvoiceFlow AI
-              </span>
+          ) : imageError ? (
+            <div className="flex flex-col items-center justify-center gap-3 text-rose-400 max-w-sm text-center p-6 bg-slate-900/60 rounded-xl border border-rose-900/40">
+              <AlertCircle className="w-8 h-8 text-rose-500" />
+              <div className="text-xs">{imageError}</div>
+              <button
+                onClick={fetchPageImage}
+                className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-800 text-slate-200 hover:bg-slate-700 transition-colors"
+              >
+                <RefreshCw className="w-3.5 h-3.5" /> Thử lại
+              </button>
             </div>
-
-            {/* Bounding Box Overlays */}
-            {evidenceList.map((ev, idx) => {
-              const bbox = parseBBox(ev.bbox_json);
-              const isSelected = selectedField === ev.field_name;
-              const confPct = Math.round(ev.confidence * 100);
-
-              if (bbox) {
-                // Point-based positioning scaled to container
-                const left = (bbox.x0 / PAGE_WIDTH) * 100;
-                const top = (bbox.y0 / PAGE_HEIGHT) * 100;
-                const width = Math.max(((bbox.x1 - bbox.x0) / PAGE_WIDTH) * 100, 4);
-                const height = Math.max(((bbox.y1 - bbox.y0) / PAGE_HEIGHT) * 100, 2);
-
-                return (
-                  <div
-                    key={`bbox-${ev.field_name}-${idx}`}
-                    onClick={() => onSelectField(ev.field_name)}
-                    style={{
-                      left: `${left}%`,
-                      top: `${top}%`,
-                      width: `${width}%`,
-                      height: `${height}%`,
-                    }}
-                    className={`absolute cursor-pointer transition-all border-2 rounded ${
-                      isSelected
-                        ? "border-sky-500 bg-sky-400/25 ring-2 ring-sky-300 z-30 shadow-lg"
-                        : "border-sky-400/70 bg-sky-100/20 hover:border-sky-500 hover:bg-sky-200/30 z-10"
-                    }`}
-                    title={`${ev.field_name}: ${ev.raw_value} (${confPct}%)`}
-                  >
-                    <span
-                      className={`absolute -top-4 left-0 text-[9px] font-mono px-1 py-0.2 rounded font-bold whitespace-nowrap shadow-sm ${
-                        isSelected
-                          ? "bg-sky-600 text-white z-40"
-                          : "bg-slate-800/80 text-sky-200"
-                      }`}
-                    >
-                      {ev.field_name}
-                    </span>
+          ) : (
+            <div
+              style={{
+                width: `${dimensions.width * zoom}px`,
+                height: `${dimensions.height * zoom}px`,
+                transformOrigin: "center center",
+              }}
+              className="relative bg-white text-slate-900 shadow-2xl rounded-sm border border-slate-200 transition-all duration-150 overflow-hidden"
+            >
+              {/* Header Document Verification Indicator */}
+              <div className="p-4 border-b border-slate-200 flex justify-between items-start bg-slate-50/50">
+                <div>
+                  <div className="text-xs font-bold text-sky-900 tracking-wider">
+                    BẢN THỂ HIỆN HÓA ĐƠN ĐIỆN TỬ
                   </div>
-                );
-              }
-
-              return null;
-            })}
-
-            {/* Fallback layout if evidence items don't have visual bbox points */}
-            <div className="p-6 space-y-3">
-              {evidenceList.filter((ev) => !parseBBox(ev.bbox_json)).length > 0 && (
-                <div className="mt-4 p-3 bg-slate-50 border border-slate-200 rounded-lg">
-                  <div className="text-[11px] font-medium text-slate-500 mb-2">
-                    Dữ liệu trích xuất trực tiếp (Deterministic XML / Direct Schema):
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    {evidenceList
-                      .filter((ev) => !parseBBox(ev.bbox_json))
-                      .map((ev, idx) => {
-                        const isSelected = selectedField === ev.field_name;
-                        return (
-                          <div
-                            key={`xml-${ev.field_name}-${idx}`}
-                            onClick={() => onSelectField(ev.field_name)}
-                            className={`p-2 rounded text-xs border cursor-pointer transition-colors ${
-                              isSelected
-                                ? "border-sky-500 bg-sky-50 ring-1 ring-sky-400"
-                                : "border-slate-200 bg-white hover:border-slate-300"
-                            }`}
-                          >
-                            <div className="font-semibold text-slate-700 text-[11px]">
-                              {ev.field_name}
-                            </div>
-                            <div className="font-mono text-slate-600 text-[10px] truncate">
-                              {ev.raw_value || "(trống)"}
-                            </div>
-                          </div>
-                        );
-                      })}
+                  <div className="text-[10px] text-slate-500">
+                    Kích thước: {Math.round(dimensions.width)} x {Math.round(dimensions.height)} pt (Trang {pageIndex + 1}/{pageCount})
                   </div>
                 </div>
+
+                {/* Digital Signature Status (Accurate check, no fake claims) */}
+                {isVerifiedSignature ? (
+                  <div className="flex items-center gap-1 text-[11px] text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">
+                    <ShieldCheck className="w-3.5 h-3.5" /> Chữ ký số đã xác thực
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1 text-[10px] text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded">
+                    <ShieldAlert className="w-3 h-3 text-amber-500" /> Chưa kiểm tra chữ ký số
+                  </div>
+                )}
+              </div>
+
+              {/* Real Authenticated Rendered Document Page Background */}
+              {renderedImageUrl && (
+                <img
+                  src={renderedImageUrl}
+                  alt={`Tài liệu trang ${pageIndex + 1}`}
+                  className="absolute inset-0 w-full h-full object-contain pointer-events-none z-0"
+                />
               )}
+
+              {/* Watermark */}
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-5">
+                <span className="text-6xl font-black uppercase text-slate-900 tracking-widest rotate-[-30deg]">
+                  InvoiceFlow AI
+                </span>
+              </div>
+
+              {/* Bounding Box Overlays */}
+              {pageEvidence.map((ev, idx) => {
+                const bbox = parseBBox(ev.bbox_json);
+                const isSelected = selectedField === ev.field_name;
+                const confPct = Math.round(ev.confidence * 100);
+
+                if (bbox) {
+                  // Coordinate scaling based on actual page dimensions
+                  const left = (bbox.x0 / dimensions.width) * 100;
+                  const top = (bbox.y0 / dimensions.height) * 100;
+                  const width = Math.max(((bbox.x1 - bbox.x0) / dimensions.width) * 100, 2);
+                  const height = Math.max(((bbox.y1 - bbox.y0) / dimensions.height) * 100, 1.5);
+
+                  return (
+                    <div
+                      key={`bbox-${ev.field_name}-${idx}`}
+                      onClick={() => onSelectField(ev.field_name)}
+                      style={{
+                        left: `${left}%`,
+                        top: `${top}%`,
+                        width: `${width}%`,
+                        height: `${height}%`,
+                      }}
+                      className={`absolute cursor-pointer rounded-xs transition-all z-10 ${
+                        isSelected
+                          ? "bg-sky-500/30 border-2 border-sky-500 ring-2 ring-sky-400/50"
+                          : "bg-indigo-500/15 border border-indigo-500/70 hover:bg-indigo-500/30"
+                      }`}
+                      title={`${ev.field_name}: ${ev.raw_value} (Độ tin cậy: ${confPct}%)`}
+                    >
+                      {/* BBox Field Badge */}
+                      <div
+                        className={`absolute -top-4.5 left-0 text-[9px] font-mono px-1 py-0.2 rounded shadow-xs whitespace-nowrap pointer-events-none ${
+                          isSelected
+                            ? "bg-sky-600 text-white font-semibold"
+                            : "bg-slate-900/80 text-sky-200"
+                        }`}
+                      >
+                        {ev.field_name}
+                      </div>
+                    </div>
+                  );
+                }
+                return null;
+              })}
             </div>
-          </div>
+          )}
         </div>
       ) : (
-        /* Table View of Evidence Coordinates */
-        <div className="flex-1 overflow-auto p-4 bg-slate-950/60">
-          <div className="border border-slate-800 rounded-lg overflow-hidden bg-slate-900">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="bg-slate-800/90 text-slate-300 border-b border-slate-700/80 font-semibold">
-                  <th className="py-2.5 px-3">Trường (Field)</th>
-                  <th className="py-2.5 px-3">Giá trị trích xuất</th>
-                  <th className="py-2.5 px-3">Tọa độ [x0, y0, x1, y1]</th>
-                  <th className="py-2.5 px-3">Trang</th>
-                  <th className="py-2.5 px-3">Nguồn</th>
-                  <th className="py-2.5 px-3 text-right">Độ tin cậy</th>
+        /* Table View */
+        <div className="flex-1 p-6 overflow-auto bg-slate-950/40">
+          <table className="w-full text-left text-xs text-slate-300">
+            <thead className="bg-slate-800 text-[11px] uppercase tracking-wider text-slate-400">
+              <tr>
+                <th className="px-4 py-3">Tên trường</th>
+                <th className="px-4 py-3">Giá trị gốc</th>
+                <th className="px-4 py-3">Trang</th>
+                <th className="px-4 py-3">Tọa độ [x0, y0, x1, y1]</th>
+                <th className="px-4 py-3">Độ tin cậy</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-800 font-mono">
+              {evidenceList.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-4 py-8 text-center text-slate-500">
+                    Không có tọa độ trích xuất cho tài liệu này.
+                  </td>
                 </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800">
-                {evidenceList.map((ev, idx) => {
+              ) : (
+                evidenceList.map((ev, idx) => {
                   const bbox = parseBBox(ev.bbox_json);
                   const isSelected = selectedField === ev.field_name;
-                  const confPct = Math.round(ev.confidence * 100);
+                  const itemPage = (bbox?.page_index ?? ev.page ?? 0) + 1;
 
                   return (
                     <tr
@@ -290,42 +366,37 @@ export const BBoxViewer: React.FC<BBoxViewerProps> = ({
                       onClick={() => onSelectField(ev.field_name)}
                       className={`cursor-pointer transition-colors ${
                         isSelected
-                          ? "bg-sky-950/80 text-sky-200 font-medium"
-                          : "hover:bg-slate-800/50 text-slate-300"
+                          ? "bg-sky-950/60 text-sky-200 border-l-2 border-sky-500"
+                          : "hover:bg-slate-800/50"
                       }`}
                     >
-                      <td className="py-2 px-3 font-semibold text-slate-200">
+                      <td className="px-4 py-2.5 font-sans font-medium text-white">
                         {ev.field_name}
                       </td>
-                      <td className="py-2 px-3 font-mono text-slate-300 max-w-[180px] truncate">
-                        {ev.raw_value || "-"}
-                      </td>
-                      <td className="py-2 px-3 font-mono text-[11px] text-slate-400">
+                      <td className="px-4 py-2.5 text-slate-200 truncate max-w-xs">{ev.raw_value}</td>
+                      <td className="px-4 py-2.5">{itemPage}</td>
+                      <td className="px-4 py-2.5 text-slate-400">
                         {bbox
                           ? `[${Math.round(bbox.x0)}, ${Math.round(bbox.y0)}, ${Math.round(bbox.x1)}, ${Math.round(bbox.y1)}]`
-                          : "N/A (XML direct)"}
+                          : "null"}
                       </td>
-                      <td className="py-2 px-3 font-mono text-slate-400">{ev.page}</td>
-                      <td className="py-2 px-3 text-slate-400 text-[11px]">{ev.source}</td>
-                      <td className="py-2 px-3 text-right">
+                      <td className="px-4 py-2.5">
                         <span
-                          className={`px-1.5 py-0.5 rounded font-mono text-[10px] font-semibold ${
-                            confPct >= 95
+                          className={`px-1.5 py-0.5 rounded text-[10px] font-sans ${
+                            ev.confidence >= 0.8
                               ? "bg-emerald-950 text-emerald-400 border border-emerald-800"
-                              : confPct >= 80
-                              ? "bg-amber-950 text-amber-400 border border-amber-800"
-                              : "bg-rose-950 text-rose-400 border border-rose-800"
+                              : "bg-amber-950 text-amber-400 border border-amber-800"
                           }`}
                         >
-                          {confPct}%
+                          {Math.round(ev.confidence * 100)}%
                         </span>
                       </td>
                     </tr>
                   );
-                })}
-              </tbody>
-            </table>
-          </div>
+                })
+              )}
+            </tbody>
+          </table>
         </div>
       )}
     </div>

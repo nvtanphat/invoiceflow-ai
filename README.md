@@ -46,9 +46,10 @@ flowchart TD
    - Chống XXE (XML External Entity) và DTD injection bằng `defusedxml`.
    - Giới hạn kích thước tải lên (25MB) và số trang (50 trang), kiểm tra tài liệu hỏng hoặc bị mã hóa mật khẩu.
 2. **Document Router thông minh (Hybrid Pipeline):**
-   - Hóa đơn XML chuẩn (TT78/NĐ123): phân tích trực tiếp cú pháp XML trong ~12ms, hoàn toàn miễn phí ($0 LLM).
-   - Hóa đơn Digital PDF: trích xuất lớp chữ và layout vector bằng PyMuPDF trong ~65ms.
-   - Hóa đơn Scan: chỉ kích hoạt Gemini Multimodal LLM fallback khi tài liệu thiếu text layer hoặc độ tương phản thấp.
+   - Hóa đơn XML chuẩn (TT78/NĐ123): phân tích trực tiếp cú pháp XML trong ~0.8ms, hoàn toàn miễn phí ($0 LLM).
+   - Hóa đơn Digital PDF: trích xuất cấu trúc văn bản, bảng và ô phần tử bằng `DoclingAdapter` (kèm fallback PyMuPDF) sang `CanonicalDocument` CDR với tọa độ BBox thực.
+   - Hóa đơn Scan: chỉ kích hoạt Vision Multimodal LLM fallback khi tài liệu thiếu text layer hoặc độ tương phản thấp.
+   - Xác thực chữ ký số XMLDSig & chứng thư số X.509 (`XMLSignatureVerifier`) và cổng kết nối Tổng cục Thuế (`GeneralDepartmentOfTaxationClient`).
 3. **Độ chính xác tài chính & Kiểm soát chặt chẽ:**
    - 100% số tiền và thuế suất được tính toán bằng kiểu dữ liệu `Decimal` (không dùng float để chống sai số làm tròn).
    - Bóc tách kèm tọa độ Bounding Box (BBox) và độ tin cậy để kế toán viên dễ dàng kiểm tra nguồn gốc dữ liệu.
@@ -69,12 +70,12 @@ flowchart TD
 
 | Pipeline Baseline | Header Exact Match | Line Items F1 | Anomaly Detection F1 | Độ trễ trung bình | Chi phí / 1.000 Hóa đơn |
 |---|---|---|---|---|---|
-| **B0: XML Direct** | 40.0% | 40.0% | 60.0% | 0.7 ms | $0.00 |
+| **B0: XML Direct** | 40.0% | 40.0% | 60.0% | 0.8 ms | $0.00 |
 | **B1: Digital PDF Heuristics** | 74.6% | 80.0% | 60.0% | 2.5 ms | $0.00 |
-| **B2: Pure Multimodal LLM (gpt-6.1-sol)** | 87.3% | 100.0% | 60.0% | 40,502.3 ms | $0.52 |
-| **B3: InvoiceFlow AI Hybrid Pipeline** | **89.1%** | **100.0%** | **100.0%** | **16,812.5 ms** | **$0.18** |
+| **B2: Pure Multimodal LLM (gpt-6.1-sol)** | 89.1% | 100.0% | 60.0% | 8,301.3 ms | $0.51 |
+| **B3: InvoiceFlow AI Hybrid (Docling + Rules + 3-Way)** | **87.3%** | **80.0%** | **80.0%** | **6,105.0 ms** | **$0.12** |
 
-> **Hiệu quả thực tế của B3:** Giảm **65.4% chi phí gọi LLM** ($0.18 vs $0.52) và giảm hơn 58% độ trễ xử lý so với gọi Pure Vision LLM trên mọi tài liệu, đồng thời đạt **100.0% Anomaly F1** và **100.0% Line Items F1** trên toàn bộ 5 tệp chứng từ kiểm thử thực tế. Chi phí token được tính toán tự động dựa trên mức tiêu thụ thực tế ($0.18 / 1.000 hóa đơn).
+> **Hiệu quả thực tế của B3:** Giảm **76.5% chi phí gọi LLM** ($0.12 vs $0.51) và giảm 26.5% độ trễ xử lý so với gọi Pure Vision LLM trên mọi tài liệu, kết hợp với Docling canonical document representation (bàn cờ tọa độ, bảng và ô) cùng động cơ đối soát 3 chiều Invoice–PO–GRN. Chi phí token được tính toán tự động dựa trên mức tiêu thụ token thực tế từ endpoint AI.
 
 ---
 

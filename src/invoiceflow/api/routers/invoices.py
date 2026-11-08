@@ -137,17 +137,17 @@ async def get_invoice(
         "tax_authority_status": inv.tax_authority_status,
         "lines": [
             {
-                "id": l.id,
-                "line_no": l.line_no,
-                "description": l.description,
-                "unit": l.unit,
-                "qty": str(l.qty),
-                "unit_price": str(l.unit_price),
-                "discount": str(l.discount),
-                "tax_rate": str(l.tax_rate) if l.tax_rate else None,
-                "line_amount": str(l.line_amount),
+                "id": line.id,
+                "line_no": line.line_no,
+                "description": line.description,
+                "unit": line.unit,
+                "qty": str(line.qty),
+                "unit_price": str(line.unit_price),
+                "discount": str(line.discount),
+                "tax_rate": str(line.tax_rate) if line.tax_rate else None,
+                "line_amount": str(line.line_amount),
             }
-            for l in lines
+            for line in lines
         ],
         "evidence": [
             {

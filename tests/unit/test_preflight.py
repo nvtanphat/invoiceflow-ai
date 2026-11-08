@@ -2,7 +2,7 @@ import pytest
 
 
 def test_preflight_allows_valid_xml_and_pdf():
-    from invoiceflow.application.ingestion.preflight import IngestionPreflight, PreflightError
+    from invoiceflow.application.ingestion.preflight import IngestionPreflight
 
     preflight = IngestionPreflight(max_size_bytes=1024 * 1024, max_pages=10)
 

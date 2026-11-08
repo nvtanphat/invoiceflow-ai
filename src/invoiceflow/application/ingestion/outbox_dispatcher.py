@@ -1,6 +1,5 @@
 import logging
-from sqlalchemy import select, update
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from invoiceflow.infrastructure.database.models import OutboxEventORM
 from invoiceflow.infrastructure.database.session import DatabaseSessionManager
 

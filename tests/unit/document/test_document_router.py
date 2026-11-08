@@ -1,4 +1,3 @@
-import pytest
 
 
 def test_document_router_routes_xml_and_pdf():

@@ -180,10 +180,12 @@ export const InvoiceReview: React.FC<InvoiceReviewProps> = ({
         {/* Left Pane: Ground Truth & BBox Viewer */}
         <div className="lg:col-span-5 h-full">
           <BBoxViewer
+            documentId={invoice.document_id}
+            documentName={invoice.invoice_number ? `Hóa đơn số ${invoice.invoice_number}` : `Tài liệu ${invoice.document_id.slice(0, 8)}`}
             evidenceList={invoice.evidence || []}
             selectedField={selectedField}
             onSelectField={(f) => setSelectedField(f)}
-            documentName={`doc_${invoice.document_id.slice(0, 8)}`}
+            isVerifiedSignature={false}
           />
         </div>
 

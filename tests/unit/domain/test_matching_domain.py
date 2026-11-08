@@ -1,18 +1,9 @@
 from decimal import Decimal
-from datetime import date
 import uuid
-import pytest
 
 
 def test_matching_tolerance_policy():
     from invoiceflow.domain.policies.models import TolerancePolicy
-    from invoiceflow.domain.purchasing.models import (
-        PurchaseOrder,
-        POLine,
-        GoodsReceipt,
-        GRNLine,
-        MatchStatus,
-    )
 
     policy = TolerancePolicy(
         tenant_id=uuid.uuid4(),

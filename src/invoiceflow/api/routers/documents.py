@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import Optional
 from fastapi import (
     APIRouter,
     Depends,
@@ -20,7 +20,7 @@ from invoiceflow.api.dependencies import (
 )
 from invoiceflow.application.ingestion.preflight import IngestionPreflight, PreflightError
 from invoiceflow.application.ingestion.service import IngestionService
-from invoiceflow.infrastructure.database.models import DocumentORM, ProcessingJobORM
+from invoiceflow.infrastructure.database.models import DocumentORM
 from invoiceflow.infrastructure.database.repositories import DocumentRepository
 from invoiceflow.infrastructure.storage.service import StoragePort
 
@@ -184,10 +184,20 @@ async def render_document_page(
                 detail=f"Page index {page_index} out of range (total pages: {len(doc_pdf)}).",
             )
         page = doc_pdf.load_page(page_index)
+        page_width = float(page.rect.width)
+        page_height = float(page.rect.height)
+        page_count = len(doc_pdf)
+        rotation = page.rotation
         pix = page.get_pixmap(dpi=dpi)
         png_bytes = pix.tobytes("png")
         doc_pdf.close()
-        return Response(content=png_bytes, media_type="image/png")
+        response = Response(content=png_bytes, media_type="image/png")
+        response.headers["X-Page-Width"] = str(page_width)
+        response.headers["X-Page-Height"] = str(page_height)
+        response.headers["X-Page-Count"] = str(page_count)
+        response.headers["X-Page-Rotation"] = str(rotation)
+        response.headers["Access-Control-Expose-Headers"] = "X-Page-Width, X-Page-Height, X-Page-Count, X-Page-Rotation"
+        return response
     elif doc.mime_type.startswith("image/"):
         return Response(content=content, media_type=doc.mime_type)
     else:

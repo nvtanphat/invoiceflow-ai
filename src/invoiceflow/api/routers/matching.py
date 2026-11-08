@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from invoiceflow.api.dependencies import AuthenticatedContext, get_current_context, get_db, require_role
+from invoiceflow.api.dependencies import AuthenticatedContext, get_db, require_role
 from invoiceflow.application.reconciliation.service import ReconciliationService
 from invoiceflow.domain.invoices.models import InvoiceAggregate, InvoiceLine, InvoiceStatus
 from invoiceflow.domain.purchasing.models import (
@@ -204,19 +204,19 @@ async def match_invoice(
         amount_payable=inv.amount_payable,
         lines=[
             InvoiceLine(
-                line_no=l.line_no,
-                sku_ref=l.sku_ref,
-                description=l.description,
-                unit=l.unit,
-                qty=l.qty,
-                unit_price=l.unit_price,
-                discount=l.discount,
-                tax_rate=l.tax_rate,
-                tax=l.tax,
-                line_amount=l.line_amount,
-                purchase_order_line_id=uuid.UUID(l.po_line_id) if l.po_line_id else None,
+                line_no=line.line_no,
+                sku_ref=line.sku_ref,
+                description=line.description,
+                unit=line.unit,
+                qty=line.qty,
+                unit_price=line.unit_price,
+                discount=line.discount,
+                tax_rate=line.tax_rate,
+                tax=line.tax,
+                line_amount=line.line_amount,
+                purchase_order_line_id=uuid.UUID(line.po_line_id) if line.po_line_id else None,
             )
-            for l in lines_orm
+            for line in lines_orm
         ],
     )
 

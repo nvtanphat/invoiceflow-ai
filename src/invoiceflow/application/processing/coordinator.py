@@ -6,16 +6,15 @@ from invoiceflow.application.processing.document_router import DocumentRouter, P
 from invoiceflow.application.processing.evidence_mapper import EvidenceMapper
 from invoiceflow.application.reconciliation.service import ReconciliationService
 from invoiceflow.domain.invoices.models import (
-    FieldEvidence,
     InvoiceAggregate,
     InvoiceLine,
     InvoiceStatus,
-    VerificationStatus,
 )
 from invoiceflow.infrastructure.database.models import DocumentORM, ProcessingJobORM
 from invoiceflow.infrastructure.database.repositories import DocumentRepository, InvoiceRepository
 from invoiceflow.infrastructure.database.session import DatabaseSessionManager
 from invoiceflow.infrastructure.document.digital_pdf_parser import DigitalPDFParser
+from invoiceflow.infrastructure.document.docling_adapter import DoclingAdapter
 from invoiceflow.infrastructure.document.layout_extractor import LayoutExtractor
 from invoiceflow.infrastructure.document.pdf_inspector import PDFInspector
 from invoiceflow.infrastructure.document.xml_parser import SecureXMLParser
@@ -34,6 +33,7 @@ class JobCoordinator:
         pdf_inspector: PDFInspector,
         layout_extractor: LayoutExtractor,
         llm_adapter: LLMProviderPort,
+        docling_adapter: Optional[DoclingAdapter] = None,
     ):
         self._db_manager = db_manager
         self._storage = storage
@@ -41,6 +41,7 @@ class JobCoordinator:
         self._pdf_inspector = pdf_inspector
         self._layout_extractor = layout_extractor
         self._llm_adapter = llm_adapter
+        self._docling_adapter = docling_adapter or DoclingAdapter(fallback_extractor=layout_extractor)
         self._router = DocumentRouter()
         self._evidence_mapper = EvidenceMapper()
 
@@ -144,7 +145,7 @@ class JobCoordinator:
                 .values(stage="PARSING")
             )
 
-        canonical_doc = self._layout_extractor.extract_canonical(
+        canonical_doc = self._docling_adapter.extract_canonical(
             tenant_id=doc.tenant_id,
             document_id=doc.id,
             pdf_bytes=content,
@@ -163,7 +164,7 @@ class JobCoordinator:
         digital_res = digital_parser.parse(full_text)
 
         # 1. Deterministic Fast Path: Digital PDF with high text confidence
-        if route == ProcessingRoute.PDF_DIGITAL_RULES and digital_res.is_confident:
+        if route == ProcessingRoute.PDF_DIGITAL and digital_res.is_confident:
             lines = [
                 InvoiceLine(
                     line_no=line.line_no,

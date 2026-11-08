@@ -8,7 +8,7 @@ from fastapi.responses import JSONResponse
 
 from invoiceflow.api.dependencies import set_global_dependencies
 from invoiceflow.api.routers import auth, documents, exports, health, invoices, jobs, matching
-from invoiceflow.config import Settings, get_settings
+from invoiceflow.config import get_settings
 from invoiceflow.infrastructure.database.session import DatabaseSessionManager
 from invoiceflow.infrastructure.storage.service import LocalStorageService, StoragePort
 

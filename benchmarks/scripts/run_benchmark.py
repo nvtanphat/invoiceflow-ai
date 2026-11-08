@@ -28,6 +28,7 @@ from invoiceflow.domain.purchasing.models import (
     PurchaseOrder,
 )
 from invoiceflow.infrastructure.document.digital_pdf_parser import DigitalPDFParser
+from invoiceflow.infrastructure.document.docling_adapter import DoclingAdapter
 from invoiceflow.infrastructure.document.layout_extractor import LayoutExtractor
 from invoiceflow.infrastructure.document.pdf_inspector import PDFInspector
 from invoiceflow.infrastructure.document.xml_parser import SecureXMLParser, XMLParsingError
@@ -396,10 +397,40 @@ async def run_b3_invoiceflow_hybrid(
         lines = res["lines"]
         cost = res.get("cost_usd", 0.0)
     else:
-        # Digital PDF: fast deterministic layout extraction
-        res = run_b1_digital_heuristics(case, file_path)
-        header = res["header"]
-        lines = res["lines"]
+        # Digital PDF: extract canonical document via DoclingAdapter and parse
+        docling_adapter = DoclingAdapter()
+        canonical_doc = docling_adapter.extract_canonical(
+            tenant_id=uuid.uuid4(),
+            document_id=uuid.uuid4(),
+            pdf_bytes=content,
+        )
+        full_text = "\n".join([el.text for el in canonical_doc.elements])
+        parser = DigitalPDFParser()
+        ext = parser.parse(full_text)
+        header = {
+            "supplier_tax_id": ext.supplier_tax_id or "",
+            "supplier_name": ext.supplier_name or "",
+            "buyer_tax_id": ext.buyer_tax_id or "",
+            "buyer_name": ext.buyer_name or "",
+            "invoice_number": ext.invoice_number or "",
+            "invoice_series": ext.invoice_series or "",
+            "issue_date": ext.issue_date or "",
+            "currency": ext.currency,
+            "subtotal": str(ext.subtotal),
+            "tax_total": str(ext.tax_total),
+            "amount_payable": str(ext.amount_payable),
+        }
+        lines = [
+            {
+                "sku": l.sku or "",
+                "description": l.description,
+                "qty": str(l.qty),
+                "unit_price": str(l.unit_price),
+                "tax_rate": str(l.tax_rate) if l.tax_rate else None,
+                "line_amount": str(l.line_amount),
+            }
+            for l in ext.lines
+        ]
         cost = 0.0000
 
     # 3-Way Reconciliation with PO & GRN
@@ -460,11 +491,13 @@ async def run_benchmark_async() -> Dict[str, Any]:
         model_id=settings.OPENAI_MODEL_ID,
     )
 
+    has_api_key = bool(adapter.api_key and adapter.api_key != "mock-key")
     report: Dict[str, Any] = {
         "benchmark_suite": "InvoiceFlow AI Frozen AP Benchmark v1.0",
         "total_cases": len(cases),
         "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "model_id": settings.OPENAI_MODEL_ID,
+        "live_ai_enabled": has_api_key,
         "baselines": {},
     }
 
@@ -474,6 +507,7 @@ async def run_benchmark_async() -> Dict[str, Any]:
     all_predictions = []
 
     # Run B0
+    print("[*] Running Baseline B0: XML Direct Extraction...", flush=True)
     b0_scores = []
     for c in cases:
         p = get_fixture_file(c["case_id"])
@@ -483,6 +517,7 @@ async def run_benchmark_async() -> Dict[str, Any]:
         all_predictions.append({"case_id": c["case_id"], "baseline": "B0_XML_DIRECT", "prediction": pred, "evaluation": ev})
 
     # Run B1
+    print("[*] Running Baseline B1: Digital PDF Heuristics...", flush=True)
     b1_scores = []
     for c in cases:
         p = get_fixture_file(c["case_id"])
@@ -492,6 +527,8 @@ async def run_benchmark_async() -> Dict[str, Any]:
         all_predictions.append({"case_id": c["case_id"], "baseline": "B1_DIGITAL_HEURISTICS", "prediction": pred, "evaluation": ev})
 
     # Run B2
+    mode_str = f"Live AI via {settings.OPENAI_MODEL_ID}" if has_api_key else "Offline CI Fallback (No Key)"
+    print(f"[*] Running Baseline B2: Pure Vision LLM ({mode_str})...", flush=True)
     b2_scores = []
     for c in cases:
         p = get_fixture_file(c["case_id"])
@@ -501,6 +538,7 @@ async def run_benchmark_async() -> Dict[str, Any]:
         all_predictions.append({"case_id": c["case_id"], "baseline": "B2_PURE_VISION_LLM", "prediction": pred, "evaluation": ev})
 
     # Run B3
+    print("[*] Running Baseline B3: InvoiceFlow AI Hybrid Routing (Docling + Rules + Vision Fallback + 3-Way Match)...", flush=True)
     b3_scores = []
     for c in cases:
         p = get_fixture_file(c["case_id"])

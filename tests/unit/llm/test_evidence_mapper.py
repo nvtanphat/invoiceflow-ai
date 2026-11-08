@@ -1,9 +1,7 @@
 import uuid
-import pytest
 from invoiceflow.domain.documents.models import (
     BoundingBox,
     CanonicalDocument,
-    CoordinateSystem,
     DocumentElement,
 )
 
