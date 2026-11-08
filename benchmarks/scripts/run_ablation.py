@@ -12,7 +12,10 @@ ROOT_DIR = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(ROOT_DIR / "src"))
 sys.path.insert(0, str(ROOT_DIR))
 
-from benchmarks.scripts.evaluator import evaluate_prediction  # noqa: E402
+from benchmarks.scripts.evaluator import (  # noqa: E402
+    average_arithmetic_validity,
+    evaluate_prediction,
+)
 from benchmarks.scripts.run_benchmark import (  # noqa: E402
     get_demo_po_and_grn,
     get_fixture_file,
@@ -95,7 +98,7 @@ async def run_pipeline_variant(
             if extracted_lines:
                 lines = [
                     {
-                        "sku": line_item.sku or "",
+                        "sku": line_item.sku_ref or "",
                         "description": line_item.description,
                         "qty": str(line_item.qty),
                         "unit_price": str(line_item.unit_price),
@@ -277,19 +280,22 @@ async def run_ablation_suite() -> Dict[str, Any]:
         n = len(scores)
         avg_header_em = sum(s["header_exact_match"] for s in scores) / n
         avg_lines_f1 = sum(s["lines_f1"] for s in scores) / n
-        avg_table_f1 = sum(s.get("table_f1", s["lines_f1"]) for s in scores) / n
-        avg_arith_valid = sum(s.get("arithmetic_validity_rate", 1.0) for s in scores) / n
+        avg_table_f1 = sum(s["table_f1"] for s in scores) / n
+        avg_arith_valid = average_arithmetic_validity(scores)
         avg_anomaly_f1 = sum(s["anomaly_f1"] for s in scores) / n
         avg_latency = sum(s["latency_ms"] for s in scores) / n
         avg_cost_doc = sum(s["cost_usd"] for s in scores) / n
         cost_per_1k = avg_cost_doc * 1000
+        arith_valid_pct = f"{avg_arith_valid * 100:.1f}%" if avg_arith_valid is not None else "N/A"
 
         report["ablations"][a_id] = {
             "description": cfg["desc"],
             "header_exact_match": round(avg_header_em, 4),
             "lines_f1": round(avg_lines_f1, 4),
             "table_f1": round(avg_table_f1, 4),
-            "arithmetic_validity_rate": round(avg_arith_valid, 4),
+            "arithmetic_validity_rate": round(avg_arith_valid, 4)
+            if avg_arith_valid is not None
+            else None,
             "anomaly_f1": round(avg_anomaly_f1, 4),
             "avg_latency_ms": round(avg_latency, 2),
             "cost_per_1000_invoices_usd": round(cost_per_1k, 3),
@@ -301,7 +307,7 @@ async def run_ablation_suite() -> Dict[str, Any]:
                 "Description": cfg["desc"],
                 "Header EM (%)": f"{avg_header_em * 100:.1f}%",
                 "Table F1 (%)": f"{avg_table_f1 * 100:.1f}%",
-                "Arith Valid (%)": f"{avg_arith_valid * 100:.1f}%",
+                "Arith Valid (%)": arith_valid_pct,
                 "Anomaly F1 (%)": f"{avg_anomaly_f1 * 100:.1f}%",
                 "Avg Latency (ms)": f"{avg_latency:.1f}",
             }
@@ -335,7 +341,11 @@ def main() -> None:
     for a_id, stats in report["ablations"].items():
         em = f"{stats['header_exact_match'] * 100:.1f}%"
         tf1 = f"{stats['table_f1'] * 100:.1f}%"
-        ar = f"{stats['arithmetic_validity_rate'] * 100:.1f}%"
+        ar = (
+            f"{stats['arithmetic_validity_rate'] * 100:.1f}%"
+            if stats["arithmetic_validity_rate"] is not None
+            else "N/A"
+        )
         lat = f"{stats['avg_latency_ms']:.1f}ms"
         print(f"{a_id:<23} | {em:<10} | {tf1:<10} | {ar:<11} | {lat:<10}")
     print("-" * 75)

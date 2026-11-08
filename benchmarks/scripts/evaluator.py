@@ -1,5 +1,23 @@
 from decimal import Decimal
-from typing import Any
+from typing import Any, Optional
+
+_AMOUNT_TOLERANCE = Decimal("1.0")
+_STRUCTURAL_FIELDS = ["qty", "unit_price", "line_amount"]
+
+
+def average_arithmetic_validity(case_scores: list[dict[str, Any]]) -> Optional[float]:
+    """Averages arithmetic_validity_rate across cases, skipping cases where
+    it is None (no checkable qty/price/amount data at all) rather than
+    treating "nothing to check" as a fabricated 100% pass.
+    """
+    applicable = [
+        s["arithmetic_validity_rate"]
+        for s in case_scores
+        if s.get("arithmetic_validity_rate") is not None
+    ]
+    if not applicable:
+        return None
+    return sum(applicable) / len(applicable)
 
 
 def normalize_discrepancy(code: str) -> str:
@@ -47,6 +65,47 @@ def compute_field_exact_match(gt: dict[str, Any], pred: dict[str, Any]) -> tuple
     return score, mismatches
 
 
+def _sku_identity_match(gt_sku: str, pred_sku: str) -> bool:
+    if not gt_sku or not pred_sku:
+        return False
+    if gt_sku == pred_sku:
+        return True
+    # Containment is only trusted above a length floor; short codes (e.g.
+    # "A4") would otherwise match almost any longer SKU that happens to
+    # contain the same substring.
+    return len(gt_sku) >= 4 and (gt_sku in pred_sku or pred_sku in gt_sku)
+
+
+def _amount_match(gt_amount: Any, pred_amount: Any) -> bool:
+    if gt_amount is None or pred_amount is None:
+        return False
+    try:
+        return abs(Decimal(str(gt_amount)) - Decimal(str(pred_amount))) <= _AMOUNT_TOLERANCE
+    except Exception:
+        return str(gt_amount) == str(pred_amount)
+
+
+def _line_identity_and_amount_match(gt_item: dict[str, Any], pred_item: dict[str, Any]) -> bool:
+    # A line only counts as extracted correctly when BOTH a stable identity
+    # signal (sku, falling back to description containment when no sku is
+    # present) AND the line amount agree. Either signal alone is far too
+    # easy to satisfy by chance across invoice lines with repeated amounts
+    # or near-duplicate product names.
+    gt_sku = (gt_item.get("sku") or "").strip().lower()
+    pred_sku = (pred_item.get("sku") or "").strip().lower()
+    gt_desc = (gt_item.get("description") or "").strip().lower()
+    pred_desc = (pred_item.get("description") or "").strip().lower()
+
+    if gt_sku or pred_sku:
+        identity_match = _sku_identity_match(gt_sku, pred_sku)
+    else:
+        identity_match = bool(gt_desc) and bool(pred_desc) and (
+            gt_desc in pred_desc or pred_desc in gt_desc
+        )
+
+    return identity_match and _amount_match(gt_item.get("line_amount"), pred_item.get("line_amount"))
+
+
 def compute_line_items_f1(
     gt_lines: list[dict[str, Any]], pred_lines: list[dict[str, Any]]
 ) -> tuple[float, float, float]:
@@ -63,28 +122,9 @@ def compute_line_items_f1(
 
     for i in list(unmatched_gt):
         gt_item = gt_lines[i]
-        gt_sku = (gt_item.get("sku") or "").strip().lower()
-        gt_amount = gt_item.get("line_amount")
-
         for j in list(unmatched_pred):
             pred_item = pred_lines[j]
-            pred_sku = (pred_item.get("sku") or "").strip().lower()
-            pred_amount = pred_item.get("line_amount")
-
-            # Check SKU or description containment
-            sku_match = (
-                (gt_sku and gt_sku in pred_sku)
-                or (pred_sku and pred_sku in gt_sku)
-                or (gt_sku == pred_sku)
-            )
-            amount_match = False
-            try:
-                if gt_amount is not None and pred_amount is not None:
-                    amount_match = Decimal(str(gt_amount)) == Decimal(str(pred_amount))
-            except Exception:
-                amount_match = str(gt_amount) == str(pred_amount)
-
-            if sku_match or amount_match:
+            if _line_identity_and_amount_match(gt_item, pred_item):
                 matches += 1
                 unmatched_gt.remove(i)
                 unmatched_pred.remove(j)
@@ -99,10 +139,48 @@ def compute_line_items_f1(
     return precision, recall, f1
 
 
+def _is_structurally_complete(line: dict[str, Any]) -> bool:
+    return all(line.get(field) not in (None, "") for field in _STRUCTURAL_FIELDS)
+
+
+def compute_table_structure_f1(
+    gt_lines: list[dict[str, Any]], pred_lines: list[dict[str, Any]]
+) -> tuple[float, float, float]:
+    """Measures whether rows were extracted with every numeric structural
+    slot populated (qty/unit_price/line_amount), by row position.
+
+    This is deliberately independent of whether the VALUES inside those
+    slots are semantically correct (that is Line Item F1's job) and of
+    whether the arithmetic holds (Arithmetic Validity's job) -- it isolates
+    the table extractor's structural recognition quality: did it find the
+    right number of rows with the right columns populated, e.g. not losing
+    a quantity to a merged cell.
+    """
+    if not gt_lines and not pred_lines:
+        return 1.0, 1.0, 1.0
+    if not gt_lines and pred_lines:
+        return 0.0, 1.0, 0.0
+    if gt_lines and not pred_lines:
+        return 1.0, 0.0, 0.0
+
+    aligned_count = min(len(gt_lines), len(pred_lines))
+    complete_count = sum(
+        1 for i in range(aligned_count) if _is_structurally_complete(pred_lines[i])
+    )
+
+    precision = complete_count / len(pred_lines)
+    recall = complete_count / len(gt_lines)
+    if precision + recall == 0:
+        f1 = 0.0
+    else:
+        f1 = 2 * (precision * recall) / (precision + recall)
+    return precision, recall, f1
+
+
 def compute_table_extraction_quality(
     gt_lines: list[dict[str, Any]], pred_lines: list[dict[str, Any]]
-) -> dict[str, float]:
-    p, r, f1 = compute_line_items_f1(gt_lines, pred_lines)
+) -> dict[str, Optional[float]]:
+    p, r, f1 = compute_table_structure_f1(gt_lines, pred_lines)
 
     valid_arithmetic = 0
     total_checked = 0
@@ -121,7 +199,11 @@ def compute_table_extraction_quality(
         except Exception:
             pass
 
-    arithmetic_validity = (valid_arithmetic / total_checked) if total_checked > 0 else 1.0
+    # No case with enough data to check arithmetic on is "not applicable",
+    # never a fabricated perfect score.
+    arithmetic_validity: Optional[float] = (
+        (valid_arithmetic / total_checked) if total_checked > 0 else None
+    )
 
     return {
         "table_precision": p,

@@ -14,6 +14,7 @@ from invoiceflow.domain.documents.models import (
     DocumentTable,
 )
 from invoiceflow.infrastructure.document.layout_extractor import LayoutExtractor
+from invoiceflow.infrastructure.document.text_normalization import normalize_extracted_text
 
 logger = logging.getLogger(__name__)
 
@@ -112,6 +113,7 @@ class DoclingAdapter:
                 cells: List[DocumentCell] = []
                 row_cnt = tab.data.num_rows
                 col_cnt = tab.data.num_cols
+                table_id = f"docling-table-{p_idx}-{table_counter}"
 
                 for cell in tab.data.table_cells:
                     cell_bbox = None
@@ -129,20 +131,24 @@ class DoclingAdapter:
                         except Exception:
                             pass
 
+                    row_idx = cell.start_row_offset_idx
+                    col_idx = cell.start_col_offset_idx
                     cells.append(
                         DocumentCell(
-                            row_index=cell.start_row_offset_idx,
-                            col_index=cell.start_col_offset_idx,
-                            text=str(cell.text or "").strip(),
-                            rowspan=cell.end_row_offset_idx - cell.start_row_offset_idx,
-                            colspan=cell.end_col_offset_idx - cell.start_col_offset_idx,
+                            id=f"{table_id}-r{row_idx}-c{col_idx}",
+                            table_id=table_id,
+                            row_index=row_idx,
+                            col_index=col_idx,
+                            text=normalize_extracted_text(str(cell.text or "").strip()),
+                            rowspan=cell.end_row_offset_idx - row_idx,
+                            colspan=cell.end_col_offset_idx - col_idx,
                             bbox=cell_bbox,
                         )
                     )
 
                 tables.append(
                     DocumentTable(
-                        id=f"docling-table-{p_idx}-{table_counter}",
+                        id=table_id,
                         page_index=p_idx,
                         row_count=row_cnt,
                         column_count=col_cnt,
@@ -152,7 +158,7 @@ class DoclingAdapter:
 
                 # Add non-header table row cells as document elements for extraction & evidence mapping
                 for cell in tab.data.table_cells:
-                    txt = str(cell.text or "").strip()
+                    txt = normalize_extracted_text(str(cell.text or "").strip())
                     if txt and not getattr(cell, "column_header", False):
                         cell_bbox = None
                         if cell.bbox:
@@ -168,14 +174,17 @@ class DoclingAdapter:
                                 )
                             except Exception:
                                 pass
+                        row_idx = cell.start_row_offset_idx
+                        col_idx = cell.start_col_offset_idx
                         elements.append(
                             DocumentElement(
-                                id=f"docling-cell-{p_idx}-{table_counter}-{cell.start_row_offset_idx}-{cell.start_col_offset_idx}",
+                                id=f"docling-cell-{p_idx}-{table_counter}-{row_idx}-{col_idx}",
                                 page_index=p_idx,
                                 kind="table_cell",
                                 text=txt,
                                 reading_order=el_counter,
                                 bbox=cell_bbox,
+                                parent_id=f"{table_id}-r{row_idx}-c{col_idx}",
                             )
                         )
                         el_counter += 1
@@ -184,7 +193,7 @@ class DoclingAdapter:
 
             # 2. Extract textual elements (paragraphs, headings, text)
             for item in doc.texts:
-                clean_text = str(item.text or "").strip()
+                clean_text = normalize_extracted_text(str(item.text or "").strip())
                 if not clean_text:
                     continue
 

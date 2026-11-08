@@ -160,6 +160,8 @@ class InvoiceRepository:
                 source_kind=ev.source_kind,
                 page_index=ev.page_index,
                 bbox_json=json.dumps(ev.bbox.model_dump()) if ev.bbox else None,
+                table_id=ev.table_id,
+                cell_id=ev.cell_id,
                 raw_value=ev.raw_value,
                 normalized_value=ev.normalized_value,
                 confidence=ev.confidence,

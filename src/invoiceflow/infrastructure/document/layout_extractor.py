@@ -11,6 +11,7 @@ from invoiceflow.domain.documents.models import (
     DocumentElement,
     DocumentTable,
 )
+from invoiceflow.infrastructure.document.text_normalization import normalize_extracted_text
 
 
 class LayoutExtractor:
@@ -39,20 +40,25 @@ class LayoutExtractor:
                         df_rows = tab.extract()
                         row_cnt = len(df_rows)
                         col_cnt = len(df_rows[0]) if row_cnt > 0 else 0
+                        table_id = f"table-{p_idx}-{table_counter}"
 
                         for r_idx, row in enumerate(df_rows):
                             for c_idx, cell_text in enumerate(row):
                                 cells.append(
                                     DocumentCell(
+                                        id=f"{table_id}-r{r_idx}-c{c_idx}",
+                                        table_id=table_id,
                                         row_index=r_idx,
                                         col_index=c_idx,
-                                        text=str(cell_text or "").strip(),
+                                        text=normalize_extracted_text(
+                                            str(cell_text or "").strip()
+                                        ),
                                     )
                                 )
 
                         tables.append(
                             DocumentTable(
-                                id=f"table-{p_idx}-{table_counter}",
+                                id=table_id,
                                 page_index=p_idx,
                                 row_count=row_cnt,
                                 column_count=col_cnt,
@@ -68,7 +74,7 @@ class LayoutExtractor:
                 for block in text_page:
                     if len(block) >= 5:
                         x0, y0, x1, y1, text = block[0], block[1], block[2], block[3], block[4]
-                        clean_text = text.strip()
+                        clean_text = normalize_extracted_text(text.strip())
                         if clean_text:
                             elements.append(
                                 DocumentElement(

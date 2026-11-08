@@ -15,7 +15,10 @@ ROOT_DIR = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(ROOT_DIR / "src"))
 sys.path.insert(0, str(ROOT_DIR))
 
-from benchmarks.scripts.evaluator import evaluate_prediction  # noqa: E402
+from benchmarks.scripts.evaluator import (  # noqa: E402
+    average_arithmetic_validity,
+    evaluate_prediction,
+)
 from invoiceflow.application.processing.document_router import DocumentRouter, ProcessingRoute  # noqa: E402
 from invoiceflow.application.reconciliation.matching_engine import MatchingEngine  # noqa: E402
 from invoiceflow.config import get_settings  # noqa: E402
@@ -54,6 +57,8 @@ def get_fixture_file(case_id: str) -> Path:
         "CASE-06-PDF-MULTI-LINE": DOCS_DIR / "case_06.pdf",
         "CASE-07-PDF-ROTATED-SCAN": DOCS_DIR / "case_07.pdf",
         "CASE-08-PDF-COMPLEX-AMOUNTS": DOCS_DIR / "case_08.pdf",
+        "CASE-09-PDF-MIXED": DOCS_DIR / "case_09.pdf",
+        "CASE-10-PDF-SCAN-TABLE": DOCS_DIR / "case_10.pdf",
     }
     return mapping[case_id]
 
@@ -122,6 +127,62 @@ def get_demo_po_and_grn(supplier_tax_id: Optional[str], case_id: Optional[str] =
             po_id=po_id,
             grn_number="GRN-2026-006",
             receipt_date=date(2026, 3, 10),
+            lines=grn_lines,
+        )
+        return po, [grn]
+
+    if case_id == "CASE-10-PDF-SCAN-TABLE":
+        po_id = uuid.uuid4()
+        lines = [
+            POLine(
+                id=uuid.uuid4(),
+                po_id=po_id,
+                line_no=1,
+                sku="DELL-XPS-13",
+                description="Máy tính xách tay Dell XPS 13",
+                ordered_qty=Decimal("2.0000"),
+                unit_price=Decimal("25000000.0000"),
+                line_total=Decimal("50000000.0000"),
+            ),
+            POLine(
+                id=uuid.uuid4(),
+                po_id=po_id,
+                line_no=2,
+                sku="MOUSE-LOGI",
+                description="Chuột không dây Logitech MX Master 3S",
+                ordered_qty=Decimal("5.0000"),
+                unit_price=Decimal("2000000.0000"),
+                line_total=Decimal("10000000.0000"),
+            ),
+        ]
+        po = PurchaseOrder(
+            id=po_id,
+            tenant_id=tenant_id,
+            po_number="PO-2026-010",
+            vendor_tax_id="0101234567",
+            vendor_name="Công ty TNHH Thiết bị Văn phòng Thăng Long",
+            order_date=date(2026, 3, 19),
+            currency="VND",
+            subtotal=Decimal("60000000.0000"),
+            lines=lines,
+        )
+        grn_id = uuid.uuid4()
+        grn_lines = [
+            GRNLine(
+                id=uuid.uuid4(),
+                grn_id=grn_id,
+                po_line_id=line.id,
+                line_no=idx,
+                received_qty=line.ordered_qty,
+            )
+            for idx, line in enumerate(lines, start=1)
+        ]
+        grn = GoodsReceipt(
+            id=grn_id,
+            tenant_id=tenant_id,
+            po_id=po_id,
+            grn_number="GRN-2026-010",
+            receipt_date=date(2026, 3, 20),
             lines=grn_lines,
         )
         return po, [grn]
@@ -450,7 +511,7 @@ def run_b3_docling_ocr_structured(case: Dict[str, Any], file_path: Path) -> Dict
         if extracted_lines:
             lines = [
                 {
-                    "sku": line_item.sku or "",
+                    "sku": line_item.sku_ref or "",
                     "description": line_item.description,
                     "qty": str(line_item.qty),
                     "unit_price": str(line_item.unit_price),
@@ -621,7 +682,7 @@ async def run_b5_invoiceflow_hybrid(
         if extracted_lines:
             lines = [
                 {
-                    "sku": line_item.sku or "",
+                    "sku": line_item.sku_ref or "",
                     "description": line_item.description,
                     "qty": str(line_item.qty),
                     "unit_price": str(line_item.unit_price),
@@ -858,18 +919,21 @@ async def run_benchmark_async() -> Dict[str, Any]:
         n = len(case_scores)
         avg_header_em = sum(s["header_exact_match"] for s in case_scores) / n
         avg_lines_f1 = sum(s["lines_f1"] for s in case_scores) / n
-        avg_table_f1 = sum(s.get("table_f1", s["lines_f1"]) for s in case_scores) / n
-        avg_arith_valid = sum(s.get("arithmetic_validity_rate", 1.0) for s in case_scores) / n
+        avg_table_f1 = sum(s["table_f1"] for s in case_scores) / n
+        avg_arith_valid = average_arithmetic_validity(case_scores)
         avg_anomaly_f1 = sum(s["anomaly_f1"] for s in case_scores) / n
         avg_latency = sum(s["latency_ms"] for s in case_scores) / n
         avg_cost_doc = sum(s["cost_usd"] for s in case_scores) / n
         cost_per_1k = avg_cost_doc * 1000
+        arith_valid_pct = f"{avg_arith_valid * 100:.1f}%" if avg_arith_valid is not None else "N/A"
 
         report["baselines"][b_id] = {
             "header_exact_match": round(avg_header_em, 4),
             "lines_f1": round(avg_lines_f1, 4),
             "table_f1": round(avg_table_f1, 4),
-            "arithmetic_validity_rate": round(avg_arith_valid, 4),
+            "arithmetic_validity_rate": round(avg_arith_valid, 4)
+            if avg_arith_valid is not None
+            else None,
             "anomaly_f1": round(avg_anomaly_f1, 4),
             "avg_latency_ms": round(avg_latency, 2),
             "avg_cost_usd": round(avg_cost_doc, 6),
@@ -882,7 +946,7 @@ async def run_benchmark_async() -> Dict[str, Any]:
                 "Header Exact Match (%)": f"{avg_header_em * 100:.1f}%",
                 "Line Items F1 (%)": f"{avg_lines_f1 * 100:.1f}%",
                 "Table F1 (%)": f"{avg_table_f1 * 100:.1f}%",
-                "Arithmetic Validity (%)": f"{avg_arith_valid * 100:.1f}%",
+                "Arithmetic Validity (%)": arith_valid_pct,
                 "Anomaly F1 (%)": f"{avg_anomaly_f1 * 100:.1f}%",
                 "Avg Latency (ms)": f"{avg_latency:.1f}",
                 "Cost / 1K Invoices ($)": f"${cost_per_1k:.2f}",
@@ -922,7 +986,11 @@ def main() -> None:
     for b_id, stats in report["baselines"].items():
         em = f"{stats['header_exact_match'] * 100:.1f}%"
         tf1 = f"{stats['table_f1'] * 100:.1f}%"
-        ar = f"{stats['arithmetic_validity_rate'] * 100:.1f}%"
+        ar = (
+            f"{stats['arithmetic_validity_rate'] * 100:.1f}%"
+            if stats["arithmetic_validity_rate"] is not None
+            else "N/A"
+        )
         lat = f"{stats['avg_latency_ms']:.1f}ms"
         cost = f"${stats['cost_per_1000_invoices_usd']:.2f}"
         print(f"{b_id:<27} | {em:<10} | {tf1:<10} | {ar:<11} | {lat:<10} | {cost}")

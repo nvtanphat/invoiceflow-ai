@@ -165,7 +165,7 @@ CDR là intermediate artifact cần versioned schema, gắn checksum source và 
 - Header: `supplier_tax_id`, `buyer_tax_id`, `invoice_number`, `invoice_series`, `issue_date`, `currency`, `exchange_rate` (*chỉ khi có nguồn xác thực*), `invoice_kind`.
 - Amounts: `subtotal`, `discount_total`, `tax_breakdown[]`, `tax_total`, `amount_payable`, `rounding_adjustment`; `Decimal`/DB `NUMERIC(20,4)` theo currency semantics, **không định sẵn VAT rate**.
 - Lines: `line_no`, `sku_ref?`, `description`, `unit`, `qty`, `unit_price`, `discount`, `tax_rate?`, `tax`, `line_amount`, `purchase_order_line_id?`.
-- Evidence: per-field `raw_value`, `normalized_value`, `source_kind`, `page_index`, `bbox`, `element_ids`, `raw_xpath?`, `extractor`, `review_reason`, `verified_by`.
+- Evidence: per-field `raw_value`, `normalized_value`, `source_kind`, `page_index`, `bbox`, `table_id?`, `cell_id?`, `element_ids`, `raw_xpath?`, `extractor`, `review_reason`, `verified_by`. Line-item fields trích bằng `StructureAwareTableExtractor` luôn gắn `table_id`/`cell_id` trỏ về đúng ô nguồn trong `DocumentTable`/`DocumentCell`, cho phép PDF Viewer highlight chính xác đến từng ô bảng.
 - Legal/verification metadata tách: `signature_verification_status`, `tax_authority_check_status`, `document_validity_status`; trạng thái độc lập.
 
 ### Cơ sở dữ liệu tối thiểu

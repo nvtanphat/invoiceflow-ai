@@ -1,0 +1,7 @@
+Baseline,Header Exact Match (%),Line Items F1 (%),Table F1 (%),Arithmetic Validity (%),Anomaly F1 (%),Avg Latency (ms),Cost / 1K Invoices ($)
+B0_XML_DIRECT,25.0%,25.0%,25.0%,100.0%,75.0%,0.4,$0.00
+B1_PYMUPDF_RULES,68.2%,72.5%,72.5%,100.0%,75.0%,2.5,$0.00
+B2_DOCLING_TEXT_RULES,68.2%,72.5%,72.5%,100.0%,75.0%,3408.7,$0.00
+B3_DOCLING_OCR_STRUCTURED,75.0%,72.5%,72.5%,100.0%,75.0%,2963.8,$0.00
+B4_PURE_VISION_LLM,0.0%,0.0%,0.0%,100.0%,75.0%,5202.0,$0.00
+B5_INVOICEFLOW_HYBRID,75.0%,72.5%,72.5%,100.0%,100.0%,2842.0,$0.00
