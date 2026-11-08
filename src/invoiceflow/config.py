@@ -66,7 +66,6 @@ class Settings(BaseSettings):
 
     OCR_ENGINE: Literal["easyocr", "rapidocr"] = "easyocr"
     OCR_LANGUAGES: list[str] = ["vi", "en"]
-    VIETOCR_VERIFICATION_ENABLED: bool = False
 
     @field_validator("JWT_SECRET")
     @classmethod
