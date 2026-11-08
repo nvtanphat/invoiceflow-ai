@@ -27,6 +27,7 @@ from invoiceflow.domain.purchasing.models import (
     POLine,
     PurchaseOrder,
 )
+from invoiceflow.infrastructure.document.digital_pdf_parser import DigitalPDFParser
 from invoiceflow.infrastructure.document.layout_extractor import LayoutExtractor
 from invoiceflow.infrastructure.document.pdf_inspector import PDFInspector
 from invoiceflow.infrastructure.document.xml_parser import SecureXMLParser, XMLParsingError
@@ -53,75 +54,7 @@ def get_fixture_file(case_id: str) -> Path:
     return mapping[case_id]
 
 
-def parse_digital_pdf_heuristics(pdf_bytes: bytes) -> Dict[str, Any]:
-    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
-    text = doc[0].get_text()
-    doc.close()
 
-    if not text.strip():
-        return {"header": {}, "lines": []}
-
-    header: Dict[str, Any] = {}
-    lines: List[Dict[str, Any]] = []
-
-    m_series = re.search(r"Ky hieu \(Series\):\s*([^\r\n]+)", text)
-    if m_series:
-        header["invoice_series"] = m_series.group(1).strip()
-
-    m_inv_no = re.search(r"So \(Invoice No\):\s*([^\r\n]+)", text)
-    if m_inv_no:
-        header["invoice_number"] = m_inv_no.group(1).strip()
-
-    m_date = re.search(r"Ngay \(Date\):\s*([^\r\n]+)", text)
-    if m_date:
-        header["issue_date"] = m_date.group(1).strip()
-
-    header["currency"] = "VND"
-
-    m_supp = re.search(r"Don vi ban \(Supplier\):\s*([^\r\n]+)", text)
-    if m_supp:
-        header["supplier_name"] = m_supp.group(1).strip()
-
-    m_buyer = re.search(r"Don vi mua \(Buyer\):\s*([^\r\n]+)", text)
-    if m_buyer:
-        header["buyer_name"] = m_buyer.group(1).strip()
-
-    tax_ids = re.findall(r"Ma so thue \(Tax ID\):\s*(\d{10,14})", text)
-    if len(tax_ids) >= 1:
-        header["supplier_tax_id"] = tax_ids[0]
-    if len(tax_ids) >= 2:
-        header["buyer_tax_id"] = tax_ids[1]
-
-    m_subtotal = re.search(r"Cong tien hang \(Subtotal\):\s*([0-9.]+)", text)
-    if m_subtotal:
-        header["subtotal"] = m_subtotal.group(1).strip()
-
-    m_tax = re.search(r"Tien thue GTGT \(Tax Total\):\s*([0-9.]+)", text)
-    if m_tax:
-        header["tax_total"] = m_tax.group(1).strip()
-
-    m_total = re.search(r"Tong cong \(Total Amount\):\s*([0-9.]+)", text)
-    if m_total:
-        header["amount_payable"] = m_total.group(1).strip()
-
-    m_line = re.search(r"([^\r\n]+)\[([A-Z0-9_-]+)\]\s*\n\s*([0-9.]+)\s*\n\s*([0-9.]+)\s*\n\s*([0-9.]+)%\s*\n\s*([0-9.]+)", text)
-    if m_line:
-        desc = m_line.group(1).strip()
-        sku = m_line.group(2).strip()
-        qty = m_line.group(3).strip()
-        unit_price = m_line.group(4).strip()
-        tax_rate = m_line.group(5).strip()
-        line_amount = m_line.group(6).strip()
-        lines.append({
-            "sku": sku,
-            "description": desc,
-            "qty": qty,
-            "unit_price": unit_price,
-            "tax_rate": tax_rate,
-            "line_amount": line_amount,
-        })
-
-    return {"header": header, "lines": lines}
 
 
 def get_demo_po_and_grn(supplier_tax_id: Optional[str]):
@@ -322,9 +255,35 @@ def run_b1_digital_heuristics(case: Dict[str, Any], file_path: Path) -> Dict[str
     else:
         with open(file_path, "rb") as f:
             pdf_bytes = f.read()
-        extracted = parse_digital_pdf_heuristics(pdf_bytes)
-        header = extracted["header"]
-        lines = extracted["lines"]
+        doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+        text = "\n".join([page.get_text() for page in doc])
+        doc.close()
+        parser = DigitalPDFParser()
+        ext = parser.parse(text)
+        header = {
+            "supplier_tax_id": ext.supplier_tax_id or "",
+            "supplier_name": ext.supplier_name or "",
+            "buyer_tax_id": ext.buyer_tax_id or "",
+            "buyer_name": ext.buyer_name or "",
+            "invoice_number": ext.invoice_number or "",
+            "invoice_series": ext.invoice_series or "",
+            "issue_date": ext.issue_date or "",
+            "currency": ext.currency,
+            "subtotal": str(ext.subtotal),
+            "tax_total": str(ext.tax_total),
+            "amount_payable": str(ext.amount_payable),
+        }
+        lines = [
+            {
+                "sku": l.sku or "",
+                "description": l.description,
+                "qty": str(l.qty),
+                "unit_price": str(l.unit_price),
+                "tax_rate": str(l.tax_rate) if l.tax_rate else None,
+                "line_amount": str(l.line_amount),
+            }
+            for l in ext.lines
+        ]
 
     duration_ms = (time.perf_counter() - start) * 1000
     return {
@@ -435,13 +394,10 @@ async def run_b3_invoiceflow_hybrid(
         res = await run_b2_pure_vision_llm(case, file_path, adapter)
         header = res["header"]
         lines = res["lines"]
-        cost = 0.0028
+        cost = res.get("cost_usd", 0.0)
     else:
         # Digital PDF: fast deterministic layout extraction
         res = run_b1_digital_heuristics(case, file_path)
-        header = res["header"]
-        lines = res["lines"]
-        cost = 0.0000
         header = res["header"]
         lines = res["lines"]
         cost = 0.0000

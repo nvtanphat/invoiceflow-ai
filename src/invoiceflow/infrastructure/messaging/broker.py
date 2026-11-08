@@ -11,7 +11,11 @@ def setup_broker() -> dramatiq.Broker:
         broker.ping()
         dramatiq.set_broker(broker)
         return broker
-    except Exception:
+    except Exception as exc:
+        if settings.APP_ENV == "production":
+            raise RuntimeError(
+                f"Production broker connection failed for Redis at {settings.REDIS_URL}: {exc}"
+            ) from exc
         broker = StubBroker()
         dramatiq.set_broker(broker)
         return broker

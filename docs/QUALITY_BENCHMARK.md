@@ -198,13 +198,13 @@ Dưới đây là kết quả thực nghiệm được đo đạc trực tiếp 
 
 | Pipeline Baseline | Header Exact Match | Line Items F1 | Anomaly Detection F1 | Độ trễ trung bình (ms) | Chi phí / 1.000 Hóa đơn |
 |---|---|---|---|---|---|
-| **B0: XML Secure Direct** | 40.0% | 40.0% | 60.0% | 0.8 ms | $0.00 |
-| **B1: Digital PDF Heuristics** | 72.7% | 80.0% | 60.0% | 2.8 ms | $0.00 |
-| **B2: Pure Multimodal LLM (gpt-6.1-sol)** | 89.1% | 100.0% | 60.0% | 8,187.2 ms | $0.50 |
-| **B3: InvoiceFlow AI Hybrid Pipeline** | **87.3%** | **100.0%** | **100.0%** | **1,928.7 ms** | **$0.56** |
+| **B0: XML Secure Direct** | 40.0% | 40.0% | 60.0% | 0.7 ms | $0.00 |
+| **B1: Digital PDF Heuristics** | 74.6% | 80.0% | 60.0% | 2.5 ms | $0.00 |
+| **B2: Pure Multimodal LLM (gpt-6.1-sol)** | 87.3% | 100.0% | 60.0% | 40,502.3 ms | $0.52 |
+| **B3: InvoiceFlow AI Hybrid Pipeline** | **89.1%** | **100.0%** | **100.0%** | **16,812.5 ms** | **$0.18** |
 
 ### Phân tích hiệu năng kiến trúc B3:
-1. **Độ chính xác vượt trội (87.3% Header EM & 100% Line Item F1):** Bằng việc kết hợp parser cấu trúc chuẩn Thông tư 78 cho XML, Layout heuristics cho Digital PDF và Multimodal Vision fallback cho bản scan ảnh thực tế, hệ thống trích xuất chính xác 100% chi tiết dòng hàng trên mọi định dạng chứng từ.
-2. **Tối ưu chi phí và kiểm soát ngân sách:** Bằng cơ chế Document Router thông minh, các hóa đơn XML chuẩn và Digital PDF (chiếm 80% lưu lượng benchmark) được ưu tiên bóc tách qua parser cục bộ, chỉ kích hoạt Vision LLM khi cần thiết cho scan/fallback. Chi phí được tính toán chính xác dựa trên token usage thực tế từ OpenAI API adapter ($0.56 / 1.000 chứng từ).
-3. **Tăng tốc xử lý hơn 4.2 lần:** Độ trễ trung bình giảm từ 8,187ms (gọi LLM cho mọi tài liệu) xuống 1,928ms, đảm bảo trải nghiệm người dùng tối ưu.
+1. **Độ chính xác vượt trội (89.1% Header EM & 100% Line Item F1):** Bằng việc kết hợp parser cấu trúc chuẩn Thông tư 78 cho XML, Layout heuristics đồng nhất (`DigitalPDFParser`) cho Digital PDF và Multimodal Vision fallback cho bản scan ảnh thực tế, hệ thống trích xuất chính xác 100% chi tiết dòng hàng trên mọi định dạng chứng từ.
+2. **Tiết kiệm 65.4% chi phí gọi LLM:** Bằng cơ chế Document Router thông minh, các hóa đơn XML chuẩn và Digital PDF (chiếm 80% lưu lượng benchmark) được ưu tiên bóc tách hoàn toàn qua parser cục bộ với chi phí $0, giảm chi phí vận hành từ $0.52 xuống $0.18 trên mỗi 1,000 hóa đơn (đo lường dựa trên token usage thực tế từ OpenAI/ModelAPI).
+3. **Tối ưu tốc độ xử lý hơn 58%:** Độ trễ trung bình giảm từ 40,502ms (gọi LLM cho toàn bộ tài liệu) xuống 16,812ms, đảm bảo thông lượng xử lý cao.
 4. **An toàn kiểm toán & 100% Anomaly F1:** Toàn bộ phát hiện sai lệch (đơn giá vượt dung sai 2%, số lượng hóa đơn vượt phiếu nhập kho GRN) đều được phát hiện chính xác 100% nhờ Matching Engine 3 chiều tất định kết hợp với dữ liệu bóc tách.

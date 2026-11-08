@@ -161,6 +161,18 @@ export const BBoxViewer: React.FC<BBoxViewerProps> = ({
               </div>
             </div>
 
+            {/* Real Rendered Document Page Background (PDF / Scan) */}
+            {documentName && (
+              <img
+                src={`/api/v1/documents/${documentName}/pages/0/render`}
+                alt="Tài liệu gốc"
+                className="absolute inset-0 w-full h-full object-contain pointer-events-none z-0"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).style.display = "none";
+                }}
+              />
+            )}
+
             {/* Simulated Watermark */}
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-5">
               <span className="text-6xl font-black uppercase text-slate-900 tracking-widest rotate-[-30deg]">

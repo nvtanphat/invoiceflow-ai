@@ -1,3 +1,4 @@
+from datetime import date
 import logging
 from typing import Optional
 from sqlalchemy import select, update
@@ -14,6 +15,7 @@ from invoiceflow.domain.invoices.models import (
 from invoiceflow.infrastructure.database.models import DocumentORM, ProcessingJobORM
 from invoiceflow.infrastructure.database.repositories import DocumentRepository, InvoiceRepository
 from invoiceflow.infrastructure.database.session import DatabaseSessionManager
+from invoiceflow.infrastructure.document.digital_pdf_parser import DigitalPDFParser
 from invoiceflow.infrastructure.document.layout_extractor import LayoutExtractor
 from invoiceflow.infrastructure.document.pdf_inspector import PDFInspector
 from invoiceflow.infrastructure.document.xml_parser import SecureXMLParser
@@ -156,36 +158,16 @@ class JobCoordinator:
                 .values(stage="EXTRACTING")
             )
 
-        # Render image for vision if scanned/mixed or insufficient text layer
-        image_bytes: Optional[bytes] = None
-        if inspection.classification in ("pdf_scan", "scanned", "mixed") or not inspection.has_sufficient_text:
-            import fitz
-            doc_pdf = fitz.open(stream=content, filetype="pdf")
-            if len(doc_pdf) > 0:
-                page = doc_pdf.load_page(0)
-                pix = page.get_pixmap(dpi=150)
-                image_bytes = pix.tobytes("png")
-            doc_pdf.close()
-
-        # Call LLM extraction
         full_text = "\n".join([el.text for el in canonical_doc.elements])
-        try:
-            llm_result = await self._llm_adapter.extract_invoice_data(
-                document_text=full_text,
-                image_bytes=image_bytes,
-                budget_usd=0.05,
-            )
-            extracted_fields = {
-                "supplier_tax_id": llm_result.supplier_tax_id,
-                "supplier_name": llm_result.supplier_name,
-                "invoice_number": llm_result.invoice_number,
-                "amount_payable": str(llm_result.amount_payable),
-            }
-            evidence = self._evidence_mapper.map_evidence(extracted_fields, canonical_doc)
+        digital_parser = DigitalPDFParser()
+        digital_res = digital_parser.parse(full_text)
 
+        # 1. Deterministic Fast Path: Digital PDF with high text confidence
+        if route == ProcessingRoute.PDF_DIGITAL_RULES and digital_res.is_confident:
             lines = [
                 InvoiceLine(
                     line_no=line.line_no,
+                    sku_ref=line.sku,
                     description=line.description,
                     unit=line.unit,
                     qty=line.qty,
@@ -194,30 +176,99 @@ class JobCoordinator:
                     tax_rate=line.tax_rate,
                     line_amount=line.line_amount,
                 )
-                for line in llm_result.line_items
+                for line in digital_res.lines
             ]
-
+            extracted_fields = {
+                "supplier_tax_id": digital_res.supplier_tax_id,
+                "supplier_name": digital_res.supplier_name,
+                "invoice_number": digital_res.invoice_number,
+                "amount_payable": str(digital_res.amount_payable),
+            }
+            evidence = self._evidence_mapper.map_evidence(extracted_fields, canonical_doc)
             invoice_aggregate = InvoiceAggregate(
                 tenant_id=doc.tenant_id,
                 document_id=doc.id,
                 revision=1,
                 status=InvoiceStatus.READY_FOR_REVIEW,
-                supplier_tax_id=llm_result.supplier_tax_id,
-                supplier_name=llm_result.supplier_name,
-                buyer_tax_id=llm_result.buyer_tax_id,
-                buyer_name=llm_result.buyer_name,
-                invoice_number=llm_result.invoice_number,
-                invoice_series=llm_result.invoice_series,
-                currency=llm_result.currency,
-                subtotal=llm_result.subtotal,
-                tax_total=llm_result.tax_total,
-                amount_payable=llm_result.amount_payable,
+                supplier_tax_id=digital_res.supplier_tax_id,
+                supplier_name=digital_res.supplier_name,
+                buyer_tax_id=digital_res.buyer_tax_id,
+                buyer_name=digital_res.buyer_name,
+                invoice_number=digital_res.invoice_number,
+                invoice_series=digital_res.invoice_series,
+                issue_date=date.fromisoformat(digital_res.issue_date) if digital_res.issue_date else None,
+                currency=digital_res.currency,
+                subtotal=digital_res.subtotal,
+                tax_total=digital_res.tax_total,
+                amount_payable=digital_res.amount_payable,
                 lines=lines,
                 evidence=evidence,
             )
-        except Exception as e:
-            logger.error("Document extraction failed for job %s: %s", job_id, e)
-            raise RuntimeError(f"Extraction failed for {doc.filename}: {e}") from e
+        else:
+            # 2. Vision Fallback Path: Scanned, mixed, or unconfident digital PDFs
+            image_bytes_list: list[bytes] = []
+            import fitz
+            doc_pdf = fitz.open(stream=content, filetype="pdf")
+            max_pages = min(len(doc_pdf), 5)
+            for p_no in range(max_pages):
+                pix = doc_pdf.load_page(p_no).get_pixmap(dpi=150)
+                image_bytes_list.append(pix.tobytes("png"))
+            doc_pdf.close()
+
+            image_payload = (
+                image_bytes_list if len(image_bytes_list) > 1
+                else (image_bytes_list[0] if image_bytes_list else None)
+            )
+
+            try:
+                llm_result = await self._llm_adapter.extract_invoice_data(
+                    document_text=full_text,
+                    image_bytes=image_payload,
+                    budget_usd=0.05,
+                )
+                extracted_fields = {
+                    "supplier_tax_id": llm_result.supplier_tax_id,
+                    "supplier_name": llm_result.supplier_name,
+                    "invoice_number": llm_result.invoice_number,
+                    "amount_payable": str(llm_result.amount_payable),
+                }
+                evidence = self._evidence_mapper.map_evidence(extracted_fields, canonical_doc)
+
+                lines = [
+                    InvoiceLine(
+                        line_no=line.line_no,
+                        description=line.description,
+                        unit=line.unit,
+                        qty=line.qty,
+                        unit_price=line.unit_price,
+                        discount=line.discount,
+                        tax_rate=line.tax_rate,
+                        line_amount=line.line_amount,
+                    )
+                    for line in llm_result.line_items
+                ]
+
+                invoice_aggregate = InvoiceAggregate(
+                    tenant_id=doc.tenant_id,
+                    document_id=doc.id,
+                    revision=1,
+                    status=InvoiceStatus.READY_FOR_REVIEW,
+                    supplier_tax_id=llm_result.supplier_tax_id,
+                    supplier_name=llm_result.supplier_name,
+                    buyer_tax_id=llm_result.buyer_tax_id,
+                    buyer_name=llm_result.buyer_name,
+                    invoice_number=llm_result.invoice_number,
+                    invoice_series=llm_result.invoice_series,
+                    currency=llm_result.currency,
+                    subtotal=llm_result.subtotal,
+                    tax_total=llm_result.tax_total,
+                    amount_payable=llm_result.amount_payable,
+                    lines=lines,
+                    evidence=evidence,
+                )
+            except Exception as e:
+                logger.error("Document extraction failed for job %s: %s", job_id, e)
+                raise RuntimeError(f"Extraction failed for {doc.filename}: {e}") from e
 
         async with self._db_manager.session() as session:
             await session.execute(

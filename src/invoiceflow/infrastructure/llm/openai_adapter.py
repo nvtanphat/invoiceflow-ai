@@ -41,31 +41,35 @@ class OpenAIAdapter(LLMProviderPort):
     async def extract_invoice_data(
         self,
         document_text: str,
-        image_bytes: Optional[bytes] = None,
+        image_bytes: Optional[bytes | list[bytes]] = None,
         budget_usd: float = 0.05,
         request_id: Optional[str] = None,
     ) -> ExtractionResult:
+        if not self._client:
+            return ExtractionResult(
+                supplier_name=None,
+                supplier_tax_id=None,
+                raw_response={"error": "OpenAI client not configured or missing API key"},
+            )
         raw_dict = await self._call_openai_api(document_text, image_bytes)
         return self._map_to_result(raw_dict)
 
     async def _call_openai_api(
-        self, document_text: str, image_bytes: Optional[bytes] = None
+        self, document_text: str, image_bytes: Optional[bytes | list[bytes]] = None
     ) -> dict[str, Any]:
         if not self._client:
             raise RuntimeError("OpenAI/ModelAPI client is not configured or missing API key.")
 
+        import base64
+        user_msg: list[dict[str, Any]] = [{"type": "text", "text": f"DOCUMENT CONTENT TO EXTRACT:\n{document_text}\n"}]
         if image_bytes:
-            import base64
-            b64_img = base64.b64encode(image_bytes).decode("utf-8")
-            user_msg = [
-                {"type": "text", "text": f"DOCUMENT CONTENT TO EXTRACT:\n{document_text}\n"},
-                {
+            imgs = image_bytes if isinstance(image_bytes, list) else [image_bytes]
+            for img in imgs:
+                b64_img = base64.b64encode(img).decode("utf-8")
+                user_msg.append({
                     "type": "image_url",
                     "image_url": {"url": f"data:image/png;base64,{b64_img}"},
-                },
-            ]
-        else:
-            user_msg = f"DOCUMENT CONTENT TO EXTRACT:\n{document_text}\n"
+                })
 
         messages = [
             {"role": "system", "content": INVOICE_EXTRACTION_SYSTEM_PROMPT},

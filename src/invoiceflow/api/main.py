@@ -1,4 +1,6 @@
+import asyncio
 from contextlib import asynccontextmanager
+import logging
 from typing import Optional
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -9,6 +11,23 @@ from invoiceflow.api.routers import auth, documents, exports, health, invoices, 
 from invoiceflow.config import Settings, get_settings
 from invoiceflow.infrastructure.database.session import DatabaseSessionManager
 from invoiceflow.infrastructure.storage.service import LocalStorageService, StoragePort
+
+logger = logging.getLogger(__name__)
+
+
+async def _run_outbox_loop(db_manager: DatabaseSessionManager, stop_event: asyncio.Event) -> None:
+    from invoiceflow.application.ingestion.outbox_dispatcher import OutboxDispatcher
+
+    dispatcher = OutboxDispatcher(db_manager)
+    while not stop_event.is_set():
+        try:
+            await dispatcher.dispatch_pending_events(limit=50)
+        except Exception as e:
+            logger.debug("Outbox loop tick: %s", e)
+        try:
+            await asyncio.wait_for(stop_event.wait(), timeout=2.0)
+        except (asyncio.TimeoutError, TimeoutError):
+            pass
 
 
 def create_app(
@@ -30,8 +49,16 @@ def create_app(
             await manager.create_tables()
         except Exception:
             pass
+
+        stop_event = asyncio.Event()
+        outbox_task = asyncio.create_task(_run_outbox_loop(manager, stop_event))
         yield
         # Shutdown
+        stop_event.set()
+        try:
+            await asyncio.wait_for(outbox_task, timeout=2.0)
+        except Exception:
+            outbox_task.cancel()
         await manager.close()
 
     app = FastAPI(

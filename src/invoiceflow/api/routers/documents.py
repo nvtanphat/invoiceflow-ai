@@ -156,3 +156,43 @@ async def preview_document(
 
     content = await storage.get(doc.storage_uri)
     return Response(content=content, media_type=doc.mime_type)
+
+
+@router.get("/{document_id}/pages/{page_index}/render")
+async def render_document_page(
+    document_id: str,
+    page_index: int = 0,
+    dpi: int = 150,
+    ctx: AuthenticatedContext = Depends(get_current_context),
+    session: AsyncSession = Depends(get_db),
+    storage: StoragePort = Depends(get_storage),
+):
+    doc_repo = DocumentRepository(session)
+    doc = await doc_repo.get_document(ctx.tenant_id, document_id)
+    if not doc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found.")
+
+    content = await storage.get(doc.storage_uri)
+    if doc.mime_type == "application/pdf" or doc.filename.lower().endswith(".pdf"):
+        import fitz
+
+        doc_pdf = fitz.open(stream=content, filetype="pdf")
+        if page_index < 0 or page_index >= len(doc_pdf):
+            doc_pdf.close()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Page index {page_index} out of range (total pages: {len(doc_pdf)}).",
+            )
+        page = doc_pdf.load_page(page_index)
+        pix = page.get_pixmap(dpi=dpi)
+        png_bytes = pix.tobytes("png")
+        doc_pdf.close()
+        return Response(content=png_bytes, media_type="image/png")
+    elif doc.mime_type.startswith("image/"):
+        return Response(content=content, media_type=doc.mime_type)
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Document format does not support page image rendering.",
+        )
+

@@ -34,3 +34,38 @@ def test_pdf_inspector_rejects_corrupted_pdf():
     inspector = PDFInspector()
     with pytest.raises(PDFInspectionError):
         inspector.inspect(b"%PDF-1.4 corrupt junk trailer broken %%EOF")
+
+
+def test_digital_pdf_parser_deterministic():
+    from decimal import Decimal
+    from invoiceflow.infrastructure.document.digital_pdf_parser import DigitalPDFParser
+
+    sample_text = """
+    Ky hieu (Series): 1C26TBB
+    So (Invoice No): 0008890
+    Ngay (Date): 2026-03-05
+    Don vi ban (Supplier): Cong ty CP Giay & Van phong pham Mien Nam
+    Ma so thue (Tax ID): 0309876543
+    Don vi mua (Buyer): Cong ty Co phan Thuong mai Alpha VN
+    Ma so thue (Tax ID): 0109998888
+    Cong tien hang (Subtotal): 12000000.0000
+    Tien thue GTGT (Tax Total): 960000.0000
+    Tong cong (Total Amount): 12960000.0000
+    Giay photocopy Double A A4 70gsm [PAPER-A4-70]
+    200.0000
+    60000.0000
+    8.00%
+    12000000.0000
+    """
+    parser = DigitalPDFParser()
+    res = parser.parse(sample_text)
+
+    assert res.is_confident is True
+    assert res.supplier_tax_id == "0309876543"
+    assert res.buyer_tax_id == "0109998888"
+    assert res.invoice_number == "0008890"
+    assert res.amount_payable == Decimal("12960000.0000")
+    assert len(res.lines) == 1
+    assert res.lines[0].sku == "PAPER-A4-70"
+    assert res.lines[0].qty == Decimal("200.0000")
+

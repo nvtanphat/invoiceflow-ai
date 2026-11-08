@@ -1,6 +1,6 @@
 from functools import lru_cache
 from typing import Literal
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -64,6 +64,16 @@ class Settings(BaseSettings):
         if len(v.strip()) < 32:
             raise ValueError("JWT_SECRET must be at least 32 characters long.")
         return v.strip()
+
+    @model_validator(mode="after")
+    def validate_production_security(self) -> "Settings":
+        if self.APP_ENV == "production":
+            insecure_markers = ("dev-insecure", "change-this", "secret-key-32")
+            if any(marker in self.JWT_SECRET.lower() for marker in insecure_markers):
+                raise ValueError(
+                    "In production (APP_ENV=production), a strong non-default JWT_SECRET is strictly required."
+                )
+        return self
 
 
 @lru_cache(maxsize=1)

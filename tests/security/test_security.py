@@ -10,6 +10,7 @@ from invoiceflow.infrastructure.database.models import (
     DocumentORM,
     InvoiceORM,
     MembershipORM,
+    OutboxEventORM,
     PurchaseOrderLineORM,
     PurchaseOrderORM,
     TenantORM,
@@ -462,4 +463,86 @@ async def test_unified_review_actions_and_concurrency():
         assert res_reject.json()["revision"] == 3
 
     await db_manager.close()
+
+
+@pytest.mark.asyncio
+async def test_outbox_dispatcher_retries_on_broker_failure(monkeypatch):
+    from invoiceflow.application.ingestion.outbox_dispatcher import OutboxDispatcher
+    import dramatiq
+
+    db_url = "sqlite+aiosqlite:///:memory:"
+    db_manager = DatabaseSessionManager(database_url=db_url)
+    await db_manager.create_tables()
+
+    event_id = str(uuid.uuid4())
+    job_id = str(uuid.uuid4())
+    tenant_id = str(uuid.uuid4())
+
+    async with db_manager.session() as session:
+        evt = OutboxEventORM(
+            id=event_id,
+            tenant_id=tenant_id,
+            topic="document.received",
+            aggregate_id=job_id,
+            payload_json='{"job_id": "test"}',
+            is_published=False,
+        )
+        session.add(evt)
+
+    dispatcher = OutboxDispatcher(db_manager)
+
+    # 1. Simulate Redis broker connection failure
+    def mock_send_fail(*args, **kwargs):
+        raise ConnectionError("Redis connection lost")
+
+    from invoiceflow.workers import actors
+
+    monkeypatch.setattr(actors.process_document_job, "send", mock_send_fail)
+
+    dispatched = await dispatcher.dispatch_pending_events(limit=10)
+    assert dispatched == 0
+
+    # Verify event remains unpublished
+    async with db_manager.session() as session:
+        stored = await session.get(OutboxEventORM, event_id)
+        assert stored.is_published is False
+
+    # 2. Simulate broker connection restored
+    send_calls = []
+
+    def mock_send_ok(msg_job_id):
+        send_calls.append(msg_job_id)
+
+    monkeypatch.setattr(actors.process_document_job, "send", mock_send_ok)
+
+    dispatched_recovered = await dispatcher.dispatch_pending_events(limit=10)
+    assert dispatched_recovered == 1
+    assert send_calls == [job_id]
+
+    # Verify event is now marked published
+    async with db_manager.session() as session:
+        stored = await session.get(OutboxEventORM, event_id)
+        assert stored.is_published is True
+
+    await db_manager.close()
+
+
+def test_production_security_rejects_default_jwt_secret():
+    from invoiceflow.config import Settings
+
+    # In production, default insecure secrets must fail immediately
+    with pytest.raises(ValueError) as excinfo:
+        Settings(
+            APP_ENV="production",
+            JWT_SECRET="dev-insecure-secret-key-must-be-changed-in-production-32-chars",
+        )
+    assert "strong non-default JWT_SECRET is strictly required" in str(excinfo.value)
+
+    # Strong custom secret passes in production
+    valid_settings = Settings(
+        APP_ENV="production",
+        JWT_SECRET="ProductionVeryStrongSecretKey_9876543210_SecureToken",
+    )
+    assert valid_settings.APP_ENV == "production"
+
 
