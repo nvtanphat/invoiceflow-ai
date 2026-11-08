@@ -132,8 +132,9 @@ class DoclingAdapter:
                 # in its native, horizontal orientation.
                 page.set_rotation(0)
                 pix = page.get_pixmap(dpi=self._ocr_dpi)
-                new_page = normalized.new_page(width=pix.width, height=pix.height)
-                new_page.insert_image(new_page.rect, pixmap=pix)
+                w, h = page.rect.width, page.rect.height
+                new_page = normalized.new_page(width=w, height=h)
+                new_page.insert_image(fitz.Rect(0, 0, w, h), pixmap=pix)
             return normalized.tobytes()
         finally:
             src.close()

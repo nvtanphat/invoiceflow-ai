@@ -128,3 +128,27 @@ def test_docling_adapter_empty_document_fallback():
     )
     assert isinstance(canonical, CanonicalDocument)
     assert "fallback_from" in canonical.metadata
+
+
+def test_docling_adapter_normalize_page_rotation_preserves_point_dimensions_and_clears_rotation():
+    import fitz
+
+    doc = fitz.open()
+    page = doc.new_page(width=595, height=842)
+    page.set_rotation(90)
+    pdf_bytes = doc.write()
+    doc.close()
+
+    adapter = DoclingAdapter()
+    norm_bytes = adapter._normalize_page_rotation(pdf_bytes)
+
+    norm_doc = fitz.open(stream=norm_bytes, filetype="pdf")
+    assert norm_doc.page_count == 1
+    norm_page = norm_doc[0]
+    assert norm_page.rotation == 0
+    assert round(norm_page.rect.width) == 595
+    assert round(norm_page.rect.height) == 842
+    norm_doc.close()
+
+    norm_bytes_2 = adapter._normalize_page_rotation(norm_bytes)
+    assert norm_bytes == norm_bytes_2

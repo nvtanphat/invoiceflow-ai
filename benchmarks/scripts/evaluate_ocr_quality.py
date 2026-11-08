@@ -1,6 +1,6 @@
 """Real OCR verification on scanned/rotated/mixed Vietnamese invoice PDFs.
 
-Runs the actual DoclingAdapter + RapidOCR pipeline (not a mock, not just the
+Runs the actual DoclingAdapter + EasyOCR pipeline (not a mock, not just the
 exception-fallback path) against fixtures that are genuine pixel images with
 no selectable text layer, and measures:
 
@@ -229,7 +229,7 @@ def evaluate_scanned_table_case() -> dict[str, Any]:
 
 def main() -> None:
     print("=" * 70)
-    print(" InvoiceFlow AI - Real OCR Quality Verification (Docling + RapidOCR)")
+    print(" InvoiceFlow AI - Real OCR Quality Verification (Docling + EasyOCR)")
     print("=" * 70)
 
     results = [evaluate_text_case(c) for c in CASES]
