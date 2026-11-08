@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Any, List, Optional
+from typing import Any, List, Optional, Union
 from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -42,6 +42,9 @@ class BoundingBox(BaseModel):
     x1: float
     y1: float
     coordinate_system: CoordinateSystem = CoordinateSystem.PDF_POINTS
+    page_width: Optional[float] = None
+    page_height: Optional[float] = None
+    rotation: int = 0
 
 
 class DocumentElement(BaseModel):
@@ -51,20 +54,28 @@ class DocumentElement(BaseModel):
     page_index: int = Field(..., ge=0)
     kind: str = "text"
     text: str
+    raw_text: Optional[str] = None
+    normalized_text: Optional[str] = None
     bbox: Optional[BoundingBox] = None
     reading_order: int = 0
+    parent_id: Optional[str] = None
     confidence: Optional[float] = None
 
 
 class DocumentCell(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    id: Optional[str] = None
+    table_id: Optional[str] = None
     row_index: int
     col_index: int
     text: str
+    raw_text: Optional[str] = None
+    normalized_text: Optional[str] = None
     rowspan: int = 1
     colspan: int = 1
     bbox: Optional[BoundingBox] = None
+    confidence: Optional[float] = None
 
 
 class DocumentTable(BaseModel):
@@ -75,18 +86,22 @@ class DocumentTable(BaseModel):
     row_count: int
     column_count: int
     cells: List[DocumentCell] = Field(default_factory=list)
+    bbox: Optional[BoundingBox] = None
+    confidence: Optional[float] = None
 
 
 class CanonicalDocument(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    document_id: UUID
-    tenant_id: UUID
+    document_id: Union[UUID, str]
+    tenant_id: Union[UUID, str]
     source_format: str
     parser_name: str
     parser_version: str
     config_hash: str
+    source_checksum: Optional[str] = None
     page_count: int
+    page_rotations: dict[int, int] = Field(default_factory=dict)
     elements: List[DocumentElement] = Field(default_factory=list)
     tables: List[DocumentTable] = Field(default_factory=list)
     metadata: dict[str, Any] = Field(default_factory=dict)

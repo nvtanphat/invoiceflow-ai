@@ -248,12 +248,13 @@ class DoclingAdapter:
                 version = "2.87.0"
 
             return CanonicalDocument(
-                document_id=UUID(str(document_id)),
-                tenant_id=UUID(str(tenant_id)),
+                document_id=document_id,
+                tenant_id=tenant_id,
                 source_format="pdf",
                 parser_name="docling",
                 parser_version=version,
                 config_hash=config_hash,
+                source_checksum=hashlib.sha256(pdf_bytes).hexdigest(),
                 page_count=len(doc.pages) if doc.pages else 1,
                 elements=elements,
                 tables=tables,

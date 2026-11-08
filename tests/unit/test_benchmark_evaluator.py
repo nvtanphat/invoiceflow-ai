@@ -1,8 +1,9 @@
 import pytest
 from benchmarks.scripts.evaluator import (
-    evaluate_prediction,
     compute_field_exact_match,
     compute_line_items_f1,
+    compute_table_extraction_quality,
+    evaluate_prediction,
 )
 
 
@@ -127,6 +128,30 @@ def test_evaluate_prediction_overall():
     result = evaluate_prediction(gt, pred)
     assert result["header_exact_match"] == 1.0
     assert result["lines_f1"] == 1.0
+    assert result["table_f1"] == 1.0
+    assert result["arithmetic_validity_rate"] == 1.0
     assert result["anomaly_recall"] == 1.0
     assert result["latency_ms"] == 120.5
     assert result["cost_usd"] == 0.0002
+
+
+def test_compute_table_extraction_quality():
+    gt_lines = [
+        {"sku": "ITEM-1", "qty": "2", "unit_price": "50000", "line_amount": "100000"},
+        {"sku": "ITEM-2", "qty": "3", "unit_price": "20000", "line_amount": "60000"},
+    ]
+    pred_lines = [
+        {"sku": "ITEM-1", "qty": "2", "unit_price": "50000", "line_amount": "100000"},
+        {
+            "sku": "ITEM-2",
+            "qty": "3",
+            "unit_price": "20000",
+            "line_amount": "70000",
+        },  # wrong amount
+    ]
+    quality = compute_table_extraction_quality(gt_lines, pred_lines)
+    assert quality["table_precision"] == 1.0
+    assert quality["table_recall"] == 1.0
+    assert quality["table_f1"] == 1.0
+    # Line 2 is arithmetic mismatch (3*20000 != 70000), so 1 out of 2 is valid = 0.5
+    assert quality["arithmetic_validity_rate"] == 0.5

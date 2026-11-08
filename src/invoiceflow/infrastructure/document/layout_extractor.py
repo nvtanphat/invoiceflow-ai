@@ -92,8 +92,8 @@ class LayoutExtractor:
             config_hash = hashlib.sha256(b"pymupdf-layout-v1").hexdigest()
 
             return CanonicalDocument(
-                document_id=UUID(str(document_id)),
-                tenant_id=UUID(str(tenant_id)),
+                document_id=document_id,
+                tenant_id=tenant_id,
                 source_format="pdf",
                 parser_name="pymupdf",
                 parser_version=fitz.__version__,

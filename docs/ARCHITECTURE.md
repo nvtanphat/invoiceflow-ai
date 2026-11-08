@@ -117,26 +117,41 @@ invoiceflow/
 
 Chỉ **application service** giao tiếp với nhiều port để phối hợp; `domain` không import FastAPI, SQLAlchemy, Gemini SDK, Redis. Hạn chế model API thay đổi chỉ vào `infrastructure/llm`.
 
-## 4. Routing XML, PDF và scan
+## 4. Routing XML, PDF và Document AI Core
 
 1. **Preflight:** kiểm size, magic bytes, decode, file page count, max pixel, duplicate SHA, PDF encryption/corruption; **reject** unsupported content (không cố chuyển mọi thứ thành ảnh).
 2. **XML:** secure parser, DTD/external entities/XInclude/network disabled, kiểm namespace và document type, map theo schema định dạng có tham chiếu. Lưu raw XML immutable + parsed tree/canonical data. Chữ ký số (nếu có) và trạng thái thuế là **trạng thái kiểm chứng tách biệt**: `not_checked`, `verified`, `failed`, `unknown`; `parsed_successfully` không đồng nghĩa `legally_valid`.
-3. **PDF digital:** PyMuPDF kiểm số trang, text-layer text density và layout anomalies theo từng trang; extract có cấu trúc bằng Docling. Preserve cell grid, headings, reading order, page and bbox.
-4. **PDF scan/ảnh:** Docling OCR pipeline CPU (benchmark mode). Chỉ thử PaddleOCR nếu benchmark lỗi trên scan thực tế chứng minh có lợi; không chạy cả hai mặc định. Render có giới hạn DPI/pixels/pages; auto-rotate, deskew theo test.
-5. **Mixed PDF:** per-page route và hợp nhất thứ tự/trang đúng. `page_index` 0-based trong API, frontend hiển thị 1-based.
-6. **XML + PDF paired:** liên kết bằng business key có kiểm chứng và checksum; so field tương ứng, mismatch thành review issue. Không ghi đè XML bằng OCR không căn cứ.
+3. **Multi-Signal Hybrid Routing:**
+   - Đánh giá đa chiều qua `PDFInspector`: phân loại trang (`native_text`, `scanned_image`, `blank`, `rotated`), mật độ text, số lượng bảng (`table_count`), phát hiện trang xoay (`has_rotated_pages`), độ khó (`is_difficult`), và ngân sách khả dụng (`budget_available`).
+   - Phân luồng tất định:
+     - `XML_DETERMINISTIC`: Xử lý trực tiếp file XML Thông tư 78 với độ trễ < 1ms, chi phí $0.
+     - `PDF_DIGITAL`: PDF văn bản số tiêu chuẩn xử lý qua PyMuPDF và Docling layout extractor.
+     - `DOCLING_OCR_STRUCTURED`: Tài liệu scan hoặc có bảng cấu trúc xử lý qua Docling kết hợp RapidOCR Vietnamese diacritics và `StructureAwareTableExtractor`.
+     - `VISION_FALLBACK`: Chế độ dự phòng gọi Multimodal Vision LLM khi tài liệu bị biến dạng nặng hoặc có yêu cầu phức tạp ngoài khả năng parser cục bộ.
+     - `MANUAL_REVIEW`: Điều hướng vào hàng đợi kiểm duyệt thủ công khi cạn ngân sách hoặc chứng từ bất thường.
+4. **Structure-Aware Table Extraction & Column Semantic Mapping:**
+   - **Semantic mapping:** Đối soát tiêu đề cột tiếng Việt chuẩn hóa (STT, Mã hàng SKU, Tên hàng hóa dịch vụ, Đơn vị tính, Số lượng, Đơn giá, Tiền chiết khấu, Thuế suất, Thành tiền). Chuẩn hóa tiền xử lý ký tự `Đ/đ` trước khi strip dấu Unicode NFKD để tránh nhầm lẫn.
+   - **Continuation rows:** Tự động phát hiện các dòng bảng phụ chỉ chứa thông tin mô tả chi tiết hoặc bảo hành, gộp vào dòng cha liền trước thay vì tạo dòng rác.
+   - **Tính nhất quán số học nội tại:** Kiểm tra điều kiện `Qty * UnitPrice == LineAmount` cho từng dòng hàng; nếu không khớp, đánh cờ nghi vấn thay vì tự ý điều chỉnh số liệu tài chính.
+   - **Bảo toàn nguồn gốc tế bào (Cell-level Provenance):** Mọi dòng hàng trích xuất đều lưu giữ liên kết 1-1 tới danh sách cell nguồn kèm `BoundingBox` tọa độ trang gốc.
+5. **Context-Aware Numeric Parsing & Ambiguity Disambiguation:**
+   - Phân giải dấu chấm phân cách hàng nghìn (`12.000.000`) và dấu phẩy thập phân theo thói quen kế toán Việt Nam.
+   - Khi gặp giá trị gây mơ hồ ngữ cảnh (như `5,500` không có ngữ cảnh đơn giá/thành tiền rõ ràng), gán mã cảnh báo `AMBIGUOUS_NUMBER` để đưa vào luồng kiểm duyệt nhân sự, tuyệt đối không tự bịa giá trị.
+6. **Mixed PDF & Orientation Handling:** per-page route và hợp nhất thứ tự/trang đúng; tự động nhận diện góc xoay 90/180/270 độ và xử lý OCR thích ứng. `page_index` 0-based trong API, frontend hiển thị 1-based.
+7. **XML + PDF paired:** liên kết bằng business key có kiểm chứng và checksum; so field tương ứng, mismatch thành review issue. Không ghi đè XML bằng OCR không căn cứ.
 
 ### Canonical Document Representation (CDR)
 
-Một `Document` chứa `document_id`, `tenant_id`, `kind`, `original_ref`, `checksum`, `pages`, `elements`, `tables`, `metadata`, `parser_runs`. Một element chứa `element_id`, `page`, `type`, `text`, `bbox`, `reading_order`, `parent_id`, `source_span`, `confidence_signals` (nếu có). Table lưu **row/column/cell/rowspan/colspan**; không chỉ lưu Markdown. Bounding box luôn kèm `coordinate_system` và page dimensions; thiếu bbox ghi `null` và nguyên nhân, không bịa tọa độ.
+Một `Document` chứa `document_id`, `tenant_id`, `kind`, `original_ref`, `checksum`, `pages`, `elements`, `tables`, `metadata`, `parser_runs`. Một element chứa `element_id`, `page_index`, `kind`, `text`, `bbox` (kèm `page_width`, `page_height`, `rotation`), `reading_order`, `confidence`. Table lưu danh sách `cells` gồm `row_index`, `col_index`, `row_span`, `col_span`, `text`, `bbox`. Bounding box luôn kèm `coordinate_system` và page dimensions; thiếu bbox ghi `null` và nguyên nhân, không bịa tọa độ.
 
 ```json
 {
   "document_id": "<uuid>",
   "source_format": "pdf",
-  "parser": {"name": "docling", "model_version": "<recorded>", "config_hash": "<sha256>"},
-  "elements": [{"id": "el-1", "page_index": 0, "kind": "text", "text": "Tổng tiền", "bbox": [30, 520, 90, 540], "coordinate_system": "pdf_points"}],
-  "tables": [{"id": "tab-1", "page_index": 0, "row_count": 2, "column_count": 4, "cells": []}]
+  "checksum": "sha256:...",
+  "parser": {"name": "docling", "model_version": "rapidocr-v4", "config_hash": "<sha256>"},
+  "elements": [{"id": "el-1", "page_index": 0, "kind": "text", "text": "Tổng cộng tiền thanh toán", "bbox": {"left": 30.0, "top": 520.0, "right": 250.0, "bottom": 540.0, "page_width": 595.0, "page_height": 842.0, "rotation": 0}}],
+  "tables": [{"id": "tab-1", "page_index": 0, "row_count": 5, "column_count": 6, "cells": []}]
 }
 ```
 

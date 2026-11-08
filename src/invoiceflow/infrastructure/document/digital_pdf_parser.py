@@ -280,7 +280,10 @@ class DigitalPDFParser:
                 issue = "AMBIGUOUS_NUMBER"
         elif "," in s:
             parts = s.split(",")
-            if len(parts) > 1 and all(len(p) == 3 for p in parts[1:]):
+            if is_qty and len(parts) == 2 and len(parts[1]) == 3:
+                issue = "AMBIGUOUS_NUMBER"
+                s = s.replace(",", "")
+            elif len(parts) > 1 and all(len(p) == 3 for p in parts[1:]):
                 s = s.replace(",", "")
             elif len(parts) == 2 and len(parts[1]) != 3:
                 s = s.replace(",", ".")

@@ -20,6 +20,7 @@ from invoiceflow.infrastructure.document.digital_pdf_parser import DigitalPDFPar
 from invoiceflow.infrastructure.document.docling_adapter import DoclingAdapter
 from invoiceflow.infrastructure.document.layout_extractor import LayoutExtractor
 from invoiceflow.infrastructure.document.pdf_inspector import PDFInspector
+from invoiceflow.infrastructure.document.table_extractor import StructureAwareTableExtractor
 from invoiceflow.infrastructure.document.signature_verifier import (
     SignatureVerifierPort,
     XMLSignatureVerifier,
@@ -185,6 +186,7 @@ class JobCoordinator:
             detected_kind="pdf",
             file_size_bytes=len(content),
             pdf_classification=inspection.classification,
+            has_rotated_pages=inspection.has_rotated_pages,
         )
 
         async with self._db_manager.session() as session:
@@ -200,7 +202,7 @@ class JobCoordinator:
             document_id=doc.id,
             pdf_bytes=content,
             do_ocr=(
-                route == ProcessingRoute.VISION_FALLBACK
+                route in (ProcessingRoute.VISION_FALLBACK, ProcessingRoute.DOCLING_OCR_STRUCTURED)
                 or inspection.classification == "SCANNED_IMAGE"
             ),
         )
@@ -217,15 +219,19 @@ class JobCoordinator:
         digital_parser = DigitalPDFParser()
         digital_res = digital_parser.parse(full_text)
 
-        # 1. Deterministic Extraction: Digital PDF with structured invoice data
-        can_use_digital = (
-            route == ProcessingRoute.PDF_DIGITAL
-            and bool(digital_res.supplier_tax_id)
-            and bool(digital_res.invoice_number)
-            and len(digital_res.lines) > 0
-        )
-        if can_use_digital:
-            lines = [
+        # Structure-aware table extraction from CanonicalDocument
+        table_extractor = StructureAwareTableExtractor()
+        table_lines: list[InvoiceLine] = []
+        for tab in canonical_doc.tables:
+            extracted = table_extractor.extract_invoice_lines(tab)
+            if extracted:
+                table_lines.extend(extracted)
+
+        effective_lines: list[InvoiceLine] = []
+        if table_lines:
+            effective_lines = table_lines
+        elif digital_res.lines:
+            effective_lines = [
                 InvoiceLine(
                     line_no=line.line_no,
                     sku_ref=line.sku,
@@ -243,6 +249,16 @@ class JobCoordinator:
                 )
                 for line in digital_res.lines
             ]
+
+        # 1. Deterministic Extraction: Digital or OCR PDF with structured invoice data
+        can_use_digital = (
+            (route in (ProcessingRoute.PDF_DIGITAL, ProcessingRoute.DOCLING_OCR_STRUCTURED))
+            and bool(digital_res.supplier_tax_id)
+            and bool(digital_res.invoice_number)
+            and len(effective_lines) > 0
+        )
+        if can_use_digital:
+            lines = effective_lines
             extracted_fields = {
                 "supplier_tax_id": digital_res.supplier_tax_id,
                 "supplier_name": digital_res.supplier_name,

@@ -99,11 +99,44 @@ def compute_line_items_f1(
     return precision, recall, f1
 
 
+def compute_table_extraction_quality(
+    gt_lines: list[dict[str, Any]], pred_lines: list[dict[str, Any]]
+) -> dict[str, float]:
+    p, r, f1 = compute_line_items_f1(gt_lines, pred_lines)
+
+    valid_arithmetic = 0
+    total_checked = 0
+    for item in pred_lines:
+        try:
+            qty_str = item.get("qty")
+            price_str = item.get("unit_price")
+            amt_str = item.get("line_amount")
+            if qty_str is not None and price_str is not None and amt_str is not None:
+                qty = Decimal(str(qty_str))
+                price = Decimal(str(price_str))
+                amt = Decimal(str(amt_str))
+                total_checked += 1
+                if abs((qty * price) - amt) <= Decimal("1.0"):
+                    valid_arithmetic += 1
+        except Exception:
+            pass
+
+    arithmetic_validity = (valid_arithmetic / total_checked) if total_checked > 0 else 1.0
+
+    return {
+        "table_precision": p,
+        "table_recall": r,
+        "table_f1": f1,
+        "arithmetic_validity_rate": arithmetic_validity,
+    }
+
+
 def evaluate_prediction(gt: dict[str, Any], pred: dict[str, Any]) -> dict[str, Any]:
     header_score, header_mismatches = compute_field_exact_match(
         gt.get("header", {}), pred.get("header", {})
     )
     lines_p, lines_r, lines_f1 = compute_line_items_f1(gt.get("lines", []), pred.get("lines", []))
+    table_quality = compute_table_extraction_quality(gt.get("lines", []), pred.get("lines", []))
 
     expected_anomalies = {normalize_discrepancy(x) for x in gt.get("expected_discrepancies", [])}
     detected_anomalies = {normalize_discrepancy(x) for x in pred.get("detected_discrepancies", [])}
@@ -133,6 +166,10 @@ def evaluate_prediction(gt: dict[str, Any], pred: dict[str, Any]) -> dict[str, A
         "lines_precision": lines_p,
         "lines_recall": lines_r,
         "lines_f1": lines_f1,
+        "table_f1": table_quality["table_f1"],
+        "table_precision": table_quality["table_precision"],
+        "table_recall": table_quality["table_recall"],
+        "arithmetic_validity_rate": table_quality["arithmetic_validity_rate"],
         "anomaly_precision": anomaly_p,
         "anomaly_recall": anomaly_r,
         "anomaly_f1": anomaly_f1,

@@ -24,6 +24,18 @@ class EvidenceMapper:
                     matched_el = el
                     break
 
+            # 2. Search across structured table cells if not found in textual elements
+            if not matched_el:
+                for table in canonical_doc.tables:
+                    for cell in table.cells:
+                        if str_val in cell.text or (
+                            len(str_val) >= 4 and str_val.lower() in cell.text.lower()
+                        ):
+                            matched_el = cell
+                            break
+                    if matched_el:
+                        break
+
             if matched_el:
                 evidence_list.append(
                     FieldEvidence(

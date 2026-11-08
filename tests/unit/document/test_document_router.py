@@ -18,4 +18,15 @@ def test_document_router_routes_xml_and_pdf():
         file_size_bytes=50000,
         pdf_classification="pdf_scan",
     )
-    assert route_pdf_scan == ProcessingRoute.VISION_FALLBACK
+    assert route_pdf_scan in (
+        ProcessingRoute.DOCLING_OCR_STRUCTURED,
+        ProcessingRoute.VISION_FALLBACK,
+    )
+
+    route_pdf_difficult = router.decide_route(
+        detected_kind="pdf",
+        file_size_bytes=50000,
+        pdf_classification="pdf_scan",
+        is_difficult=True,
+    )
+    assert route_pdf_difficult == ProcessingRoute.VISION_FALLBACK

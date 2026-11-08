@@ -30,6 +30,7 @@ from invoiceflow.domain.purchasing.models import (  # noqa: E402
 from invoiceflow.infrastructure.document.digital_pdf_parser import DigitalPDFParser  # noqa: E402
 from invoiceflow.infrastructure.document.docling_adapter import DoclingAdapter  # noqa: E402
 from invoiceflow.infrastructure.document.pdf_inspector import PDFInspector  # noqa: E402
+from invoiceflow.infrastructure.document.table_extractor import StructureAwareTableExtractor  # noqa: E402
 from invoiceflow.infrastructure.document.xml_parser import SecureXMLParser, XMLParsingError  # noqa: E402
 from invoiceflow.infrastructure.llm.openai_adapter import OpenAIAdapter  # noqa: E402
 
@@ -50,12 +51,81 @@ def get_fixture_file(case_id: str) -> Path:
         "CASE-03-PDF-SCAN": DOCS_DIR / "case_03.pdf",
         "CASE-04-DISCREPANCY-PRICE": DOCS_DIR / "case_04.pdf",
         "CASE-05-DISCREPANCY-QTY": DOCS_DIR / "case_05.xml",
+        "CASE-06-PDF-MULTI-LINE": DOCS_DIR / "case_06.pdf",
+        "CASE-07-PDF-ROTATED-SCAN": DOCS_DIR / "case_07.pdf",
+        "CASE-08-PDF-COMPLEX-AMOUNTS": DOCS_DIR / "case_08.pdf",
     }
     return mapping[case_id]
 
 
-def get_demo_po_and_grn(supplier_tax_id: Optional[str]):
+def get_demo_po_and_grn(supplier_tax_id: Optional[str], case_id: Optional[str] = None):
     tenant_id = uuid.uuid4()
+    if case_id == "CASE-06-PDF-MULTI-LINE":
+        po_id = uuid.uuid4()
+        lines = [
+            POLine(
+                id=uuid.uuid4(),
+                po_id=po_id,
+                line_no=1,
+                sku="DELL-XPS-13",
+                description="Máy tính xách tay Dell XPS 13",
+                ordered_qty=Decimal("2.0000"),
+                unit_price=Decimal("25000000.0000"),
+                line_total=Decimal("50000000.0000"),
+            ),
+            POLine(
+                id=uuid.uuid4(),
+                po_id=po_id,
+                line_no=2,
+                sku="MOUSE-LOGI",
+                description="Chuột không dây Logitech MX Master 3S",
+                ordered_qty=Decimal("5.0000"),
+                unit_price=Decimal("2000000.0000"),
+                line_total=Decimal("10000000.0000"),
+            ),
+            POLine(
+                id=uuid.uuid4(),
+                po_id=po_id,
+                line_no=3,
+                sku="KEY-MECH-01",
+                description="Bàn phím cơ Keychron K2 Pro",
+                ordered_qty=Decimal("5.0000"),
+                unit_price=Decimal("2000000.0000"),
+                line_total=Decimal("10000000.0000"),
+            ),
+        ]
+        po = PurchaseOrder(
+            id=po_id,
+            tenant_id=tenant_id,
+            po_number="PO-2026-006",
+            vendor_tax_id="0101234567",
+            vendor_name="Công ty TNHH Thiết bị Văn phòng Thăng Long",
+            order_date=date(2026, 3, 9),
+            currency="VND",
+            subtotal=Decimal("70000000.0000"),
+            lines=lines,
+        )
+        grn_id = uuid.uuid4()
+        grn_lines = [
+            GRNLine(
+                id=uuid.uuid4(),
+                grn_id=grn_id,
+                po_line_id=line.id,
+                line_no=idx,
+                received_qty=line.ordered_qty,
+            )
+            for idx, line in enumerate(lines, start=1)
+        ]
+        grn = GoodsReceipt(
+            id=grn_id,
+            tenant_id=tenant_id,
+            po_id=po_id,
+            grn_number="GRN-2026-006",
+            receipt_date=date(2026, 3, 10),
+            lines=grn_lines,
+        )
+        return po, [grn]
+
     if supplier_tax_id == "0101234567":
         po_id = uuid.uuid4()
         po_line_id = uuid.uuid4()
@@ -242,7 +312,7 @@ def run_b0_xml_direct(case: Dict[str, Any], file_path: Path) -> Dict[str, Any]:
     }
 
 
-def run_b1_digital_heuristics(case: Dict[str, Any], file_path: Path) -> Dict[str, Any]:
+def run_b1_pymupdf_rules(case: Dict[str, Any], file_path: Path) -> Dict[str, Any]:
     start = time.perf_counter()
     header: Dict[str, Any] = {}
     lines: List[Dict[str, Any]] = []
@@ -287,7 +357,7 @@ def run_b1_digital_heuristics(case: Dict[str, Any], file_path: Path) -> Dict[str
     duration_ms = (time.perf_counter() - start) * 1000
     return {
         "case_id": case["case_id"],
-        "baseline_id": "B1_DIGITAL_HEURISTICS",
+        "baseline_id": "B1_PYMUPDF_RULES",
         "header": header,
         "lines": lines,
         "detected_discrepancies": [],
@@ -296,7 +366,142 @@ def run_b1_digital_heuristics(case: Dict[str, Any], file_path: Path) -> Dict[str
     }
 
 
-async def run_b2_pure_vision_llm(
+def run_b2_docling_text_rules(case: Dict[str, Any], file_path: Path) -> Dict[str, Any]:
+    start = time.perf_counter()
+    header: Dict[str, Any] = {}
+    lines: List[Dict[str, Any]] = []
+
+    if file_path.suffix == ".xml":
+        res = run_b0_xml_direct(case, file_path)
+        header = res["header"]
+        lines = res["lines"]
+    else:
+        with open(file_path, "rb") as f:
+            pdf_bytes = f.read()
+        docling_adapter = DoclingAdapter()
+        canonical_doc = docling_adapter.extract_canonical(
+            tenant_id=uuid.uuid4(),
+            document_id=uuid.uuid4(),
+            pdf_bytes=pdf_bytes,
+            do_ocr=False,
+        )
+        full_text = "\n".join([el.text for el in canonical_doc.elements])
+        parser = DigitalPDFParser()
+        ext = parser.parse(full_text)
+        header = {
+            "supplier_tax_id": ext.supplier_tax_id or "",
+            "supplier_name": ext.supplier_name or "",
+            "buyer_tax_id": ext.buyer_tax_id or "",
+            "buyer_name": ext.buyer_name or "",
+            "invoice_number": ext.invoice_number or "",
+            "invoice_series": ext.invoice_series or "",
+            "issue_date": ext.issue_date or "",
+            "currency": ext.currency,
+            "subtotal": str(ext.subtotal),
+            "tax_total": str(ext.tax_total),
+            "amount_payable": str(ext.amount_payable),
+        }
+        lines = [
+            {
+                "sku": line.sku or "",
+                "description": line.description,
+                "qty": str(line.qty),
+                "unit_price": str(line.unit_price),
+                "tax_rate": str(line.tax_rate) if line.tax_rate else None,
+                "line_amount": str(line.line_amount),
+            }
+            for line in ext.lines
+        ]
+
+    duration_ms = (time.perf_counter() - start) * 1000
+    return {
+        "case_id": case["case_id"],
+        "baseline_id": "B2_DOCLING_TEXT_RULES",
+        "header": header,
+        "lines": lines,
+        "detected_discrepancies": [],
+        "latency_ms": round(duration_ms, 2),
+        "cost_usd": 0.0000,
+    }
+
+
+def run_b3_docling_ocr_structured(case: Dict[str, Any], file_path: Path) -> Dict[str, Any]:
+    start = time.perf_counter()
+    header: Dict[str, Any] = {}
+    lines: List[Dict[str, Any]] = []
+
+    if file_path.suffix == ".xml":
+        res = run_b0_xml_direct(case, file_path)
+        header = res["header"]
+        lines = res["lines"]
+    else:
+        with open(file_path, "rb") as f:
+            pdf_bytes = f.read()
+        docling_adapter = DoclingAdapter()
+        canonical_doc = docling_adapter.extract_canonical(
+            tenant_id=uuid.uuid4(),
+            document_id=uuid.uuid4(),
+            pdf_bytes=pdf_bytes,
+            do_ocr=True,
+        )
+
+        table_extractor = StructureAwareTableExtractor()
+        extracted_lines = table_extractor.extract_lines(canonical_doc.tables)
+        if extracted_lines:
+            lines = [
+                {
+                    "sku": line_item.sku or "",
+                    "description": line_item.description,
+                    "qty": str(line_item.qty),
+                    "unit_price": str(line_item.unit_price),
+                    "tax_rate": str(line_item.tax_rate) if line_item.tax_rate else None,
+                    "line_amount": str(line_item.line_amount),
+                }
+                for line_item in extracted_lines
+            ]
+
+        full_text = "\n".join([el.text for el in canonical_doc.elements])
+        parser = DigitalPDFParser()
+        ext = parser.parse(full_text)
+        header = {
+            "supplier_tax_id": ext.supplier_tax_id or "",
+            "supplier_name": ext.supplier_name or "",
+            "buyer_tax_id": ext.buyer_tax_id or "",
+            "buyer_name": ext.buyer_name or "",
+            "invoice_number": ext.invoice_number or "",
+            "invoice_series": ext.invoice_series or "",
+            "issue_date": ext.issue_date or "",
+            "currency": ext.currency,
+            "subtotal": str(ext.subtotal),
+            "tax_total": str(ext.tax_total),
+            "amount_payable": str(ext.amount_payable),
+        }
+        if not lines:
+            lines = [
+                {
+                    "sku": line.sku or "",
+                    "description": line.description,
+                    "qty": str(line.qty),
+                    "unit_price": str(line.unit_price),
+                    "tax_rate": str(line.tax_rate) if line.tax_rate else None,
+                    "line_amount": str(line.line_amount),
+                }
+                for line in ext.lines
+            ]
+
+    duration_ms = (time.perf_counter() - start) * 1000
+    return {
+        "case_id": case["case_id"],
+        "baseline_id": "B3_DOCLING_OCR_STRUCTURED",
+        "header": header,
+        "lines": lines,
+        "detected_discrepancies": [],
+        "latency_ms": round(duration_ms, 2),
+        "cost_usd": 0.0000,
+    }
+
+
+async def run_b4_pure_vision_llm(
     case: Dict[str, Any], file_path: Path, adapter: OpenAIAdapter
 ) -> Dict[str, Any]:
     start = time.perf_counter()
@@ -351,13 +556,12 @@ async def run_b2_pure_vision_llm(
                 }
             )
     except Exception:
-        # Fallback to empty if LLM call fails
         pass
 
     duration_ms = (time.perf_counter() - start) * 1000
     return {
         "case_id": case["case_id"],
-        "baseline_id": "B2_PURE_VISION_LLM",
+        "baseline_id": "B4_PURE_VISION_LLM",
         "header": header,
         "lines": lines,
         "detected_discrepancies": [],
@@ -366,7 +570,7 @@ async def run_b2_pure_vision_llm(
     }
 
 
-async def run_b3_invoiceflow_hybrid(
+async def run_b5_invoiceflow_hybrid(
     case: Dict[str, Any], file_path: Path, adapter: OpenAIAdapter
 ) -> Dict[str, Any]:
     start = time.perf_counter()
@@ -379,7 +583,13 @@ async def run_b3_invoiceflow_hybrid(
     else:
         inspector = PDFInspector()
         profile = inspector.inspect(content)
-        route = router.decide_route("pdf", len(content), profile.classification)
+        route = router.decide_route(
+            detected_kind="pdf",
+            file_size_bytes=len(content),
+            pdf_classification=profile.classification,
+            table_count=profile.table_count,
+            has_rotated_pages=profile.has_rotated_pages,
+        )
 
     header: Dict[str, Any] = {}
     lines: List[Dict[str, Any]] = []
@@ -391,19 +601,36 @@ async def run_b3_invoiceflow_hybrid(
         lines = res["lines"]
         cost = 0.0000
     elif route == ProcessingRoute.VISION_FALLBACK:
-        # Scanned PDF: route to Vision LLM
-        res = await run_b2_pure_vision_llm(case, file_path, adapter)
+        res = await run_b4_pure_vision_llm(case, file_path, adapter)
         header = res["header"]
         lines = res["lines"]
         cost = res.get("cost_usd", 0.0)
     else:
-        # Digital PDF: extract canonical document via DoclingAdapter and parse
+        # Digital or OCR Structured Path
+        do_ocr = route == ProcessingRoute.DOCLING_OCR_STRUCTURED
         docling_adapter = DoclingAdapter()
         canonical_doc = docling_adapter.extract_canonical(
             tenant_id=uuid.uuid4(),
             document_id=uuid.uuid4(),
             pdf_bytes=content,
+            do_ocr=do_ocr,
         )
+
+        table_extractor = StructureAwareTableExtractor()
+        extracted_lines = table_extractor.extract_lines(canonical_doc.tables)
+        if extracted_lines:
+            lines = [
+                {
+                    "sku": line_item.sku or "",
+                    "description": line_item.description,
+                    "qty": str(line_item.qty),
+                    "unit_price": str(line_item.unit_price),
+                    "tax_rate": str(line_item.tax_rate) if line_item.tax_rate else None,
+                    "line_amount": str(line_item.line_amount),
+                }
+                for line_item in extracted_lines
+            ]
+
         full_text = "\n".join([el.text for el in canonical_doc.elements])
         parser = DigitalPDFParser()
         ext = parser.parse(full_text)
@@ -420,22 +647,23 @@ async def run_b3_invoiceflow_hybrid(
             "tax_total": str(ext.tax_total),
             "amount_payable": str(ext.amount_payable),
         }
-        lines = [
-            {
-                "sku": line.sku or "",
-                "description": line.description,
-                "qty": str(line.qty),
-                "unit_price": str(line.unit_price),
-                "tax_rate": str(line.tax_rate) if line.tax_rate else None,
-                "line_amount": str(line.line_amount),
-            }
-            for line in ext.lines
-        ]
+        if not lines:
+            lines = [
+                {
+                    "sku": line.sku or "",
+                    "description": line.description,
+                    "qty": str(line.qty),
+                    "unit_price": str(line.unit_price),
+                    "tax_rate": str(line.tax_rate) if line.tax_rate else None,
+                    "line_amount": str(line.line_amount),
+                }
+                for line in ext.lines
+            ]
         cost = 0.0000
 
     # 3-Way Reconciliation with PO & GRN
     detected_discrepancies: List[str] = []
-    po, receipts = get_demo_po_and_grn(header.get("supplier_tax_id"))
+    po, receipts = get_demo_po_and_grn(header.get("supplier_tax_id"), case["case_id"])
     policy = TolerancePolicy(
         tenant_id=uuid.uuid4(),
         price_tolerance_pct=Decimal("0.02"),
@@ -474,7 +702,7 @@ async def run_b3_invoiceflow_hybrid(
     duration_ms = (time.perf_counter() - start) * 1000
     return {
         "case_id": case["case_id"],
-        "baseline_id": "B3_INVOICEFLOW_HYBRID",
+        "baseline_id": "B5_INVOICEFLOW_HYBRID",
         "header": header,
         "lines": lines,
         "detected_discrepancies": detected_discrepancies,
@@ -490,6 +718,8 @@ async def run_benchmark_async() -> Dict[str, Any]:
         api_key=settings.OPENAI_API_KEY,
         base_url=settings.OPENAI_BASE_URL,
         model_id=settings.OPENAI_MODEL_ID,
+        timeout=5.0,
+        max_retries=0,
     )
 
     has_api_key = bool(adapter.api_key and adapter.api_key != "mock-key")
@@ -525,57 +755,91 @@ async def run_benchmark_async() -> Dict[str, Any]:
         )
 
     # Run B1
-    print("[*] Running Baseline B1: Digital PDF Heuristics...", flush=True)
+    print("[*] Running Baseline B1: PyMuPDF Layout + Heuristics...", flush=True)
     b1_scores = []
     for c in cases:
         p = get_fixture_file(c["case_id"])
-        pred = run_b1_digital_heuristics(c, p)
+        pred = run_b1_pymupdf_rules(c, p)
         ev = evaluate_prediction(c, pred)
         b1_scores.append(ev)
         all_predictions.append(
             {
                 "case_id": c["case_id"],
-                "baseline": "B1_DIGITAL_HEURISTICS",
+                "baseline": "B1_PYMUPDF_RULES",
                 "prediction": pred,
                 "evaluation": ev,
             }
         )
 
     # Run B2
-    mode_str = (
-        f"Live AI via {settings.OPENAI_MODEL_ID}" if has_api_key else "Offline CI Fallback (No Key)"
-    )
-    print(f"[*] Running Baseline B2: Pure Vision LLM ({mode_str})...", flush=True)
+    print("[*] Running Baseline B2: Docling Native Text + Heuristics...", flush=True)
     b2_scores = []
     for c in cases:
         p = get_fixture_file(c["case_id"])
-        pred = await run_b2_pure_vision_llm(c, p, adapter)
+        pred = run_b2_docling_text_rules(c, p)
         ev = evaluate_prediction(c, pred)
         b2_scores.append(ev)
         all_predictions.append(
             {
                 "case_id": c["case_id"],
-                "baseline": "B2_PURE_VISION_LLM",
+                "baseline": "B2_DOCLING_TEXT_RULES",
                 "prediction": pred,
                 "evaluation": ev,
             }
         )
 
     # Run B3
-    print(
-        "[*] Running Baseline B3: InvoiceFlow AI Hybrid Routing (Docling + Rules + Vision Fallback + 3-Way Match)...",
-        flush=True,
-    )
+    print("[*] Running Baseline B3: Docling OCR + Structure-Aware Table Extraction...", flush=True)
     b3_scores = []
     for c in cases:
         p = get_fixture_file(c["case_id"])
-        pred = await run_b3_invoiceflow_hybrid(c, p, adapter)
+        pred = run_b3_docling_ocr_structured(c, p)
         ev = evaluate_prediction(c, pred)
         b3_scores.append(ev)
         all_predictions.append(
             {
                 "case_id": c["case_id"],
-                "baseline": "B3_INVOICEFLOW_HYBRID",
+                "baseline": "B3_DOCLING_OCR_STRUCTURED",
+                "prediction": pred,
+                "evaluation": ev,
+            }
+        )
+
+    # Run B4
+    mode_str = (
+        f"Live AI via {settings.OPENAI_MODEL_ID}" if has_api_key else "Offline CI Fallback (No Key)"
+    )
+    print(f"[*] Running Baseline B4: Pure Vision LLM ({mode_str})...", flush=True)
+    b4_scores = []
+    for c in cases:
+        p = get_fixture_file(c["case_id"])
+        pred = await run_b4_pure_vision_llm(c, p, adapter)
+        ev = evaluate_prediction(c, pred)
+        b4_scores.append(ev)
+        all_predictions.append(
+            {
+                "case_id": c["case_id"],
+                "baseline": "B4_PURE_VISION_LLM",
+                "prediction": pred,
+                "evaluation": ev,
+            }
+        )
+
+    # Run B5
+    print(
+        "[*] Running Baseline B5: InvoiceFlow AI Hybrid Pipeline (Routing + Docling/OCR + Table Extractor + 3-Way Match)...",
+        flush=True,
+    )
+    b5_scores = []
+    for c in cases:
+        p = get_fixture_file(c["case_id"])
+        pred = await run_b5_invoiceflow_hybrid(c, p, adapter)
+        ev = evaluate_prediction(c, pred)
+        b5_scores.append(ev)
+        all_predictions.append(
+            {
+                "case_id": c["case_id"],
+                "baseline": "B5_INVOICEFLOW_HYBRID",
                 "prediction": pred,
                 "evaluation": ev,
             }
@@ -583,15 +847,19 @@ async def run_benchmark_async() -> Dict[str, Any]:
 
     baseline_results = {
         "B0_XML_DIRECT": b0_scores,
-        "B1_DIGITAL_HEURISTICS": b1_scores,
-        "B2_PURE_VISION_LLM": b2_scores,
-        "B3_INVOICEFLOW_HYBRID": b3_scores,
+        "B1_PYMUPDF_RULES": b1_scores,
+        "B2_DOCLING_TEXT_RULES": b2_scores,
+        "B3_DOCLING_OCR_STRUCTURED": b3_scores,
+        "B4_PURE_VISION_LLM": b4_scores,
+        "B5_INVOICEFLOW_HYBRID": b5_scores,
     }
 
     for b_id, case_scores in baseline_results.items():
         n = len(case_scores)
         avg_header_em = sum(s["header_exact_match"] for s in case_scores) / n
         avg_lines_f1 = sum(s["lines_f1"] for s in case_scores) / n
+        avg_table_f1 = sum(s.get("table_f1", s["lines_f1"]) for s in case_scores) / n
+        avg_arith_valid = sum(s.get("arithmetic_validity_rate", 1.0) for s in case_scores) / n
         avg_anomaly_f1 = sum(s["anomaly_f1"] for s in case_scores) / n
         avg_latency = sum(s["latency_ms"] for s in case_scores) / n
         avg_cost_doc = sum(s["cost_usd"] for s in case_scores) / n
@@ -600,6 +868,8 @@ async def run_benchmark_async() -> Dict[str, Any]:
         report["baselines"][b_id] = {
             "header_exact_match": round(avg_header_em, 4),
             "lines_f1": round(avg_lines_f1, 4),
+            "table_f1": round(avg_table_f1, 4),
+            "arithmetic_validity_rate": round(avg_arith_valid, 4),
             "anomaly_f1": round(avg_anomaly_f1, 4),
             "avg_latency_ms": round(avg_latency, 2),
             "avg_cost_usd": round(avg_cost_doc, 6),
@@ -611,6 +881,8 @@ async def run_benchmark_async() -> Dict[str, Any]:
                 "Baseline": b_id,
                 "Header Exact Match (%)": f"{avg_header_em * 100:.1f}%",
                 "Line Items F1 (%)": f"{avg_lines_f1 * 100:.1f}%",
+                "Table F1 (%)": f"{avg_table_f1 * 100:.1f}%",
+                "Arithmetic Validity (%)": f"{avg_arith_valid * 100:.1f}%",
                 "Anomaly F1 (%)": f"{avg_anomaly_f1 * 100:.1f}%",
                 "Avg Latency (ms)": f"{avg_latency:.1f}",
                 "Cost / 1K Invoices ($)": f"${cost_per_1k:.2f}",
@@ -644,15 +916,16 @@ def main() -> None:
     print(f"\nEvaluated on {report['total_cases']} real document fixtures.")
     print("-" * 70)
     print(
-        f"{'Baseline':<25} | {'Header EM':<10} | {'Lines F1':<10} | {'Latency':<10} | {'Cost/1k'}"
+        f"{'Baseline':<27} | {'Header EM':<10} | {'Table F1':<10} | {'Arith Valid':<11} | {'Latency':<10} | {'Cost/1k'}"
     )
     print("-" * 70)
     for b_id, stats in report["baselines"].items():
         em = f"{stats['header_exact_match'] * 100:.1f}%"
-        f1 = f"{stats['lines_f1'] * 100:.1f}%"
+        tf1 = f"{stats['table_f1'] * 100:.1f}%"
+        ar = f"{stats['arithmetic_validity_rate'] * 100:.1f}%"
         lat = f"{stats['avg_latency_ms']:.1f}ms"
         cost = f"${stats['cost_per_1000_invoices_usd']:.2f}"
-        print(f"{b_id:<25} | {em:<10} | {f1:<10} | {lat:<10} | {cost}")
+        print(f"{b_id:<27} | {em:<10} | {tf1:<10} | {ar:<11} | {lat:<10} | {cost}")
     print("-" * 70)
     print("Results saved to benchmarks/results/benchmark_report.json")
 

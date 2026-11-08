@@ -148,5 +148,111 @@
       }
     ],
     "expected_discrepancies": ["QUANTITY_MISMATCH"]
+  },
+  {
+    "case_id": "CASE-06-PDF-MULTI-LINE",
+    "document_type": "pdf_digital_table",
+    "format": "pdf",
+    "description": "Hóa đơn PDF điện tử dạng bảng phức tạp nhiều dòng hàng (3 dòng) với cấu trúc STT, SKU, Mô tả, Số lượng, Đơn giá",
+    "header": {
+      "supplier_tax_id": "0101234567",
+      "supplier_name": "Công ty TNHH Thiết bị Văn phòng Thăng Long",
+      "buyer_tax_id": "0109998888",
+      "buyer_name": "Công ty Cổ phần Thương mại Alpha VN",
+      "invoice_number": "0005566",
+      "invoice_series": "1C26TAA",
+      "issue_date": "2026-03-10",
+      "currency": "VND",
+      "subtotal": "70000000.0000",
+      "tax_total": "7000000.0000",
+      "amount_payable": "77000000.0000"
+    },
+    "lines": [
+      {
+        "sku": "DELL-XPS-13",
+        "description": "Máy tính xách tay Dell XPS 13",
+        "qty": "2.0000",
+        "unit_price": "25000000.0000",
+        "tax_rate": "10.00",
+        "line_amount": "50000000.0000"
+      },
+      {
+        "sku": "MOUSE-LOGI",
+        "description": "Chuột không dây Logitech MX Master 3S",
+        "qty": "5.0000",
+        "unit_price": "2000000.0000",
+        "tax_rate": "10.00",
+        "line_amount": "10000000.0000"
+      },
+      {
+        "sku": "KEY-MECH-01",
+        "description": "Bàn phím cơ Keychron K2 Pro",
+        "qty": "5.0000",
+        "unit_price": "2000000.0000",
+        "tax_rate": "10.00",
+        "line_amount": "10000000.0000"
+      }
+    ],
+    "expected_discrepancies": []
+  },
+  {
+    "case_id": "CASE-07-PDF-ROTATED-SCAN",
+    "document_type": "pdf_scan_rotated",
+    "format": "pdf",
+    "description": "Hóa đơn PDF scan bị xoay ngang 90 độ, đòi hỏi pipeline tự động nhận diện góc xoay và OCR chuẩn",
+    "header": {
+      "supplier_tax_id": "0105554321",
+      "supplier_name": "Công ty TNHH Dịch vụ Vệ sinh Công nghiệp Hà Nội",
+      "buyer_tax_id": "0109998888",
+      "buyer_name": "Công ty Cổ phần Thương mại Alpha VN",
+      "invoice_number": "0003499",
+      "invoice_series": "2C26TCC",
+      "issue_date": "2026-03-12",
+      "currency": "VND",
+      "subtotal": "8500000.0000",
+      "tax_total": "680000.0000",
+      "amount_payable": "9180000.0000"
+    },
+    "lines": [
+      {
+        "sku": "CLEAN-SET-01",
+        "description": "Bộ dụng cụ và hóa chất vệ sinh sàn văn phòng",
+        "qty": "10.0000",
+        "unit_price": "850000.0000",
+        "tax_rate": "8.00",
+        "line_amount": "8500000.0000"
+      }
+    ],
+    "expected_discrepancies": []
+  },
+  {
+    "case_id": "CASE-08-PDF-COMPLEX-AMOUNTS",
+    "document_type": "pdf_digital_numeric",
+    "format": "pdf",
+    "description": "Hóa đơn định dạng số phức tạp có dấu chấm phân cách hàng nghìn theo chuẩn Việt Nam",
+    "header": {
+      "supplier_tax_id": "0309876543",
+      "supplier_name": "Công ty CP Giấy & Văn phòng phẩm Miền Nam",
+      "buyer_tax_id": "0109998888",
+      "buyer_name": "Công ty Cổ phần Thương mại Alpha VN",
+      "invoice_number": "0009100",
+      "invoice_series": "1C26TBB",
+      "issue_date": "2026-03-15",
+      "currency": "VND",
+      "subtotal": "12000000.0000",
+      "tax_total": "960000.0000",
+      "amount_payable": "12960000.0000"
+    },
+    "lines": [
+      {
+        "sku": "PAPER-A4-70",
+        "description": "Giấy photocopy Double A A4 70gsm",
+        "qty": "200.0000",
+        "unit_price": "60000.0000",
+        "tax_rate": "8.00",
+        "line_amount": "12000000.0000"
+      }
+    ],
+    "expected_discrepancies": []
   }
 ]

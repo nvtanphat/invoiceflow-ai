@@ -19,10 +19,14 @@ class OpenAIAdapter(LLMProviderPort):
         api_key: str = "",
         base_url: str = "https://api.modelapi.vn/v1",
         model_id: str = "gpt-6.1-sol",
+        timeout: float = 30.0,
+        max_retries: int = 2,
     ):
         self.api_key = api_key
         self.base_url = base_url
         self.model_id = model_id
+        self.timeout = timeout
+        self.max_retries = max_retries
         self._client = None
 
         if api_key and api_key != "mock-key":
@@ -32,7 +36,8 @@ class OpenAIAdapter(LLMProviderPort):
                 self._client = AsyncOpenAI(
                     api_key=api_key,
                     base_url=base_url,
-                    timeout=45.0,
+                    timeout=timeout,
+                    max_retries=max_retries,
                     default_headers={
                         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) InvoiceFlow-AI/1.0"
                     },
