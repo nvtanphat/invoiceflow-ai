@@ -47,6 +47,8 @@ class FieldEvidence(BaseModel):
     source_kind: str
     page_index: Optional[int] = None
     bbox: Optional[BoundingBox] = None
+    table_id: Optional[str] = None
+    cell_id: Optional[str] = None
     raw_value: Optional[str] = None
     normalized_value: Optional[str] = None
     confidence: Optional[float] = None

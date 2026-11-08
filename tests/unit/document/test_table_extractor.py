@@ -200,3 +200,186 @@ def test_table_extractor_10_lines_preserves_cells_and_detects_mismatch():
     # Line 1-6, 8-10 have zero issues
     assert len(lines[0].issues) == 0
     assert len(lines[9].issues) == 0
+
+
+def test_combined_header_with_inline_sku_keyword_does_not_hijack_description_column():
+    # Reproduces the real Docling TableFormer output observed on
+    # benchmarks/fixtures/documents/case_06.pdf: the product column header
+    # literally contains the word "SKU" ("Ten hang hoa, dich vu / SKU") and a
+    # second header cell merges two concepts ("Thue suat" + "Thanh tien")
+    # into one physical cell via colspan=2. Column classification must not
+    # let a bare "sku" keyword match shadow the much more specific
+    # "description" phrase, and must distribute a merged header's multiple
+    # concepts across the columns it spans.
+    headers = [
+        DocumentCell(row_index=0, col_index=0, text="STT"),
+        DocumentCell(row_index=0, col_index=1, text="Ten hang hoa, dich vu / SKU"),
+        DocumentCell(row_index=0, col_index=2, text="So luong"),
+        DocumentCell(row_index=0, col_index=3, text="Don gia"),
+        DocumentCell(row_index=0, col_index=4, text="Thue suatThanh tien", colspan=2),
+    ]
+    row1 = [
+        DocumentCell(row_index=1, col_index=0, text="1"),
+        DocumentCell(
+            row_index=1, col_index=1, text="May tinh xach tay Dell XPS 13 [DELL-XPS-13]"
+        ),
+        DocumentCell(row_index=1, col_index=2, text="2.0000"),
+        DocumentCell(row_index=1, col_index=3, text="25000000.0000"),
+        DocumentCell(row_index=1, col_index=4, text="10.00%"),
+        DocumentCell(row_index=1, col_index=5, text="50000000.0000"),
+    ]
+    table = DocumentTable(
+        id="tbl-case06", page_index=0, row_count=2, column_count=6, cells=headers + row1
+    )
+
+    lines = StructureAwareTableExtractor().extract_invoice_lines(table)
+
+    assert len(lines) == 1
+    line = lines[0]
+    assert line.sku_ref == "DELL-XPS-13"
+    assert "May tinh xach tay Dell XPS 13" in line.description
+    assert "[DELL-XPS-13]" not in line.description
+    assert line.qty == Decimal("2.0000")
+    assert line.unit_price == Decimal("25000000.0000")
+    assert line.line_amount == Decimal("50000000.0000")
+    assert line.tax_rate == Decimal("10.00")
+    assert "ARITHMETIC_MISMATCH" not in line.issues
+
+
+def test_zero_quantity_is_preserved_and_flagged_not_rewritten_to_one():
+    headers = [
+        DocumentCell(row_index=0, col_index=0, text="STT"),
+        DocumentCell(row_index=0, col_index=1, text="Ten hang"),
+        DocumentCell(row_index=0, col_index=2, text="So luong"),
+        DocumentCell(row_index=0, col_index=3, text="Don gia"),
+        DocumentCell(row_index=0, col_index=4, text="Thanh tien"),
+    ]
+    row1 = [
+        DocumentCell(row_index=1, col_index=0, text="1"),
+        DocumentCell(row_index=1, col_index=1, text="Hang mau khong tinh phi"),
+        DocumentCell(row_index=1, col_index=2, text="0"),
+        DocumentCell(row_index=1, col_index=3, text="500000.0000"),
+        DocumentCell(row_index=1, col_index=4, text="0.0000"),
+    ]
+    table = DocumentTable(
+        id="tbl-zero-qty", page_index=0, row_count=2, column_count=5, cells=headers + row1
+    )
+
+    lines = StructureAwareTableExtractor().extract_invoice_lines(table)
+
+    assert len(lines) == 1
+    assert lines[0].qty == Decimal("0.0000")
+    assert lines[0].raw_qty == "0"
+    assert "QTY_ZERO_OR_MISSING" in lines[0].issues
+
+
+def test_colspan_merged_data_cell_is_flagged_not_fabricated():
+    # Row 2 in case_06.pdf has its description and quantity cells fused by
+    # TableFormer into a single colspan=2 cell. The extractor must not guess
+    # a quantity out of free text; it must flag the row for review instead.
+    headers = [
+        DocumentCell(row_index=0, col_index=0, text="STT"),
+        DocumentCell(row_index=0, col_index=1, text="Ten hang hoa"),
+        DocumentCell(row_index=0, col_index=2, text="So luong"),
+        DocumentCell(row_index=0, col_index=3, text="Don gia"),
+        DocumentCell(row_index=0, col_index=4, text="Thanh tien"),
+    ]
+    row2 = [
+        DocumentCell(row_index=1, col_index=0, text="2"),
+        DocumentCell(
+            row_index=1,
+            col_index=1,
+            text="Chuot khong day Logitech MX Master 3S [MOUSE-LOGI] 5.0000",
+            colspan=2,
+        ),
+        DocumentCell(row_index=1, col_index=3, text="2000000.0000"),
+        DocumentCell(row_index=1, col_index=4, text="10000000.0000"),
+    ]
+    table = DocumentTable(
+        id="tbl-colspan-data", page_index=0, row_count=2, column_count=5, cells=headers + row2
+    )
+
+    lines = StructureAwareTableExtractor().extract_invoice_lines(table)
+
+    assert len(lines) == 1
+    line = lines[0]
+    assert line.sku_ref == "MOUSE-LOGI"
+    assert line.unit_price == Decimal("2000000.0000")
+    assert line.line_amount == Decimal("10000000.0000")
+    assert "CELL_MERGE_SUSPECTED" in line.issues
+    # Quantity must not be fabricated from the merged free-text cell.
+    assert line.qty == Decimal("0.0000")
+
+
+def test_extract_lines_with_evidence_links_fields_to_table_and_cell_ids():
+    headers = [
+        DocumentCell(row_index=0, col_index=0, text="STT"),
+        DocumentCell(row_index=0, col_index=1, text="Ten hang hoa"),
+        DocumentCell(row_index=0, col_index=2, text="So luong"),
+        DocumentCell(row_index=0, col_index=3, text="Don gia"),
+        DocumentCell(row_index=0, col_index=4, text="Thanh tien"),
+    ]
+    row1 = [
+        DocumentCell(
+            row_index=1,
+            col_index=0,
+            text="1",
+            id="tbl-1-r1-c0",
+            table_id="tbl-1",
+        ),
+        DocumentCell(
+            row_index=1,
+            col_index=1,
+            text="May tinh Dell XPS 13 [DELL-XPS-13]",
+            id="tbl-1-r1-c1",
+            table_id="tbl-1",
+            bbox=_make_bbox(0, 100, 75, 300, 95),
+        ),
+        DocumentCell(
+            row_index=1,
+            col_index=2,
+            text="2.0000",
+            id="tbl-1-r1-c2",
+            table_id="tbl-1",
+            bbox=_make_bbox(0, 305, 75, 345, 95),
+        ),
+        DocumentCell(
+            row_index=1,
+            col_index=3,
+            text="25000000.0000",
+            id="tbl-1-r1-c3",
+            table_id="tbl-1",
+            bbox=_make_bbox(0, 350, 75, 400, 95),
+        ),
+        DocumentCell(
+            row_index=1,
+            col_index=4,
+            text="50000000.0000",
+            id="tbl-1-r1-c4",
+            table_id="tbl-1",
+            bbox=_make_bbox(0, 405, 75, 480, 95),
+        ),
+    ]
+    table = DocumentTable(
+        id="tbl-1", page_index=0, row_count=2, column_count=5, cells=headers + row1
+    )
+
+    lines, evidence = StructureAwareTableExtractor().extract_lines_with_evidence([table])
+
+    assert len(lines) == 1
+    by_field = {ev.field_path: ev for ev in evidence}
+
+    sku_ev = by_field["lines[0].sku_ref"]
+    assert sku_ev.table_id == "tbl-1"
+    assert sku_ev.cell_id == "tbl-1-r1-c1"  # SKU was embedded in the description cell
+    assert sku_ev.normalized_value == "DELL-XPS-13"
+
+    qty_ev = by_field["lines[0].qty"]
+    assert qty_ev.table_id == "tbl-1"
+    assert qty_ev.cell_id == "tbl-1-r1-c2"
+    assert qty_ev.bbox is not None
+    assert qty_ev.bbox.x0 == 305
+
+    amount_ev = by_field["lines[0].line_amount"]
+    assert amount_ev.cell_id == "tbl-1-r1-c4"
+    assert amount_ev.normalized_value == "50000000.0000"

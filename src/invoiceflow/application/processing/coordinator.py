@@ -221,11 +221,9 @@ class JobCoordinator:
 
         # Structure-aware table extraction from CanonicalDocument
         table_extractor = StructureAwareTableExtractor()
-        table_lines: list[InvoiceLine] = []
-        for tab in canonical_doc.tables:
-            extracted = table_extractor.extract_invoice_lines(tab)
-            if extracted:
-                table_lines.extend(extracted)
+        table_lines, table_line_evidence = table_extractor.extract_lines_with_evidence(
+            canonical_doc.tables
+        )
 
         effective_lines: list[InvoiceLine] = []
         if table_lines:
@@ -266,6 +264,8 @@ class JobCoordinator:
                 "amount_payable": str(digital_res.amount_payable),
             }
             evidence = self._evidence_mapper.map_evidence(extracted_fields, canonical_doc)
+            if lines is table_lines:
+                evidence = evidence + table_line_evidence
             invoice_aggregate = InvoiceAggregate(
                 tenant_id=doc.tenant_id,
                 document_id=doc.id,
@@ -335,6 +335,7 @@ class JobCoordinator:
                     lines.append(
                         InvoiceLine(
                             line_no=line.line_no,
+                            sku_ref=line.sku,
                             description=line.description,
                             unit=line.unit,
                             qty=line.qty,

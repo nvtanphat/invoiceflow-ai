@@ -47,6 +47,8 @@ export interface FieldEvidenceItem {
   source: string;
   page: number;
   bbox_json: string;
+  table_id?: string | null;
+  cell_id?: string | null;
   confidence: number;
   raw_value: string;
 }

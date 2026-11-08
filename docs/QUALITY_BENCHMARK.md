@@ -197,62 +197,103 @@ Mọi threshold phải được chốt **trước test**, dựa trên requiremen
 
 ## 11. Kết quả thực nghiệm đo đạc thực tế (Frozen Benchmark & Ablation Results)
 
-Tất cả chỉ số dưới đây được đo lường trực tiếp bởi bộ harness kiểm thử thực nghiệm của InvoiceFlow AI (`benchmarks/scripts/run_benchmark.py` và `benchmarks/scripts/run_ablation.py`) trên 8 chứng từ thực tế (2 hóa đơn XML Thông tư 78 chuẩn, 3 PDF hóa đơn điện tử phức tạp có chiết khấu/nhiều dòng hàng, 1 PDF scan thực tế, 1 PDF scan xoay 90 độ, 1 hóa đơn định dạng số phức tạp `12.000.000` VNĐ).
+> **Cập nhật 2026-11-08 (reengineering lần 2):** phiên bản trước của bảng này có hai lỗi đo lường nghiêm trọng đã được sửa, không phải cải thiện mô hình: (1) `table_f1` được tính bằng cách gọi lại chính hàm `compute_line_items_f1`, nên **luôn luôn bằng hệ Line Item F1 một cách tuyệt đối** — bảng cũ cho thấy hai cột giống hệt nhau ở mọi hàng, đó là bằng chứng của lỗi, không phải sự trùng hợp. (2) `arithmetic_validity_rate` mặc định về `1.0` khi không có dữ liệu nào để kiểm tra, khiến các trường hợp "không đo được gì" bị báo cáo thành "100% đúng". Cả hai lỗi đã được sửa tại `benchmarks/scripts/evaluator.py` (xem `compute_table_structure_f1`, `average_arithmetic_validity`) với test hồi quy tại `tests/unit/test_benchmark_evaluator.py`. Xem thêm `docs/decisions/2026-11-08-document-ai-core-reengineering.md`.
+
+Bộ case cũng được mở rộng từ 8 lên **10 chứng từ** để có phủ sóng thật cho PDF hỗn hợp (mixed, 1 trang digital + 1 trang scan) và PDF scan thuần chứa bảng nhiều dòng hàng — hai tình huống trước đó hoàn toàn vắng mặt trong bộ đóng băng dù tài liệu benchmark đã mô tả chúng. So sánh trước/sau bên dưới dùng **đúng 8 case gốc** để đảm bảo apples-to-apples; bảng B0–B5/A0–A5 chính dùng toàn bộ 10 case hiện hành.
 
 Dữ liệu thô và chi tiết từng dự đoán được lưu trữ bất biến tại:
-- Báo cáo Benchmark: `benchmarks/results/benchmark_report.json` và `benchmarks/results/benchmark_summary.csv`
-- Báo cáo Ablation: `benchmarks/results/ablation_report.json` và `benchmarks/results/ablation_summary.csv`
-- Chi tiết dự đoán: `benchmarks/results/predictions.jsonl`
+- Báo cáo Benchmark (sau sửa, 10 case): `benchmarks/results/benchmark_report.json`, `benchmarks/results/benchmark_summary.csv`, `benchmarks/results/predictions.jsonl`
+- Báo cáo Ablation (sau sửa, 10 case): `benchmarks/results/ablation_report.json`, `benchmarks/results/ablation_summary.csv`
+- Snapshot **trước khi sửa** (commit `bd18953`, 8 case, evaluator cũ còn lỗi tautology): `benchmarks/results/before_fix/`
+- Bằng chứng OCR thực (CER/WER, nhận dạng số tiền, cấu trúc bảng dưới OCR): `benchmarks/results/ocr_quality_report.json`
+- Bằng chứng BBox evidence grounding (ảnh render thật): `benchmarks/results/evidence/case_06_bbox_evidence.png`
 
-### Bảng 1: Kết quả so sánh 6 Baselines (B0–B5)
+### Bảng 1: Kết quả so sánh 6 Baselines (B0–B5), 10 chứng từ hiện hành
 
 | Pipeline Baseline | Header EM | Line Item F1 | Table F1 | Tính hợp lệ số học | Anomaly F1 | Độ trễ TB | Chi phí / 1k HĐ |
 |---|---|---|---|---|---|---|---|
-| **B0: XML Direct Parser** | 25.0% | 25.0% | 25.0% | 100.0% | 75.0% | 0.5 ms | $0.00 |
-| **B1: PyMuPDF Rules** | 68.2% | 72.5% | 72.5% | 100.0% | 75.0% | 2.9 ms | $0.00 |
-| **B2: Docling Text Rules** | 68.2% | 72.5% | 72.5% | 100.0% | 75.0% | 4,073.4 ms | $0.00 |
-| **B3: Docling OCR Structured** | 75.0% | 72.5% | 72.5% | 100.0% | 75.0% | 3,409.2 ms | $0.00 |
-| **B4: Pure Vision LLM** | 0.0% | 0.0% | 0.0% | 100.0% | 75.0% | 5,239.1 ms | $0.00 |
-| **B5: InvoiceFlow Hybrid** | **75.0%** | **72.5%** | **72.5%** | **100.0%** | **100.0%** | **2,776.2 ms** | **$0.00** |
+| **B0: XML Direct Parser** | 20.0% | 20.0% | 20.0% | 100.0% | 80.0% | 0.4 ms | $0.00 |
+| **B1: PyMuPDF Rules** | 31.8% | 20.0% | 58.0% | 100.0% | 80.0% | 10.0 ms | $0.00 |
+| **B2: Docling Text Rules** | 70.0% | 60.0% | 60.0% | 100.0% | 80.0% | 3,604.0 ms | $0.00 |
+| **B3: Docling OCR Structured** | 81.8% | 65.0% | 70.0% | 73.8% | 80.0% | 3,669.5 ms | $0.00 |
+| **B4: Pure Vision LLM** | 0.0% | 0.0% | 0.0% | N/A (không có dòng nào để kiểm) | 80.0% | 5,312.9 ms | $0.00 |
+| **B5: InvoiceFlow Hybrid** | **81.8%** | 65.0% | 70.0% | 73.8% | 76.7% | 3,321.7 ms | $0.00 |
 
-*Ghi chú kỹ thuật về B4:* Trong môi trường offline hoặc khi API gateway bên ngoài không phản hồi, pipeline B4 fallback an toàn và không gây treo worker nhờ cơ chế `OpenAIAdapter(timeout=5.0, max_retries=0)` đã được tinh chỉnh.
+**Table F1 ≠ Line Item F1** ở B1 (58.0% so với 20.0%) và lệch ở B3/B5 — bằng chứng trực tiếp rằng hai chỉ số nay được tính độc lập (xem Mục 12.3). `arithmetic_validity_rate` của B3/B5 giảm từ con số 100.0% (cũ, giả) xuống 73.8% (thật) vì nay hệ thống thực sự tạo ra các dòng có `qty` bị thiếu do cell-merge và trung thực đánh dấu thay vì bịa `qty=1`.
+
+*Ghi chú về B4:* Header EM = 0% là **tồn tại từ trước khi sửa** (xem `benchmarks/results/before_fix/benchmark_report.json`, B4 cũng 0.0% trên bộ 8 case cũ) — không phải regression do 4 nhiệm vụ này gây ra, và nằm ngoài phạm vi (Vision LLM pipeline không thuộc Table Extraction/OCR/Evidence Grounding/Benchmark). Cần điều tra riêng ở backlog khác.
 
 ---
 
-### Bảng 2: Kết quả thử nghiệm suy biến kiến trúc (Ablation Studies A0–A5)
+### Bảng 1b: So sánh trước/sau sửa trên đúng 8 case gốc (apples-to-apples)
 
-| Biến thể kiến trúc | Header EM | Table F1 | Anomaly F1 | Độ trễ TB | Chi phí / 1k | Nhận xét tác động |
+| Baseline | Header EM (trước→sau) | Line F1 (trước→sau) | Table F1 (trước→sau) | Arith Validity (trước→sau) |
+|---|---|---|---|---|
+| B0 | 25.0% → 25.0% | 25.0% → 25.0% | 25.0% → 25.0% | 100% → 100% |
+| B1 | 68.2% → 36.4% | 72.5% → 25.0% | 72.5% → 72.5% | 100% → 100% |
+| B2 | 68.2% → 77.3% | 72.5% → 75.0% | 72.5% → 75.0% | 100% → 100% |
+| **B3** | 75.0% → **83.0%** | 72.5% → 75.0% | 72.5% → 75.0% | 100% (giả) → **77.8% (thật)** |
+| B4 | 0.0% → 0.0% | 0.0% → 0.0% | 0.0% → 0.0% | N/A → N/A |
+| **B5** | 75.0% → **83.0%** | 72.5% → 75.0% | 72.5% → 75.0% | 100% (giả) → **77.8% (thật)** |
+
+B1 giảm Header EM/Line F1 vì `compute_line_items_f1` cũ cho khớp quá dễ (so khớp OR giữa sku-substring và amount-equal — xem Mục 12.3); con số cũ 72.5% là **khớp giả**, con số mới 25.0% phản ánh đúng việc B1 (PyMuPDF text thuần + regex) thật sự không trích xuất đúng line item trên phần lớn case. B3/B5 tăng Header EM vì bug sku/sku_ref và bug phân loại cột (Mục 12.3) trước đây khiến `StructureAwareTableExtractor` luôn trả về 0 dòng trên case_06, kéo cả pipeline rơi vào nhánh fallback kém chính xác hơn.
+
+---
+
+### Bảng 2: Kết quả thử nghiệm suy biến kiến trúc (Ablation Studies A0–A5), 10 chứng từ hiện hành
+
+| Biến thể kiến trúc | Header EM | Line F1 | Table F1 | Arith Validity | Anomaly F1 | Độ trễ TB |
 |---|---|---|---|---|---|---|
-| **A0: Full Hybrid System** | **75.0%** | **72.5%** | **100.0%** | 4,352.8 ms | $0.00 | Hệ thống toàn diện: trích xuất bảng, OCR tiếng Việt, đối soát |
-| **A1: No Table Extractor** | 75.0% | 72.5% | 100.0% | 2,681.8 ms | $0.00 | Dùng fallback regex phẳng; mất tọa độ cell-level và liên kết dòng tiếp |
-| **A2: No Local OCR** | 68.2% | 72.5% | 100.0% | 2,018.2 ms | $0.00 | **Header EM sụt giảm 6.8%** do không đọc được văn bản trong bản scan xoay |
-| **A3: No Validation** | 75.0% | 72.5% | **75.0%** | 2,763.3 ms | $0.00 | **Anomaly F1 sụt giảm 25.0%** do bỏ qua kiểm tra số học và dung sai 3 chiều |
-| **A4: No Vision Fallback** | 75.0% | 72.5% | 100.0% | 2,697.9 ms | $0.00 | Hệ thống vận hành 100% offline tự chủ bằng Docling và RapidOCR cục bộ |
-| **A5: No Hybrid Routing** | **45.5%** | **47.5%** | 87.5% | 2,195.0 ms | $0.00 | **Header EM sụp đổ 29.5%, Table F1 sụp đổ 25.0%** khi ép chạy một đường duy nhất |
+| **A0: Full Hybrid System** | 81.8% | 65.0% | **70.0%** | 73.8% | 76.7% | 4,479.3 ms |
+| **A1: No Table Extractor** | 81.8% | 66.7% | **66.7%** | 100.0% | 100.0% | 3,334.1 ms |
+| **A2: No Local OCR** | 70.0% | 60.0% | 60.0% | 77.8% | 86.7% | 2,456.1 ms |
+| **A3: No Validation** | 81.8% | 65.0% | 70.0% | 73.8% | 80.0% | 3,328.1 ms |
+| **A4: No Vision Fallback** | 81.8% | 65.0% | 70.0% | 73.8% | 76.7% | 3,324.9 ms |
+| **A5: No Hybrid Routing** | 51.8% | 40.0% | 40.0% | 66.7% | 76.7% | 2,332.4 ms |
+
+**Phát hiện chính (Mục 12.1):** trước khi sửa, A0 và A1 **giống hệt nhau trên mọi chỉ số** (`benchmarks/results/before_fix/ablation_report.json`) — bằng chứng trực tiếp `StructureAwareTableExtractor` không hề đóng góp gì đo lường được. Sau khi sửa, A0 (bật table extractor) đạt Table F1 70.0% so với A1 (tắt) 66.7% — chênh lệch thật, lần đầu tiên đo được giá trị gia tăng của tầng trích xuất bảng cấu trúc.
 
 ---
 
 ### 12. Phân tích chi tiết các phát hiện kỹ thuật (Engineering Deep Dive)
 
-#### 1. Vai trò sống còn của Multi-signal Hybrid Router (Kiểm chứng qua A5)
-Khi loại bỏ router thông minh và ép toàn bộ chứng từ chạy qua đường digital duy nhất (A5):
-- **Header Exact Match sụp đổ từ 75.0% xuống 45.5% (-29.5%)**.
-- **Table F1 sụp đổ từ 72.5% xuống 47.5% (-25.0%)**.
-- **Nguyên nhân gốc rễ:** Chứng từ XML bị cố gắng đọc như PDF hoặc tài liệu scan ảnh không được kích hoạt OCR, dẫn đến mất trắng dữ liệu dòng hàng. Document Router dựa trên phân loại trang (`PDFInspector`: native text, scanned image, rotated, table count) là thành phần bảo vệ tính toàn vẹn bắt buộc của pipeline.
+#### 1. `StructureAwareTableExtractor` trước khi sửa không đóng góp gì đo lường được (A0 ≡ A1)
+Trước khi sửa, bật/tắt table extractor (A0 vs A1) cho **kết quả giống hệt nhau ở mọi chỉ số** — bằng chứng cho thấy tầng trích xuất bảng chưa bao giờ thực sự chạy trên dữ liệu thật trong benchmark. Truy vết trực tiếp trên `case_06.pdf` (bảng 3 dòng hàng thật từ Docling TableFormer) cho thấy ba lỗi gốc rễ tại `table_extractor.py`:
 
-#### 2. Độ tin cậy kế toán nhờ 3-way Matching & Arithmetic Validation (Kiểm chứng qua A3)
-Khi bỏ qua bước kiểm tra số học tất định và đối soát đơn giá/số lượng:
-- **Anomaly Detection F1 giảm từ 100.0% xuống 75.0% (-25.0%)**.
-- **Ý nghĩa kiểm toán:** Hệ thống trích xuất dù chính xác đến đâu cũng không thể phát hiện các sai lệch giá (vượt dung sai 2%) hoặc số lượng giao thiếu trên GRN nếu không có tầng Validation độc lập. Validation tất định bảo vệ tài chính doanh nghiệp khỏi rủi ro phê duyệt khống.
+- **Lỗi phân loại cột:** `_detect_column_headers` (bản cũ) duyệt `COLUMN_PATTERNS` theo thứ tự dict và dừng ở khớp đầu tiên. Tiêu đề gộp "Ten hang hoa, dich vu / SKU" chứa cả `"sku"` lẫn `"ten hang"`; vì `"sku"` được kiểm tra trước, cột mô tả hàng hóa bị gán nhầm thành cột SKU trên **mọi dòng**, xóa sổ trường `description` của toàn bộ bảng.
+- **Lỗi rơi dòng âm thầm:** điều kiện chốt dòng cũ yêu cầu `current_line.get("description")` phải truthy, nếu không dòng bị **âm thầm xóa, không cờ cảnh báo**. Vì lỗi phân loại cột ở trên luôn khiến `description` rỗng, toàn bộ 3 dòng hàng của `case_06.pdf` bị rơi mất → `extract_invoice_lines` trả về 0 dòng bất kể table extractor bật hay tắt.
+- **Merged cell (colspan) không được xử lý:** TableFormer đôi khi gộp ô "mô tả" và "số lượng" liền kề thành một ô colspan=2 (quan sát thật trên dòng 2 của `case_06.pdf`). Code cũ không phát hiện việc này, dẫn tới cột `qty` bị thiếu dữ liệu hoàn toàn cho dòng đó.
 
-#### 3. Bóc tách bảng cấu trúc (`StructureAwareTableExtractor`) & Xử lý dòng mô tả kéo dài
-- **Bảo toàn cell-level provenance:** Khác với regex truyền thống gom toàn bộ text thành chuỗi phẳng, `StructureAwareTableExtractor` duy trì liên kết 1-1 giữa ô dữ liệu, tọa độ BoundingBox (`[l, t, r, b]`) và dòng hàng `InvoiceLine`.
-- **Continuation rows:** Tự động phát hiện các dòng bảng phụ chỉ chứa mô tả bổ sung (như mã màu, thông tin bảo hành bên dưới tên hàng) và hợp nhất vào dòng chính liền trước thay vì tạo ra dòng hàng rác.
-- **Tính hợp lệ số học nội tại:** Kiểm tra điều kiện `Qty * UnitPrice == LineAmount` cho từng dòng trước khi chấp nhận, đảm bảo `arithmetic_validity_rate` đạt **100.0%**.
+**Đã sửa** (`table_extractor.py`): phân loại cột theo khớp dài nhất/đặc hiệu nhất thay vì khớp đầu tiên theo thứ tự dict; chốt dòng dựa trên "có bất kỳ định danh nào" (description/sku/line_amount) thay vì riêng `description`; phát hiện ô merge qua colspan/rowspan và gắn cờ `CELL_MERGE_SUSPECTED` thay vì bịa số liệu từ văn bản tự do (xem thử nghiệm `tests/unit/document/test_table_extractor.py::test_combined_header_with_inline_sku_keyword_does_not_hijack_description_column`, `::test_colspan_merged_data_cell_is_flagged_not_fabricated`). Kết quả thật trên `case_06.pdf` sau sửa: 3/3 dòng được trích xuất với SKU/mô tả/đơn giá/thuế suất đúng; dòng 2 (bị TableFormer gộp ô) đúng đắn nhận `qty=0` kèm cờ `CELL_MERGE_SUSPECTED` thay vì một con số bịa ra.
 
-#### 4. Chuẩn hóa tiếng Việt và Phân giải số thực tế (Numeric Disambiguation)
-- **Xử lý ký tự 'Đ/đ':** `unicodedata.normalize('NFKD', 'Đ')` trong Python không tự phân rã chữ Đ thành D. Pipeline bổ sung bước tiền xử lý chuyên biệt `.replace('đ', 'd').replace('Đ', 'd')` trước khi bóc tách header ngữ nghĩa (`Số TT`, `Tên hàng hóa, dịch vụ`, `Đơn vị tính`, `Đơn giá`, `Thành tiền`).
-- **Phân giải định dạng số:** Hệ thống phân biệt rõ giữa dấu chấm phân cách hàng nghìn kiểu Việt Nam (`12.000.000`) và dấu phẩy thập phân (`5,500`), đồng thời đánh cờ cảnh báo `AMBIGUOUS_NUMBER` đối với các giá trị có rủi ro hiểu nhầm để kế toán kiểm duyệt trước khi hạch toán.
+#### 1b. Cơ chế tự "sửa" `qty=0` → `1` đã bị gỡ bỏ
+Code cũ có dòng `qty=qty if qty > 0 else Decimal("1.0000")`, âm thầm thay mọi số lượng 0 (dù là giá trị thật trên hóa đơn, hay do parse lỗi) thành 1 — vi phạm trực tiếp nguyên tắc "không tự sửa số liệu kế toán". Đã gỡ bỏ; `qty=0` thật nay được giữ nguyên kèm cờ `QTY_ZERO_OR_MISSING` để kế toán xác minh (`tests/unit/document/test_table_extractor.py::test_zero_quantity_is_preserved_and_flagged_not_rewritten_to_one`).
 
-#### 5. Chi phí vận hành $0 / 1.000 hóa đơn ở chế độ tự chủ
-- Nhờ sự kết hợp giữa **RapidOCR ONNX Runtime** chạy trên CPU và **Docling Canonical Pipeline**, hệ thống có khả năng xử lý hoàn chỉnh cả PDF điện tử và scan xoay 90 độ mà không phát sinh bất kỳ chi phí API LLM nào ($0.00/1.000 hóa đơn), với độ trễ trung bình chỉ ~2.7s trên phần cứng tiêu chuẩn.
+#### 2. Vai trò sống còn của Multi-signal Hybrid Router (Kiểm chứng qua A5)
+Khi loại bỏ router thông minh và ép toàn bộ chứng từ chạy qua đường digital duy nhất (A5): Header EM sụp đổ xuống 51.8%, Table F1 xuống 40.0% — chứng từ scan/XML bị đọc sai đường, mất trắng dữ liệu dòng hàng. Document Router dựa trên phân loại trang (`PDFInspector`) vẫn là thành phần bảo vệ tính toàn vẹn bắt buộc của pipeline, không đổi so với lần đo trước.
+
+#### 3. `table_f1` và `lines_f1` nay là hai chỉ số độc lập, không còn là một phép tính nhân đôi
+`benchmarks/scripts/evaluator.py` trước đây định nghĩa `compute_table_extraction_quality` bằng cách **gọi lại chính `compute_line_items_f1`** — nên `table_f1` tuyệt đối bằng `lines_f1` ở mọi trường hợp, không đo được gì về cấu trúc bảng độc lập với độ đúng ngữ nghĩa của dòng hàng. Đã thay bằng `compute_table_structure_f1`: đo tỷ lệ dòng có đủ các ô cấu trúc số (`qty`/`unit_price`/`line_amount`) được điền theo đúng vị trí, hoàn toàn tách biệt khỏi việc giá trị bên trong có đúng về nghiệp vụ hay không. Phép khớp dòng hàng (`compute_line_items_f1`) trước đây cũng quá dễ dãi — khớp OR giữa "sku chứa substring của nhau" (kể cả substring rất ngắn) **hoặc** "amount bằng nhau", nghĩa là hai dòng khác hẳn nhau nhưng trùng giá tiền vẫn được tính là khớp đúng. Nay yêu cầu **AND**: phải vừa khớp định danh (sku chính xác, hoặc containment với độ dài tối thiểu 4 ký tự) **vừa** khớp amount trong dung sai 1 VNĐ. Bằng chứng số liệu: Bảng 1b cho thấy B1's Line F1 giảm từ 72.5% (khớp giả) xuống 25.0% (khớp thật) sau khi siết lại luật so khớp. `arithmetic_validity_rate` cũng không còn mặc định `1.0` khi không có dữ liệu để kiểm (`total_checked == 0`) mà trả về `None`/"N/A" trung thực — xem cột B4 ở Bảng 1.
+
+#### 4. Đánh đổi đã biết: cờ `CELL_MERGE_SUSPECTED` đúng đắn làm giảm nhẹ Anomaly F1 ở B5/A0
+So với A1 (tắt table extractor, Anomaly F1 = 100.0%), A0 (bật, Anomaly F1 = 76.7%) thấp hơn. Nguyên nhân: dòng hàng thứ 2 của `case_06.pdf` bị TableFormer gộp ô (Mục 12.1), nay đúng đắn có `qty=0` kèm cờ cảnh báo thay vì bịa `qty=5`; khi đối soát 3 chiều với PO, `qty=0` khác `ordered_qty=5` nên hệ thống **đúng đắn** phát sinh `QUANTITY_MISMATCH` dù ground-truth tổng hợp không kỳ vọng sai lệch này (ground truth giả định table-structure-recognition hoàn hảo). Đây là đánh đổi có chủ đích, ưu tiên an toàn dữ liệu kế toán hơn là điểm số đẹp trên bộ test tổng hợp — **không sửa** `MatchingEngine` để che giấu việc này vì nằm ngoài phạm vi 4 nhiệm vụ cốt lõi hiện tại; ghi nhận làm backlog riêng: cân nhắc để `MatchingEngine` coi dòng có cờ `CELL_MERGE_SUSPECTED`/`QTY_ZERO_OR_MISSING` là "không đủ dữ liệu để đối soát" thay vì "số lượng bằng 0".
+
+#### 5. Evidence Grounding: mỗi trường/dòng hàng nay liên kết được tới `table_id`/`cell_id`/`page_index`/BBox
+`DocumentCell.id`/`table_id` trước đây không bao giờ được gán giá trị (luôn `None`) dù schema đã có sẵn trường này — không có cách nào truy vết ngược từ một field về ô bảng nguồn. `evidence_mapper.py` cũng chỉ map evidence cho 4 trường header, chưa từng tạo evidence cho dòng hàng. Đã sửa: `docling_adapter.py`/`layout_extractor.py` gán `id`/`table_id` xác định cho mỗi `DocumentCell`; `StructureAwareTableExtractor.extract_lines_with_evidence()` phát sinh `FieldEvidence` (`table_id`, `cell_id`, `bbox`, `page_index`) cho từng trường của từng dòng hàng; `FieldEvidence` ORM + migration `002_field_evidence_table_cell_provenance` lưu hai cột mới; API `/invoices/{id}` trả về `table_id`/`cell_id` cho PDF Viewer. Bằng chứng trực quan: `benchmarks/scripts/render_bbox_evidence.py` render `case_06.pdf` với khung BBox đỏ vẽ đúng vị trí từng trường đã trích xuất (lưu tại `benchmarks/results/evidence/case_06_bbox_evidence.png`); dòng 2 cột `qty` bị merge **không có khung** — bằng chứng trực quan cho việc hệ thống từ chối bịa bbox cho dữ liệu không trích xuất được.
+
+#### 6. OCR thực tế (Docling + RapidOCR, không chỉ test fallback)
+Đo trực tiếp bằng `benchmarks/scripts/evaluate_ocr_quality.py` trên 4 chứng từ ảnh thuần (không text layer): PDF scan thường (`case_03`), PDF scan xoay 90° (`case_07`), PDF hỗn hợp digital+scan (`case_09`, mới thêm), PDF scan chứa bảng nhiều dòng hàng (`case_10`, mới thêm). Toàn bộ 4 case xác nhận chạy OCR RapidOCR thật (`used_fallback=False`, engine `onnxruntime`, log `[RapidOCR] Using engine_name: onnxruntime`), không rơi vào nhánh fallback do lỗi import.
+
+| Case | CER | WER | Số tiền nhận dạng đủ? | Ghi chú |
+|---|---|---|---|---|
+| CASE-03 (scan thẳng) | 23.2% | 59.7% | Không (dòng tổng cộng bị OCR nhiễu thành ký tự rác) | Lỗi OCR cụ thể, không tương quan với góc xoay |
+| CASE-07 (scan xoay 90°) | 7.3% | 31.5% | Có | Tốt hơn CASE-03 dù bị xoay |
+| CASE-09 (trang scan đính kèm trong PDF hỗn hợp) | 1.9% | 5.6% | Có | |
+| CASE-10 (bảng scan nhiều dòng) | — | — | 1 bảng được nhận diện, 2 dòng trích xuất, 1/2 đúng hoàn toàn | Dòng 2 bị cùng lỗi cell-merge như Mục 12.1, đúng đắn gắn cờ thay vì bịa |
+
+**Phát hiện quan trọng:** RapidOCR (model mặc định `ch_PP-OCRv4`, gốc huấn luyện cho tiếng Trung/Anh) đọc đúng mọi ký tự ASCII và toàn bộ chữ số tiền, nhưng **không nhận diện được dấu thanh tiếng Việt** — ví dụ "Công ty" → "Cong ty", "Vệ sinh" → "Ve sinh" — vì bộ từ điển ký tự của model không chứa các glyph tiếng Việt có dấu. Đây là giới hạn của model OCR, không phải lỗi pipeline; cần model OCR có hỗ trợ tiếng Việt (hoặc fine-tune) nếu muốn khắc phục, nằm ngoài phạm vi 4 nhiệm vụ hiện tại.
+
+**Một phát hiện hạ tầng quan trọng khác (đã sửa):** `benchmarks/fixtures/generate_documents.py` trước đây dùng font Base-14 `"helv"` của PyMuPDF để chèn text tiếng Việt — font này không có ToUnicode CMap đúng cho ký tự có dấu, khiến **ngay cả văn bản số (không qua OCR)** bị hỏng khi trích xuất lại (`"Máy tính"` → `"M�y t�nh"`), và ảnh scan render từ trang này cũng hiển thị glyph sai hình dạng. Đã sửa bằng cách nhúng font Unicode thật (`arial.ttf`) qua `page.insert_font(fontfile=...)`; đồng thời phát hiện và xử lý một tác dụng phụ của việc nhúng font: PyMuPDF âm thầm thay dấu gạch ngang ASCII bằng soft-hyphen (U+00AD) khi chèn qua font nhúng — đã thêm `text_normalization.py` để khôi phục lại dấu gạch ngang thật, vì mã SKU/số hóa đơn phụ thuộc vào ký tự này.
+
+#### 7. Chi phí vận hành $0 / 1.000 hóa đơn ở chế độ tự chủ (không đổi)
+Vẫn đúng như lần đo trước: **RapidOCR ONNX Runtime** chạy CPU kết hợp **Docling Canonical Pipeline** xử lý hoàn chỉnh cả PDF điện tử và scan xoay mà không phát sinh chi phí API LLM ($0.00/1.000 hóa đơn).

@@ -191,6 +191,8 @@ class FieldEvidenceORM(Base):
     source_kind: Mapped[str] = mapped_column(String(50), nullable=False)
     page_index: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     bbox_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    table_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    cell_id: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     raw_value: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     normalized_value: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     confidence: Mapped[Optional[float]] = mapped_column(Numeric(5, 4), nullable=True)

@@ -254,5 +254,73 @@
       }
     ],
     "expected_discrepancies": []
+  },
+  {
+    "case_id": "CASE-09-PDF-MIXED",
+    "document_type": "pdf_mixed",
+    "format": "pdf",
+    "description": "Hóa đơn PDF hỗn hợp: trang 1 là text layer số, trang 2 là ảnh scan đính kèm không có text layer",
+    "header": {
+      "supplier_tax_id": "0309876543",
+      "supplier_name": "Công ty CP Giấy & Văn phòng phẩm Miền Nam",
+      "buyer_tax_id": "0109998888",
+      "buyer_name": "Công ty Cổ phần Thương mại Alpha VN",
+      "invoice_number": "0009977",
+      "invoice_series": "1C26TBB",
+      "issue_date": "2026-03-18",
+      "currency": "VND",
+      "subtotal": "12000000.0000",
+      "tax_total": "960000.0000",
+      "amount_payable": "12960000.0000"
+    },
+    "lines": [
+      {
+        "sku": "PAPER-A4-70",
+        "description": "Giấy photocopy Double A A4 70gsm",
+        "qty": "200.0000",
+        "unit_price": "60000.0000",
+        "tax_rate": "8.00",
+        "line_amount": "12000000.0000"
+      }
+    ],
+    "expected_discrepancies": []
+  },
+  {
+    "case_id": "CASE-10-PDF-SCAN-TABLE",
+    "document_type": "pdf_scan_table",
+    "format": "pdf",
+    "description": "Hóa đơn PDF scan ảnh thuần (không có text layer) chứa bảng nhiều dòng hàng, đòi hỏi OCR và nhận diện cấu trúc bảng đồng thời",
+    "header": {
+      "supplier_tax_id": "0101234567",
+      "supplier_name": "Công ty TNHH Thiết bị Văn phòng Thăng Long",
+      "buyer_tax_id": "0109998888",
+      "buyer_name": "Công ty Cổ phần Thương mại Alpha VN",
+      "invoice_number": "0005599",
+      "invoice_series": "1C26TAA",
+      "issue_date": "2026-03-20",
+      "currency": "VND",
+      "subtotal": "60000000.0000",
+      "tax_total": "6000000.0000",
+      "amount_payable": "66000000.0000"
+    },
+    "lines": [
+      {
+        "sku": "DELL-XPS-13",
+        "description": "Máy tính xách tay Dell XPS 13",
+        "qty": "2.0000",
+        "unit_price": "25000000.0000",
+        "tax_rate": "10.00",
+        "line_amount": "50000000.0000"
+      },
+      {
+        "sku": "MOUSE-LOGI",
+        "description": "Chuột không dây Logitech MX Master 3S",
+        "qty": "5.0000",
+        "unit_price": "2000000.0000",
+        "tax_rate": "10.00",
+        "line_amount": "10000000.0000"
+      }
+    ],
+    "expected_discrepancies": []
   }
 ]
