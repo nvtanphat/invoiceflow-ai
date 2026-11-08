@@ -1,5 +1,6 @@
 import asyncio
 import csv
+from datetime import date
 from decimal import Decimal
 import json
 from pathlib import Path
@@ -14,25 +15,23 @@ ROOT_DIR = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(ROOT_DIR / "src"))
 sys.path.insert(0, str(ROOT_DIR))
 
-from benchmarks.scripts.evaluator import evaluate_prediction
-from invoiceflow.application.processing.document_router import DocumentRouter, ProcessingRoute
-from invoiceflow.application.reconciliation.matching_engine import MatchingEngine
-from invoiceflow.config import get_settings
-from invoiceflow.domain.invoices.models import InvoiceAggregate, InvoiceLine
-from invoiceflow.domain.policies.models import TolerancePolicy
-from datetime import date
-from invoiceflow.domain.purchasing.models import (
+from benchmarks.scripts.evaluator import evaluate_prediction  # noqa: E402
+from invoiceflow.application.processing.document_router import DocumentRouter, ProcessingRoute  # noqa: E402
+from invoiceflow.application.reconciliation.matching_engine import MatchingEngine  # noqa: E402
+from invoiceflow.config import get_settings  # noqa: E402
+from invoiceflow.domain.invoices.models import InvoiceAggregate, InvoiceLine  # noqa: E402
+from invoiceflow.domain.policies.models import TolerancePolicy  # noqa: E402
+from invoiceflow.domain.purchasing.models import (  # noqa: E402
     GoodsReceipt,
     GRNLine,
     POLine,
     PurchaseOrder,
 )
-from invoiceflow.infrastructure.document.digital_pdf_parser import DigitalPDFParser
-from invoiceflow.infrastructure.document.docling_adapter import DoclingAdapter
-from invoiceflow.infrastructure.document.layout_extractor import LayoutExtractor
-from invoiceflow.infrastructure.document.pdf_inspector import PDFInspector
-from invoiceflow.infrastructure.document.xml_parser import SecureXMLParser, XMLParsingError
-from invoiceflow.infrastructure.llm.openai_adapter import OpenAIAdapter
+from invoiceflow.infrastructure.document.digital_pdf_parser import DigitalPDFParser  # noqa: E402
+from invoiceflow.infrastructure.document.docling_adapter import DoclingAdapter  # noqa: E402
+from invoiceflow.infrastructure.document.pdf_inspector import PDFInspector  # noqa: E402
+from invoiceflow.infrastructure.document.xml_parser import SecureXMLParser, XMLParsingError  # noqa: E402
+from invoiceflow.infrastructure.llm.openai_adapter import OpenAIAdapter  # noqa: E402
 
 FIXTURES_DIR = ROOT_DIR / "benchmarks" / "fixtures"
 DOCS_DIR = FIXTURES_DIR / "documents"
@@ -276,14 +275,14 @@ def run_b1_digital_heuristics(case: Dict[str, Any], file_path: Path) -> Dict[str
         }
         lines = [
             {
-                "sku": l.sku or "",
-                "description": l.description,
-                "qty": str(l.qty),
-                "unit_price": str(l.unit_price),
-                "tax_rate": str(l.tax_rate) if l.tax_rate else None,
-                "line_amount": str(l.line_amount),
+                "sku": line.sku or "",
+                "description": line.description,
+                "qty": str(line.qty),
+                "unit_price": str(line.unit_price),
+                "tax_rate": str(line.tax_rate) if line.tax_rate else None,
+                "line_amount": str(line.line_amount),
             }
-            for l in ext.lines
+            for line in ext.lines
         ]
 
     duration_ms = (time.perf_counter() - start) * 1000
@@ -422,14 +421,14 @@ async def run_b3_invoiceflow_hybrid(
         }
         lines = [
             {
-                "sku": l.sku or "",
-                "description": l.description,
-                "qty": str(l.qty),
-                "unit_price": str(l.unit_price),
-                "tax_rate": str(l.tax_rate) if l.tax_rate else None,
-                "line_amount": str(l.line_amount),
+                "sku": line.sku or "",
+                "description": line.description,
+                "qty": str(line.qty),
+                "unit_price": str(line.unit_price),
+                "tax_rate": str(line.tax_rate) if line.tax_rate else None,
+                "line_amount": str(line.line_amount),
             }
-            for l in ext.lines
+            for line in ext.lines
         ]
         cost = 0.0000
 

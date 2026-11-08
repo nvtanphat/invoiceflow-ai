@@ -6,6 +6,7 @@ from invoiceflow.infrastructure.document.docling_adapter import DoclingAdapter
 
 
 def test_docling_adapter_extracts_canonical_document_without_fallback():
+    pytest.importorskip("docling", reason="Docling is an optional dependency (install with pip install '.[documents]')")
     fixture_path = Path("benchmarks/fixtures/documents/case_02.pdf")
     if not fixture_path.exists():
         pytest.skip("Fixture case_02.pdf not found")

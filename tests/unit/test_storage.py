@@ -57,7 +57,7 @@ async def test_local_storage_path_traversal_in_uri_blocked():
     try:
         storage = LocalStorageService(base_dir=tmp_dir)
         with pytest.raises(ValueError, match="Path traversal attempt blocked"):
-            await storage.get_local_path("local://../../../../Windows/System32/cmd.exe")
+            await storage.get_local_path("local://../../../../etc/passwd")
     finally:
         shutil.rmtree(tmp_dir, ignore_errors=True)
 

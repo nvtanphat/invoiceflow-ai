@@ -31,6 +31,7 @@ class OpenAIAdapter(LLMProviderPort):
                 self._client = AsyncOpenAI(
                     api_key=api_key,
                     base_url=base_url,
+                    timeout=45.0,
                     default_headers={
                         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) InvoiceFlow-AI/1.0"
                     },
