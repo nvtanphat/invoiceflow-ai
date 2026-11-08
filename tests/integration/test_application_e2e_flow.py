@@ -236,6 +236,12 @@ async def test_full_application_lifecycle_scanned_pdf_upload_to_export():
     if not fixture_path.exists():
         pytest.skip("Scanned PDF fixture case_03.pdf not found.")
 
+    from invoiceflow.config import get_settings
+
+    settings = get_settings()
+    if not settings.OPENAI_API_KEY or settings.OPENAI_API_KEY in ("mock-key", ""):
+        pytest.skip("Live OPENAI_API_KEY is not configured for scanned PDF vision lifecycle test.")
+
     pdf_content = fixture_path.read_bytes()
     tmp_dir = tempfile.mkdtemp()
     db_manager = DatabaseSessionManager(database_url="sqlite+aiosqlite:///:memory:", echo=False)
