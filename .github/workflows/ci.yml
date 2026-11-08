@@ -68,24 +68,24 @@ jobs:
         run: |
           if [ -f pytest_output.log ]; then
             python -c '
-import os, json, urllib.request
-log = open("pytest_output.log", errors="ignore").read()[-4000:]
-token = os.environ.get("GITHUB_TOKEN")
-repo = os.environ.get("GITHUB_REPOSITORY")
-sha = os.environ.get("GITHUB_SHA")
-if token and repo and sha:
-    data = json.dumps({"body": f"### Pytest Failures in CI:\n```\n{log}\n```"}).encode("utf-8")
-    req = urllib.request.Request(
-        f"https://api.github.com/repos/{repo}/commits/{sha}/comments",
-        data=data,
-        headers={"Authorization": f"Bearer {token}", "User-Agent": "python", "Content-Type": "application/json"}
-    )
-    try:
-        urllib.request.urlopen(req)
-        print("Successfully posted failure log to commit comment.")
-    except Exception as e:
-        print("Failed to post comment:", e)
-'
+          import os, json, urllib.request
+          log = open("pytest_output.log", errors="ignore").read()[-4000:]
+          token = os.environ.get("GITHUB_TOKEN")
+          repo = os.environ.get("GITHUB_REPOSITORY")
+          sha = os.environ.get("GITHUB_SHA")
+          if token and repo and sha:
+              data = json.dumps({"body": f"### Pytest Failures in CI:\n```\n{log}\n```"}).encode("utf-8")
+              req = urllib.request.Request(
+                  f"https://api.github.com/repos/{repo}/commits/{sha}/comments",
+                  data=data,
+                  headers={"Authorization": f"Bearer {token}", "User-Agent": "python", "Content-Type": "application/json"}
+              )
+              try:
+                  urllib.request.urlopen(req)
+                  print("Successfully posted failure log to commit comment.")
+              except Exception as e:
+                  print("Failed to post comment:", e)
+          '
           fi
 
       - name: Run Application QA Verification
