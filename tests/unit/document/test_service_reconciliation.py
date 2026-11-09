@@ -791,3 +791,36 @@ async def test_review_service_blocks_approval_on_unresolved_candidate_conflicts(
         assert approved.revision == 3
 
     await db_manager.close()
+
+
+def test_field_verification_state_semantics():
+    from invoiceflow.domain.invoices.models import FieldEvidence, FieldVerificationState
+
+    ev_valid = FieldEvidence(
+        field_path="amount_payable",
+        source_kind="docling_table",
+        raw_value="10000000",
+        normalized_value="10000000",
+        verification_state=FieldVerificationState.VALID,
+    )
+    assert ev_valid.verification_state == "valid"
+    assert ev_valid.verification_state == FieldVerificationState.VALID
+
+    ev_missing = FieldEvidence(
+        field_path="lines[0].qty",
+        source_kind="docling_table",
+        raw_value=None,
+        normalized_value=None,
+        verification_state=FieldVerificationState.MISSING,
+        review_reason="Quantity cell missing due to table merge",
+    )
+    assert ev_missing.verification_state == "missing"
+
+    ev_conflict = FieldEvidence(
+        field_path="supplier_tax_id.candidate_vision",
+        source_kind="vision_llm",
+        raw_value="0105554321",
+        normalized_value="0105554321",
+        verification_state=FieldVerificationState.CONFLICT,
+    )
+    assert ev_conflict.verification_state == "conflict"

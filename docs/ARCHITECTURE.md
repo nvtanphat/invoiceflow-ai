@@ -126,7 +126,7 @@ Chỉ **application service** giao tiếp với nhiều port để phối hợp;
    - Phân luồng tất định:
      - `XML_DETERMINISTIC`: Xử lý trực tiếp file XML Thông tư 78 với độ trễ < 1ms, chi phí $0.
      - `PDF_DIGITAL`: PDF văn bản số tiêu chuẩn xử lý qua PyMuPDF và Docling layout extractor.
-     - `DOCLING_OCR_STRUCTURED`: Tài liệu scan hoặc có bảng cấu trúc xử lý qua Docling kết hợp RapidOCR Vietnamese diacritics và `StructureAwareTableExtractor`.
+     - `DOCLING_OCR_STRUCTURED`: Tài liệu scan hoặc có bảng cấu trúc xử lý qua Docling kết hợp EasyOCR ("vi", "en"), chuẩn hóa thứ tự đọc không gian (spatial reading order) ở tầng adapter và `StructureAwareTableExtractor`.
      - `VISION_FALLBACK`: Chế độ dự phòng gọi Multimodal Vision LLM khi tài liệu bị biến dạng nặng hoặc có yêu cầu phức tạp ngoài khả năng parser cục bộ.
      - `MANUAL_REVIEW`: Điều hướng vào hàng đợi kiểm duyệt thủ công khi cạn ngân sách hoặc chứng từ bất thường.
 4. **Structure-Aware Table Extraction & Column Semantic Mapping:**

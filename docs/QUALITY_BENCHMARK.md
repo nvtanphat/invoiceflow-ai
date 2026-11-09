@@ -127,16 +127,16 @@ Hệ thống đánh giá chất lượng được phân định minh bạch thà
 
 | Case ID | Loại chứng từ | Kết quả | Header Match | Line Items F1 | Độ trễ xử lý |
 |---|---|:---:|:---:|:---:|---:|
-| **CASE-01-XML-STANDARD** | `xml_standard` | **PASS** | 100.0% | 100.0% | 3.8 ms |
-| **CASE-02-PDF-DIGITAL** | `pdf_digital` | **PASS** | 100.0% | 100.0% | 58,854.1 ms |
-| **CASE-03-PDF-SCAN** | `pdf_scan` | **PASS** | 81.8% | 100.0% | 22,780.0 ms |
-| **CASE-04-DISCREPANCY-PRICE** | `discrepancy_price` | **PASS** | 100.0% | 100.0% | 2,228.5 ms |
-| **CASE-05-DISCREPANCY-QTY** | `discrepancy_qty` | **PASS** | 100.0% | 100.0% | 1.1 ms |
-| **CASE-06-PDF-MULTI-LINE** | `pdf_digital_table` | **PASS** | 100.0% | 100.0% | 2,687.5 ms |
-| **CASE-07-PDF-ROTATED-SCAN** | `pdf_scan_rotated` | **PASS** | 81.8% | 100.0% | 20,551.5 ms |
-| **CASE-08-PDF-COMPLEX-AMOUNTS** | `pdf_digital_numeric` | **PASS** | 100.0% | 100.0% | 2,210.8 ms |
-| **CASE-09-PDF-MIXED** | `pdf_mixed` | **PASS** | 100.0% | 100.0% | 2,112.8 ms |
-| **CASE-10-PDF-SCAN-TABLE** | `pdf_scan_table` | **PASS** | 100.0% | 100.0% | 55,178.3 ms |
+| **CASE-01-XML-STANDARD** | `xml_standard` | **PASS** | 100.0% | 100.0% | 15.2 ms |
+| **CASE-02-PDF-DIGITAL** | `pdf_digital` | **PASS** | 100.0% | 100.0% | 14,743.4 ms |
+| **CASE-03-PDF-SCAN** | `pdf_scan` | **PASS** | 81.8% | 100.0% | 19,869.1 ms |
+| **CASE-04-DISCREPANCY-PRICE** | `discrepancy_price` | **PASS** | 100.0% | 100.0% | 1,912.0 ms |
+| **CASE-05-DISCREPANCY-QTY** | `discrepancy_qty` | **PASS** | 100.0% | 100.0% | 0.9 ms |
+| **CASE-06-PDF-MULTI-LINE** | `pdf_digital_table` | **PASS** | 100.0% | 100.0% | 2,404.2 ms |
+| **CASE-07-PDF-ROTATED-SCAN** | `pdf_scan_rotated` | **PASS** | 81.8% | 100.0% | 17,156.2 ms |
+| **CASE-08-PDF-COMPLEX-AMOUNTS** | `pdf_digital_numeric` | **PASS** | 100.0% | 100.0% | 1,930.8 ms |
+| **CASE-09-PDF-MIXED** | `pdf_mixed` | **PASS** | 100.0% | 100.0% | 16,236.3 ms |
+| **CASE-10-PDF-SCAN-TABLE** | `pdf_scan_table` | **PASS** | 81.8% | 100.0% | 31,871.7 ms |
 
 > [!IMPORTANT]
 > **Cơ chế phục hồi CASE-10 tại Tier B:** Số lượng dòng 2 (`5.0000`) được đề xuất bởi Vision AI qua thuật toán ghép cặp đa tiêu chí (Multi-Factor Line Matching), được kiểm tra số học nghiêm ngặt (`5.0000 × 2,000,000 = 10,000,000 VND`), gán trạng thái kiểm chứng `arithmetically_consistent` kèm độ tin cậy động (calibrated confidence = 0.844) thay vì hardcode 0.95.
@@ -144,11 +144,11 @@ Hệ thống đánh giá chất lượng được phân định minh bạch thà
 ### Tổng hợp chỉ số toàn hệ thống (Tier B):
 
 - **Tỷ lệ vượt qua nghiệm thu (Overall Pass Rate):** **10/10 chứng từ (100.0%)**
-- **Độ chính xác thông tin chung (Overall Header Match):** **96.4%**
+- **Độ chính xác thông tin chung (Overall Header Match):** **94.5%**
 - **Độ chính xác dòng hàng (Overall Line Items F1):** **100.0%**
 - **Tính hợp lệ số học (Arithmetic Validity Rate):** **100.0% (Không có bất kỳ sai số số học nào)**
 - **Phát hiện chênh lệch đối soát (Anomaly Detection F1):** **100.0% (Nhận diện chính xác 100% lệch giá và lệch lượng)**
-- **Thời gian xử lý trung bình toàn pipeline:** **16,660.8 ms**
+- **Thời gian xử lý trung bình toàn pipeline:** **10,614.0 ms**
 
 ---
 

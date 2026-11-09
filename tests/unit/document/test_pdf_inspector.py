@@ -25,9 +25,65 @@ def test_pdf_inspector_inspects_digital_pdf(sample_digital_pdf_bytes):
     assert report.page_count == 1
     assert report.is_encrypted is False
     assert report.classification == "pdf_digital"
+    assert report.classification == "digital_pdf"
+    assert report.is_digital is True
+    assert report.is_scanned is False
+    assert report.is_mixed is False
     assert report.has_sufficient_text is True
     assert "HOA DON" in report.extracted_sample_text
     assert "INV-00123" in report.extracted_sample_text
+    assert report.page_classifications[0] == "digital"
+    assert report.page_classifications[0] == "native_text"
+
+
+def test_pdf_inspector_inspects_scanned_pdf():
+    doc = fitz.open()
+    page = doc.new_page(width=595, height=842)
+    # Insert dummy image
+    pix = fitz.Pixmap(fitz.csRGB, (0, 0, 100, 100), 1)
+    page.insert_image(fitz.Rect(50, 50, 250, 250), pixmap=pix)
+    pdf_bytes = doc.tobytes()
+    doc.close()
+
+    inspector = PDFInspector()
+    report = inspector.inspect(pdf_bytes)
+
+    assert report.page_count == 1
+    assert report.classification == "scanned_pdf"
+    assert report.classification == "pdf_scan"
+    assert report.is_scanned is True
+    assert report.is_digital is False
+    assert report.has_sufficient_text is False
+    assert report.page_classifications[0] == "scanned"
+    assert report.page_classifications[0] == "scanned_image"
+
+
+def test_pdf_inspector_inspects_mixed_pdf(sample_digital_pdf_bytes):
+    doc_digital = fitz.open(stream=sample_digital_pdf_bytes, filetype="pdf")
+    doc_mixed = fitz.open()
+    # Page 0: digital
+    doc_mixed.insert_pdf(doc_digital, from_page=0, to_page=0)
+    # Page 1: scanned
+    page_scanned = doc_mixed.new_page(width=595, height=842)
+    pix = fitz.Pixmap(fitz.csRGB, (0, 0, 100, 100), 1)
+    page_scanned.insert_image(fitz.Rect(50, 50, 250, 250), pixmap=pix)
+    mixed_bytes = doc_mixed.tobytes()
+    doc_digital.close()
+    doc_mixed.close()
+
+    inspector = PDFInspector()
+    report = inspector.inspect(mixed_bytes)
+
+    assert report.page_count == 2
+    assert report.classification == "mixed_pdf"
+    assert report.classification == "mixed"
+    assert report.is_mixed is True
+    assert report.is_digital is False
+    assert report.is_scanned is False
+    assert report.page_classifications[0] == "digital"
+    assert report.page_classifications[0] == "native_text"
+    assert report.page_classifications[1] == "scanned"
+    assert report.page_classifications[1] == "scanned_image"
 
 
 def test_pdf_inspector_rejects_corrupted_pdf():

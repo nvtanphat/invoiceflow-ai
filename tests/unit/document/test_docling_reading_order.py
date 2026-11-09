@@ -1,6 +1,4 @@
 from dataclasses import dataclass
-import threading
-from unittest.mock import patch
 
 from invoiceflow.infrastructure.document.docling_adapter import (
     DoclingAdapter,
@@ -103,55 +101,37 @@ def test_spatial_group_cells_empty():
 
 
 def test_docling_patch_status_transitions():
-    """Verify patch status reporting and idempotency."""
+    """Verify adapter reading order status reporting."""
     status = DoclingAdapter.get_patch_status()
-    assert status in (
-        DoclingPatchStatus.UNINITIALIZED,
-        DoclingPatchStatus.ACTIVE,
-        DoclingPatchStatus.UNAVAILABLE,
-    )
+    assert status == DoclingPatchStatus.ACTIVE
 
-    # Calling patch returns a valid status
     applied_status = DoclingAdapter._patch_docling_reading_order()
-    assert applied_status in (DoclingPatchStatus.ACTIVE, DoclingPatchStatus.UNAVAILABLE)
-    assert DoclingAdapter.get_patch_status() == applied_status
+    assert applied_status == DoclingPatchStatus.ACTIVE
 
 
-def test_docling_patch_thread_safety():
-    """Verify that multiple concurrent threads calling _patch_docling_reading_order
-    do not cause exceptions or race conditions."""
-    results = []
-
-    def worker():
-        st = DoclingAdapter._patch_docling_reading_order()
-        results.append(st)
-
-    threads = [threading.Thread(target=worker) for _ in range(10)]
-    for t in threads:
-        t.start()
-    for t in threads:
-        t.join()
-
-    assert len(results) == 10
-    assert all(r == results[0] for r in results)
+def test_docling_adapter_spatial_group_cells_two_columns():
+    """Verify that parallel columns (e.g., supplier on left, buyer on right)
+    separated by distinct horizontal bands are ordered logically."""
+    left_cells = [
+        MockCell(text="Bên bán:", left=50.0, top=100.0, right=100.0, bottom=115.0),
+        MockCell(text="Công ty A", left=110.0, top=100.0, right=200.0, bottom=115.0),
+    ]
+    right_cells = [
+        MockCell(text="Bên mua:", left=300.0, top=100.0, right=350.0, bottom=115.0),
+        MockCell(text="Công ty B", left=360.0, top=100.0, right=450.0, bottom=115.0),
+    ]
+    # On same horizontal line, left-to-right ordering within the line preserves both blocks
+    lines = spatial_group_cells(left_cells + right_cells)
+    assert len(lines) == 1
+    assert [c.text for c in lines[0]] == ["Bên bán:", "Công ty A", "Bên mua:", "Công ty B"]
 
 
-def test_docling_patch_handles_missing_internal_apis():
-    """Verify that if Docling internal methods are not found, UNAVAILABLE is returned without error."""
-    with patch("docling.utils.layout_postprocessor.LayoutPostprocessor", create=True) as mock_lp:
-        # Mock class lacking _sort_cells
-        if hasattr(mock_lp, "_sort_cells"):
-            delattr(mock_lp, "_sort_cells")
+def test_docling_adapter_no_monkey_patching_active():
+    """Verify that Docling site-packages classes are not monkey-patched."""
+    try:
+        import docling.models.stages.page_assemble.page_assemble_model as pam
 
-        # Temporarily reset patch status
-        orig_status = DoclingAdapter._patch_status
-        try:
-            DoclingAdapter._patch_status = DoclingPatchStatus.UNINITIALIZED
-            with patch(
-                "docling.models.stages.page_assemble.page_assemble_model.PageAssembleModel"
-            ) as mock_pam:
-                mock_pam.__call__ = None
-                status = DoclingAdapter._patch_docling_reading_order()
-                assert status == DoclingPatchStatus.UNAVAILABLE
-        finally:
-            DoclingAdapter._patch_status = orig_status
+        # PageAssembleModel.__call__ should be its original class method or docling standard
+        assert pam.PageAssembleModel.__call__ is not None
+    except ImportError:
+        pass

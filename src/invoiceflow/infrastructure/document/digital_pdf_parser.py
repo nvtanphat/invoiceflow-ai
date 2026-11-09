@@ -195,6 +195,20 @@ class DigitalPDFParser:
             ):
                 continue
             sku = m_line.group(2).strip() if m_line.group(2) else None
+            if not sku:
+                m_sku = re.search(r"\[([A-Z0-9_-]+)\]", desc)
+                if m_sku:
+                    sku = m_sku.group(1)
+                    desc = re.sub(r"\s*\[[A-Z0-9_-]+\]\s*", "", desc).strip()
+                else:
+                    m_unbr = re.search(r"\b([A-Z0-9]+(?:-[A-Z0-9]+)+)\b", desc)
+                    if m_unbr:
+                        cand = m_unbr.group(1)
+                        if not re.match(r"^\d{4}-\d{2}-\d{2}$", cand) and not re.match(
+                            r"^\d{10}-\d{3}$", cand
+                        ):
+                            sku = cand
+                            desc = desc.replace(cand, "").strip(" -:,")
             raw_qty = m_line.group(3).strip()
             raw_unit_price = m_line.group(4).strip()
             raw_tax_rate = m_line.group(5).strip()
@@ -247,6 +261,20 @@ class DigitalPDFParser:
                 ):
                     continue
                 sku = m_line.group(2).strip() if m_line.group(2) else None
+                if not sku:
+                    m_sku = re.search(r"\[([A-Z0-9_-]+)\]", desc)
+                    if m_sku:
+                        sku = m_sku.group(1)
+                        desc = re.sub(r"\s*\[[A-Z0-9_-]+\]\s*", "", desc).strip()
+                    else:
+                        m_unbr = re.search(r"\b([A-Z0-9]+(?:-[A-Z0-9]+)+)\b", desc)
+                        if m_unbr:
+                            cand = m_unbr.group(1)
+                            if not re.match(r"^\d{4}-\d{2}-\d{2}$", cand) and not re.match(
+                                r"^\d{10}-\d{3}$", cand
+                            ):
+                                sku = cand
+                                desc = desc.replace(cand, "").strip(" -:,")
                 raw_qty = m_line.group(3).strip()
                 raw_price = m_line.group(4).strip()
                 qty, qty_issue = self._parse_decimal(raw_qty, is_qty=True)

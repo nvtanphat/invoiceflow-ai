@@ -454,3 +454,41 @@ def test_table_extractor_recovers_fused_sku_and_distinguishes_valid_zero():
     assert lines[1].qty == Decimal("0.0000")
     assert "QTY_UNRECOVERED" not in lines[1].issues
     assert "QTY_ZERO_OR_MISSING" in lines[1].issues
+
+
+def test_hyphenated_skus_preserved_without_truncation():
+    """Verify hyphenated SKUs (PAPER-A4-80, LAP-DELL-5520, MOUSE-LOGI) are preserved in full."""
+    headers = [
+        DocumentCell(row_index=0, col_index=0, text="STT"),
+        DocumentCell(row_index=0, col_index=1, text="Ten hang"),
+        DocumentCell(row_index=0, col_index=2, text="So luong"),
+        DocumentCell(row_index=0, col_index=3, text="Don gia"),
+        DocumentCell(row_index=0, col_index=4, text="Thanh tien"),
+    ]
+    rows = [
+        # Bracketed SKU with two hyphens
+        DocumentCell(row_index=1, col_index=0, text="1"),
+        DocumentCell(row_index=1, col_index=1, text="Giay in photocopy [PAPER-A4-80]"),
+        DocumentCell(row_index=1, col_index=2, text="50"),
+        DocumentCell(row_index=1, col_index=3, text="80.000"),
+        DocumentCell(row_index=1, col_index=4, text="4.000.000"),
+        # Unbracketed hyphenated SKU
+        DocumentCell(row_index=2, col_index=0, text="2"),
+        DocumentCell(row_index=2, col_index=1, text="Laptop Dell LAP-DELL-5520 Core i7"),
+        DocumentCell(row_index=2, col_index=2, text="2"),
+        DocumentCell(row_index=2, col_index=3, text="25.000.000"),
+        DocumentCell(row_index=2, col_index=4, text="50.000.000"),
+    ]
+    table = DocumentTable(
+        id="tbl-hyphenated-skus",
+        page_index=0,
+        row_count=3,
+        column_count=5,
+        cells=headers + rows,
+    )
+    extractor = StructureAwareTableExtractor()
+    lines = extractor.extract_invoice_lines(table)
+
+    assert len(lines) == 2
+    assert lines[0].sku_ref == "PAPER-A4-80"
+    assert lines[1].sku_ref == "LAP-DELL-5520"

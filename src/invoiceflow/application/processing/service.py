@@ -20,7 +20,7 @@ from invoiceflow.domain.invoices.models import (
 from invoiceflow.infrastructure.document.digital_pdf_parser import DigitalPDFParser
 from invoiceflow.infrastructure.document.docling_adapter import DoclingAdapter
 from invoiceflow.infrastructure.document.layout_extractor import LayoutExtractor
-from invoiceflow.infrastructure.document.pdf_inspector import PDFInspector
+from invoiceflow.infrastructure.document.pdf_inspector import ClassificationStr, PDFInspector
 from invoiceflow.infrastructure.document.signature_verifier import (
     SignatureVerifierPort,
     XMLSignatureVerifier,
@@ -157,7 +157,7 @@ class DocumentAIService:
         return DocumentAIResult(
             invoice_aggregate=inv_agg,
             route=ProcessingRoute.XML_DETERMINISTIC,
-            classification="xml_standard",
+            classification=ClassificationStr("xml_invoice"),
             has_rotated_pages=False,
             used_vision=False,
             cost_usd=0.0,
@@ -688,7 +688,9 @@ class DocumentAIService:
         profile = self._pdf_inspector.inspect(content)
         has_rotated = profile.has_rotated_pages
         if has_rotated:
-            content = self._docling_adapter._normalize_page_rotation(content)
+            content = self._docling_adapter._normalize_page_rotation(
+                content, page_classifications=profile.page_classifications
+            )
 
         route = self._router.decide_route(
             detected_kind="pdf",
@@ -698,15 +700,16 @@ class DocumentAIService:
             has_rotated_pages=has_rotated,
         )
 
-        do_ocr = (
-            route in (ProcessingRoute.DOCLING_OCR_STRUCTURED, ProcessingRoute.VISION_FALLBACK)
-            or profile.classification == "pdf_scan"
-        )
+        do_ocr = route in (
+            ProcessingRoute.DOCLING_OCR_STRUCTURED,
+            ProcessingRoute.VISION_FALLBACK,
+        ) or profile.classification in ("pdf_scan", "scanned_pdf", "mixed", "mixed_pdf")
         canonical_doc = self._docling_adapter.extract_canonical(
             tenant_id=tenant_id,
             document_id=document_id,
             pdf_bytes=content,
             do_ocr=do_ocr,
+            page_classifications=profile.page_classifications,
         )
 
         table_lines, table_line_evidence = self._table_extractor.extract_lines_with_evidence(
@@ -741,7 +744,7 @@ class DocumentAIService:
             for line in digital_res.lines
         )
 
-        if profile.classification == "pdf_scan" and table_lines:
+        if profile.classification in ("pdf_scan", "scanned_pdf") and table_lines:
             chosen_lines = table_lines
             is_table_lines = True
         elif not has_invalid_table_lines:
@@ -819,7 +822,7 @@ class DocumentAIService:
                 fallback_reason = "NO_LINES_EXTRACTED"
             elif has_line_issue or has_zero_qty:
                 fallback_reason = "TABLE_CELL_MERGE_OR_UNRECOVERED_FIELDS"
-            elif profile.classification == "pdf_scan":
+            elif profile.classification in ("pdf_scan", "scanned_pdf"):
                 fallback_reason = "SCANNED_PDF"
             else:
                 fallback_reason = "VISION_FALLBACK_ROUTE"
@@ -834,7 +837,9 @@ class DocumentAIService:
                     image_bytes_list.append(pix.tobytes("jpeg"))
                 doc_pdf.close()
 
-                doc_text_for_vision = "" if profile.classification == "pdf_scan" else full_text
+                doc_text_for_vision = (
+                    "" if profile.classification in ("pdf_scan", "scanned_pdf") else full_text
+                )
                 img_payload = (
                     image_bytes_list
                     if len(image_bytes_list) > 1

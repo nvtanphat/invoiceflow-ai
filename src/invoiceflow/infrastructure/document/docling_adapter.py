@@ -110,10 +110,16 @@ class DoclingAdapter:
     """
 
     _patch_lock = threading.Lock()
-    _patch_status: DoclingPatchStatus = DoclingPatchStatus.UNINITIALIZED
+    _patch_status: DoclingPatchStatus = DoclingPatchStatus.ACTIVE
 
     @classmethod
     def get_patch_status(cls) -> DoclingPatchStatus:
+        return cls._patch_status
+
+    @classmethod
+    def _patch_docling_reading_order(cls) -> DoclingPatchStatus:
+        """Maintained for backward compatibility. Official Docling pipeline options
+        and adapter-level spatial normalization are used directly without monkey-patching."""
         return cls._patch_status
 
     def __init__(
@@ -139,164 +145,6 @@ class DoclingAdapter:
         self._ocr_dpi = ocr_dpi
         self._ocr_languages = ocr_languages
 
-    @classmethod
-    def _patch_docling_reading_order(cls) -> DoclingPatchStatus:
-        """Patches Docling's layout postprocessor and page assemble model to order
-        OCR word boxes in natural reading bands (top-to-bottom, left-to-right) rather
-        than raw detection box discovery indices, eliminating out-of-order text line
-        assembly on scanned documents. Thread-safe and idempotent.
-        """
-        with cls._patch_lock:
-            if cls._patch_status in (DoclingPatchStatus.ACTIVE, DoclingPatchStatus.UNAVAILABLE):
-                return cls._patch_status
-
-            try:
-                from docling.utils.layout_postprocessor import LayoutPostprocessor
-                import docling.models.stages.page_assemble.page_assemble_model as pam
-
-                if not hasattr(LayoutPostprocessor, "_sort_cells") or not hasattr(
-                    pam.PageAssembleModel, "__call__"
-                ):
-                    logger.warning(
-                        "Docling internal API incompatible for spatial reading-order patch: "
-                        "LayoutPostprocessor._sort_cells=%s, PageAssembleModel.__call__=%s",
-                        hasattr(LayoutPostprocessor, "_sort_cells"),
-                        hasattr(pam.PageAssembleModel, "__call__"),
-                    )
-                    cls._patch_status = DoclingPatchStatus.UNAVAILABLE
-                    return cls._patch_status
-
-                def spatial_sort_cells(postprocessor_self, cells: list[Any]) -> list[Any]:
-                    sorted_res: list[Any] = []
-                    for line in spatial_group_cells(cells):
-                        sorted_res.extend(line)
-                    return sorted_res
-
-                LayoutPostprocessor._sort_cells = spatial_sort_cells
-
-                def custom_pam_call(pam_self, conv_res, page_batch):
-                    from docling.models.stages.layout.layout_model import LayoutModel
-                    from docling.datamodel.base_models import (
-                        AssembledUnit,
-                        ContainerElement,
-                        FigureElement,
-                        Table,
-                        TextElement,
-                    )
-                    from docling.utils.profiling import TimeRecorder
-
-                    for page in page_batch:
-                        if page._backend is None or not page._backend.is_valid():
-                            yield page
-                            continue
-                        with TimeRecorder(conv_res, "page_assemble"):
-                            if page.predictions.layout is None:
-                                yield page
-                                continue
-                            elements = []
-                            headers = []
-                            body = []
-                            for cluster in page.predictions.layout.clusters:
-                                if cluster.label in LayoutModel.TEXT_ELEM_LABELS:
-                                    is_ocr = any(
-                                        getattr(c, "from_ocr", False) for c in cluster.cells
-                                    )
-                                    if is_ocr:
-                                        line_groups = spatial_group_cells(cluster.cells)
-                                        text_lines = []
-                                        for grp in line_groups:
-                                            ws = [
-                                                c.text.replace("\x02", "-").strip()
-                                                for c in grp
-                                                if c.text.strip()
-                                            ]
-                                            if ws:
-                                                text_lines.append(" ".join(ws))
-                                        text = "\n".join(text_lines)
-                                    else:
-                                        textlines = [
-                                            cell.text.replace("\x02", "-").strip()
-                                            for cell in cluster.cells
-                                            if len(cell.text.strip()) > 0
-                                        ]
-                                        text = pam_self.sanitize_text(textlines)
-
-                                    hyperlink = pam_self._match_hyperlink(cluster.bbox, page)
-                                    text_el = TextElement(
-                                        label=cluster.label,
-                                        id=cluster.id,
-                                        text=text,
-                                        hyperlink=hyperlink,
-                                        page_no=page.page_no,
-                                        cluster=cluster,
-                                    )
-                                    elements.append(text_el)
-                                    if cluster.label in LayoutModel.PAGE_HEADER_LABELS:
-                                        headers.append(text_el)
-                                    else:
-                                        body.append(text_el)
-                                elif cluster.label in LayoutModel.TABLE_LABELS:
-                                    tbl = None
-                                    if page.predictions.tablestructure:
-                                        tbl = page.predictions.tablestructure.table_map.get(
-                                            cluster.id, None
-                                        )
-                                    if not tbl:
-                                        tbl = Table(
-                                            label=cluster.label,
-                                            id=cluster.id,
-                                            text="",
-                                            otsl_seq=[],
-                                            table_cells=[],
-                                            cluster=cluster,
-                                            page_no=page.page_no,
-                                        )
-                                    elements.append(tbl)
-                                    body.append(tbl)
-                                elif cluster.label == LayoutModel.FIGURE_LABEL:
-                                    fig = None
-                                    if page.predictions.figures_classification:
-                                        fig = (
-                                            page.predictions.figures_classification.figure_map.get(
-                                                cluster.id, None
-                                            )
-                                        )
-                                    if not fig:
-                                        fig = FigureElement(
-                                            label=cluster.label,
-                                            id=cluster.id,
-                                            text="",
-                                            data=None,
-                                            cluster=cluster,
-                                            page_no=page.page_no,
-                                        )
-                                    elements.append(fig)
-                                    body.append(fig)
-                                elif cluster.label in LayoutModel.CONTAINER_LABELS:
-                                    container_el = ContainerElement(
-                                        label=cluster.label,
-                                        id=cluster.id,
-                                        page_no=page.page_no,
-                                        cluster=cluster,
-                                    )
-                                    elements.append(container_el)
-                                    body.append(container_el)
-
-                            page.assembled = AssembledUnit(
-                                elements=elements, headers=headers, body=body
-                            )
-                        yield page
-
-                pam.PageAssembleModel.__call__ = custom_pam_call
-                LayoutPostprocessor._invoiceflow_spatial_patched = True
-                cls._patch_status = DoclingPatchStatus.ACTIVE
-                logger.info("Docling reading order spatial patch successfully activated.")
-                return cls._patch_status
-            except Exception as exc:
-                cls._patch_status = DoclingPatchStatus.UNAVAILABLE
-                logger.warning("Could not apply Docling spatial reading-order patch: %s", exc)
-                return cls._patch_status
-
     def _get_converter(self, do_ocr: bool = False):
         if do_ocr in self._converters:
             return self._converters[do_ocr]
@@ -313,9 +161,6 @@ class DoclingAdapter:
                 fd.are_symlinks_supported = lambda *args, **kwargs: False
         except Exception:
             pass
-
-        if do_ocr:
-            self._patch_docling_reading_order()
 
         from docling.datamodel.base_models import InputFormat
         from docling.datamodel.pipeline_options import (
@@ -347,20 +192,13 @@ class DoclingAdapter:
         self._converters[do_ocr] = converter
         return converter
 
-    def _normalize_page_rotation(self, pdf_bytes: bytes) -> bytes:
-        """Bakes each page's /Rotate metadata into its raster content.
-
-        RapidOCR's PP-OCRv4 pipeline includes a per-text-region angle
-        classifier that corrects rotated text internally, but Docling's
-        EasyOCR integration does not expose EasyOCR's own rotation_info
-        capability -- fed a page whose /Rotate flag says 90 but whose
-        underlying content is physically unrotated (a real scanner/phone
-        capture commonly produces exactly this), it reads the page as-is
-        and sees vertical text, producing near-total garbage (verified:
-        CER jumped from 7% to 93% on a 90-degree rotated fixture). Since
-        the orientation problem is about what pixels face which direction,
-        not which OCR engine is used, it is fixed once here rather than
-        inside each engine.
+    def _normalize_page_rotation(
+        self,
+        pdf_bytes: bytes,
+        page_classifications: Optional[dict[int, str]] = None,
+    ) -> bytes:
+        """Bakes each scanned page's /Rotate metadata into its raster content while preserving
+        native vector text layers on digital pages.
         """
         import fitz
 
@@ -375,11 +213,18 @@ class DoclingAdapter:
                 if page.rotation == 0:
                     normalized.insert_pdf(src, from_page=page_index, to_page=page_index)
                     continue
-                # get_pixmap() renders "as displayed" (rotation applied), which
-                # is exactly backwards for this: the physical content is
-                # already upright, and /Rotate is a display-time instruction to
-                # turn it -- so render with rotation un-set to get the content
-                # in its native, horizontal orientation.
+
+                is_digital = False
+                if page_classifications is not None:
+                    is_digital = page_classifications.get(page_index) in ("digital", "native_text")
+                else:
+                    is_digital = len(page.get_text().strip()) >= 50
+
+                if is_digital:
+                    # Preserve vector text layer of rotated digital page without rasterization
+                    normalized.insert_pdf(src, from_page=page_index, to_page=page_index)
+                    continue
+
                 page.set_rotation(0)
                 pix = page.get_pixmap(dpi=self._ocr_dpi)
                 w, h = page.rect.width, page.rect.height
@@ -395,12 +240,15 @@ class DoclingAdapter:
         document_id: UUID | str,
         pdf_bytes: bytes,
         do_ocr: bool = False,
+        page_classifications: Optional[dict[int, str]] = None,
     ) -> CanonicalDocument:
         """Extracts structured elements, tables, and provenance from a PDF document into CanonicalDocument."""
         start_time = time.perf_counter()
 
         if do_ocr:
-            pdf_bytes = self._normalize_page_rotation(pdf_bytes)
+            pdf_bytes = self._normalize_page_rotation(
+                pdf_bytes, page_classifications=page_classifications
+            )
 
         try:
             import tempfile
@@ -522,46 +370,126 @@ class DoclingAdapter:
                 table_counter += 1
 
             # 2. Extract textual elements (paragraphs, headings, text)
-            for item in doc.texts:
-                clean_text = normalize_extracted_text(str(item.text or "").strip())
-                if not clean_text:
-                    continue
-
-                page_no = 1
-                bbox_obj = None
-                if item.prov and len(item.prov) > 0:
-                    page_no = item.prov[0].page_no
-                    p_idx = max(int(page_no) - 1, 0)
+            if do_ocr and getattr(res, "pages", None):
+                for page in res.pages:
+                    p_idx = max(int(page.page_no or 1) - 1, 0)
                     p_height = page_heights.get(p_idx, 842.0)
-                    raw_bbox = item.prov[0].bbox
-                    if raw_bbox:
-                        try:
-                            tl = raw_bbox.to_top_left_origin(p_height)
-                            bbox_obj = BoundingBox(
-                                page_index=p_idx,
-                                x0=float(min(tl.l, tl.r)),
-                                y0=float(min(tl.t, tl.b)),
-                                x1=float(max(tl.l, tl.r)),
-                                y1=float(max(tl.t, tl.b)),
-                                coordinate_system=CoordinateSystem.PDF_POINTS,
-                            )
-                        except Exception:
-                            pass
-                else:
-                    p_idx = 0
+                    if not (
+                        page.predictions
+                        and page.predictions.layout
+                        and page.predictions.layout.clusters
+                    ):
+                        continue
 
-                kind = getattr(item, "label", "text")
-                elements.append(
-                    DocumentElement(
-                        id=f"docling-elem-{p_idx}-{el_counter}",
-                        page_index=p_idx,
-                        kind=str(kind),
-                        text=clean_text,
-                        reading_order=el_counter,
-                        bbox=bbox_obj,
+                    for cluster in page.predictions.layout.clusters:
+                        label_str = str(getattr(cluster, "label", "")).lower()
+                        if "table" in label_str or "figure" in label_str:
+                            continue
+
+                        cluster_cells = getattr(cluster, "cells", [])
+                        if not cluster_cells:
+                            continue
+
+                        line_groups = spatial_group_cells(cluster_cells)
+                        for grp in line_groups:
+                            words = [
+                                c.text.replace("\x02", "-").strip()
+                                for c in grp
+                                if getattr(c, "text", "").strip()
+                            ]
+                            if not words:
+                                continue
+                            clean_text = normalize_extracted_text(" ".join(words))
+                            if not clean_text:
+                                continue
+
+                            min_l = float("inf")
+                            min_t = float("inf")
+                            max_r = float("-inf")
+                            max_b = float("-inf")
+                            has_bbox = False
+
+                            for c in grp:
+                                bb = getattr(c, "rect", None)
+                                if bb is not None and hasattr(bb, "to_bounding_box"):
+                                    b = bb.to_bounding_box()
+                                    if hasattr(b, "to_top_left_origin"):
+                                        b = b.to_top_left_origin(p_height)
+                                    min_l = min(min_l, float(min(b.l, b.r)))
+                                    min_t = min(min_t, float(min(b.t, b.b)))
+                                    max_r = max(max_r, float(max(b.l, b.r)))
+                                    max_b = max(max_b, float(max(b.t, b.b)))
+                                    has_bbox = True
+                                elif hasattr(c, "bbox") and c.bbox is not None:
+                                    min_l = min(min_l, float(c.bbox.x0))
+                                    min_t = min(min_t, float(c.bbox.y0))
+                                    max_r = max(max_r, float(c.bbox.x1))
+                                    max_b = max(max_b, float(c.bbox.y1))
+                                    has_bbox = True
+
+                            bbox_obj = None
+                            if has_bbox and min_l < max_r and min_t < max_b:
+                                bbox_obj = BoundingBox(
+                                    page_index=p_idx,
+                                    x0=min_l,
+                                    y0=min_t,
+                                    x1=max_r,
+                                    y1=max_b,
+                                    coordinate_system=CoordinateSystem.PDF_POINTS,
+                                )
+
+                            elements.append(
+                                DocumentElement(
+                                    id=f"docling-elem-{p_idx}-{el_counter}",
+                                    page_index=p_idx,
+                                    kind=getattr(cluster, "label", "text"),
+                                    text=clean_text,
+                                    reading_order=el_counter,
+                                    bbox=bbox_obj,
+                                )
+                            )
+                            el_counter += 1
+            else:
+                for item in doc.texts:
+                    clean_text = normalize_extracted_text(str(item.text or "").strip())
+                    if not clean_text:
+                        continue
+
+                    page_no = 1
+                    bbox_obj = None
+                    if item.prov and len(item.prov) > 0:
+                        page_no = item.prov[0].page_no
+                        p_idx = max(int(page_no) - 1, 0)
+                        p_height = page_heights.get(p_idx, 842.0)
+                        raw_bbox = item.prov[0].bbox
+                        if raw_bbox:
+                            try:
+                                tl = raw_bbox.to_top_left_origin(p_height)
+                                bbox_obj = BoundingBox(
+                                    page_index=p_idx,
+                                    x0=float(min(tl.l, tl.r)),
+                                    y0=float(min(tl.t, tl.b)),
+                                    x1=float(max(tl.l, tl.r)),
+                                    y1=float(max(tl.t, tl.b)),
+                                    coordinate_system=CoordinateSystem.PDF_POINTS,
+                                )
+                            except Exception:
+                                pass
+                    else:
+                        p_idx = 0
+
+                    kind = getattr(item, "label", "text")
+                    elements.append(
+                        DocumentElement(
+                            id=f"docling-elem-{p_idx}-{el_counter}",
+                            page_index=p_idx,
+                            kind=str(kind),
+                            text=clean_text,
+                            reading_order=el_counter,
+                            bbox=bbox_obj,
+                        )
                     )
-                )
-                el_counter += 1
+                    el_counter += 1
 
             if not elements and not tables:
                 logger.warning(

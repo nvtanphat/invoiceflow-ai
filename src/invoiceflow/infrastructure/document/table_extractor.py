@@ -268,6 +268,16 @@ class StructureAwareTableExtractor:
                 sku = bracket_match.group(1)
                 desc = _BRACKET_SKU_PATTERN.sub("", desc).strip()
                 sku_from_description = True
+            else:
+                m_unbr = re.search(r"\b([A-Z0-9]+(?:-[A-Z0-9]+)+)\b", desc)
+                if m_unbr:
+                    cand = m_unbr.group(1)
+                    if not re.match(r"^\d{4}-\d{2}-\d{2}$", cand) and not re.match(
+                        r"^\d{10}-\d{3}$", cand
+                    ):
+                        sku = cand
+                        desc = desc.replace(cand, "").strip(" -:,")
+                        sku_from_description = True
 
         raw_qty = data.get("qty", "")
         raw_price = data.get("unit_price", "0")

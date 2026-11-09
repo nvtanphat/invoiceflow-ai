@@ -73,7 +73,7 @@ flowchart TD
 | **Độ chính xác Dòng hàng (Line Items F1)** | **100.0%** | $\ge 70.0\%$ | Đạt tuyệt đối (Khớp đầy đủ từng mặt hàng, số lượng và thành tiền) |
 | **Tính hợp lệ Số học (Arithmetic Validity Rate)** | **100.0%** | $100.0\%$ | Không có bất kỳ sai lệch số học nào (Số lượng $\times$ Đơn giá = Thành tiền) |
 | **Phát hiện Bất thường Đối soát (Anomaly F1)** | **100.0%** | $100.0\%$ | Bắt chính xác 100% các sai lệch Đơn giá (PO) và Số lượng (GRN) |
-| **Khớp Thông tin Tiêu đề (Header Exact Match)** | **91.8%** | $\ge 70.0\%$ | Nhận diện chính xác MST nhà cung cấp, số hóa đơn, ngày phát hành |
+| **Khớp Thông tin Tiêu đề (Header Exact Match)** | **94.5%** | $\ge 70.0\%$ | Nhận diện chính xác MST nhà cung cấp, số hóa đơn, ngày phát hành |
 | **Độ tin cậy OCR Tiếng Việt (EasyOCR)** | **100.0% Amounts** | $100.0\%$ | Nhận diện đúng 100% số tiền trên mọi tài liệu scan và xoay góc |
 
 > **Cơ chế Xử lý Hỗn hợp (Hybrid Pipeline):** Hóa đơn XML được xử lý tức thời trong ~15ms với độ chính xác 100% ($0 LLM). Hóa đơn PDF điện tử được bóc tách cấu trúc bằng Docling và regex chuẩn hóa. Chỉ các hóa đơn scan ảnh thuần hoặc thiếu thông tin quan trọng mới kích hoạt Vision Multimodal LLM fallback (`gpt-6.1-sol`), giúp tiết kiệm hơn 70% chi phí gọi API và bảo toàn tính toàn vẹn của bằng chứng (BBox).
@@ -122,7 +122,7 @@ Truy cập:
 ## 5. Kiểm thử & Đảm bảo Chất lượng (Quality Assurance)
 
 ```bash
-# Chạy toàn bộ 40 bài test tự động (Unit, Integration, Contract, Security)
+# Chạy toàn bộ 143 bài test tự động (Unit, Integration, Contract, Security)
 python -m pytest
 
 # Chạy kiểm thử chất lượng ứng dụng thực tế (10 casebook documents)
