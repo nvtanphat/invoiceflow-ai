@@ -241,6 +241,18 @@ class DocumentAIService:
                 parser_issues.append(
                     f"FIELD_CONFLICT_SUPPLIER_NAME: OCR='{header['supplier_name']}' vs Vision='{vision_res.supplier_name}'"
                 )
+                vision_header_evidence.append(
+                    FieldEvidence(
+                        field_path="supplier_name.candidate_vision",
+                        source_kind="vision_llm",
+                        raw_value=vision_res.supplier_name,
+                        normalized_value=vision_res.supplier_name,
+                        confidence=0.75,
+                        extractor="openai_vision",
+                        verification_state="model_proposed",
+                        review_reason="Conflicting candidate from Vision AI",
+                    )
+                )
 
         if not header["buyer_tax_id"] and vision_res.buyer_tax_id:
             if self._validate_tax_id(vision_res.buyer_tax_id):
@@ -263,6 +275,18 @@ class DocumentAIService:
         ):
             parser_issues.append(
                 f"FIELD_CONFLICT_BUYER_TAX_ID: OCR='{header['buyer_tax_id']}' vs Vision='{vision_res.buyer_tax_id}'"
+            )
+            vision_header_evidence.append(
+                FieldEvidence(
+                    field_path="buyer_tax_id.candidate_vision",
+                    source_kind="vision_llm",
+                    raw_value=vision_res.buyer_tax_id,
+                    normalized_value=vision_res.buyer_tax_id,
+                    confidence=0.80,
+                    extractor="openai_vision",
+                    verification_state="model_proposed",
+                    review_reason="Conflicting candidate from Vision AI",
+                )
             )
 
         if not header["buyer_name"] and vision_res.buyer_name:
@@ -312,6 +336,18 @@ class DocumentAIService:
             parser_issues.append(
                 f"FIELD_CONFLICT_INVOICE_SERIES: OCR='{header['invoice_series']}' vs Vision='{vision_res.invoice_series}'"
             )
+            vision_header_evidence.append(
+                FieldEvidence(
+                    field_path="invoice_series.candidate_vision",
+                    source_kind="vision_llm",
+                    raw_value=vision_res.invoice_series,
+                    normalized_value=vision_res.invoice_series,
+                    confidence=0.80,
+                    extractor="openai_vision",
+                    verification_state="model_proposed",
+                    review_reason="Conflicting candidate from Vision AI",
+                )
+            )
 
         if not header["issue_date"] and vision_res.issue_date:
             header["issue_date"] = vision_res.issue_date
@@ -322,6 +358,18 @@ class DocumentAIService:
         ):
             parser_issues.append(
                 f"FIELD_CONFLICT_ISSUE_DATE: OCR='{header['issue_date']}' vs Vision='{vision_res.issue_date}'"
+            )
+            vision_header_evidence.append(
+                FieldEvidence(
+                    field_path="issue_date.candidate_vision",
+                    source_kind="vision_llm",
+                    raw_value=vision_res.issue_date,
+                    normalized_value=vision_res.issue_date,
+                    confidence=0.80,
+                    extractor="openai_vision",
+                    verification_state="model_proposed",
+                    review_reason="Conflicting candidate from Vision AI",
+                )
             )
 
         ocr_payable = header["amount_payable"]
@@ -378,6 +426,18 @@ class DocumentAIService:
             parser_issues.append(
                 f"FIELD_CONFLICT_SUBTOTAL: OCR={header['subtotal']} vs Vision={vision_res.subtotal}"
             )
+            vision_header_evidence.append(
+                FieldEvidence(
+                    field_path="subtotal.candidate_vision",
+                    source_kind="vision_llm",
+                    raw_value=str(vision_res.subtotal),
+                    normalized_value=str(vision_res.subtotal),
+                    confidence=0.80,
+                    extractor="openai_vision",
+                    verification_state="model_proposed",
+                    review_reason="Conflicting subtotal proposed by Vision AI against OCR",
+                )
+            )
 
         if header["tax_total"] <= Decimal("0.0000") and vision_res.tax_total > Decimal("0.0000"):
             header["tax_total"] = vision_res.tax_total
@@ -388,6 +448,18 @@ class DocumentAIService:
         ):
             parser_issues.append(
                 f"FIELD_CONFLICT_TAX_TOTAL: OCR={header['tax_total']} vs Vision={vision_res.tax_total}"
+            )
+            vision_header_evidence.append(
+                FieldEvidence(
+                    field_path="tax_total.candidate_vision",
+                    source_kind="vision_llm",
+                    raw_value=str(vision_res.tax_total),
+                    normalized_value=str(vision_res.tax_total),
+                    confidence=0.80,
+                    extractor="openai_vision",
+                    verification_state="model_proposed",
+                    review_reason="Conflicting tax total proposed by Vision AI against OCR",
+                )
             )
 
     @staticmethod
@@ -449,6 +521,7 @@ class DocumentAIService:
         ocr_lines: list[InvoiceLine],
         vision_lines: list[Any],
         table_line_evidence: list[FieldEvidence],
+        parser_issues: Optional[list[str]] = None,
     ) -> list[InvoiceLine]:
         num_ocr = len(ocr_lines)
 
@@ -492,6 +565,8 @@ class DocumentAIService:
                 issues = list(o_line.issues)
                 if "LINE_MATCH_AMBIGUOUS" not in issues:
                     issues.append("LINE_MATCH_AMBIGUOUS")
+                if parser_issues is not None:
+                    parser_issues.append(f"LINE_MATCH_AMBIGUOUS: Line {o_idx + 1}")
                 reconciled_lines.append(o_line.model_copy(update={"issues": issues}))
                 continue
 
@@ -502,72 +577,102 @@ class DocumentAIService:
             v_idx, match_score = matched_ocr[o_idx]
             v_match = vision_lines[v_idx]
 
-            has_unrecovered_qty = any(
-                iss
-                in (
-                    "QTY_ZERO_OR_MISSING",
-                    "QTY_UNRECOVERED",
-                    "CELL_MERGE_SUSPECTED",
-                    "ARITHMETIC_MISMATCH",
-                )
-                for iss in o_line.issues
-            ) or o_line.qty <= Decimal("0.0000")
-
-            if has_unrecovered_qty and v_match.qty > Decimal("0.0000"):
-                exp_amt = (v_match.qty * o_line.unit_price) - o_line.discount
-                if abs(o_line.line_amount - exp_amt) < Decimal("0.0100"):
-                    cleaned_issues = [
-                        iss
-                        for iss in o_line.issues
-                        if iss
-                        not in (
-                            "QTY_ZERO_OR_MISSING",
-                            "QTY_UNRECOVERED",
-                            "ARITHMETIC_MISMATCH",
-                            "CELL_MERGE_SUSPECTED",
-                        )
-                    ]
-                    dynamic_conf = round(min(0.88, 0.70 + (match_score / 150.0) * 0.18), 4)
-
-                    o_line = o_line.model_copy(
-                        update={
-                            "qty": v_match.qty,
-                            "raw_qty": str(v_match.qty),
-                            "sku_ref": o_line.sku_ref or v_match.sku,
-                            "issues": cleaned_issues,
-                        }
-                    )
-                    table_line_evidence.append(
-                        FieldEvidence(
-                            field_path=f"lines[{o_idx}].qty",
-                            source_kind="vision_llm",
-                            raw_value=str(v_match.qty),
-                            normalized_value=str(v_match.qty),
-                            confidence=dynamic_conf,
-                            extractor="openai_vision",
-                            verification_state="arithmetically_consistent",
-                        )
-                    )
-                else:
+            # Case 1: OCR has a valid positive quantity (> 0).
+            # Under P0 Financial Integrity, never allow Vision to overwrite OCR valid quantity!
+            if o_line.qty > Decimal("0.0000"):
+                if v_match.qty > Decimal("0.0000") and abs(o_line.qty - v_match.qty) >= Decimal(
+                    "0.0001"
+                ):
                     issues = list(o_line.issues)
-                    issues.append(
-                        f"VISION_QUANTITY_ARITHMETIC_MISMATCH: Vision={v_match.qty} * Price={o_line.unit_price} != Amt={o_line.line_amount}"
-                    )
-                    o_line = o_line.model_copy(update={"issues": issues})
+                    conflict_msg = f"LINE_QTY_CONFLICT: Line {o_idx + 1} OCR={o_line.qty} vs Vision={v_match.qty}"
+                    issues.append(conflict_msg)
+                    if parser_issues is not None:
+                        parser_issues.append(conflict_msg)
                     table_line_evidence.append(
                         FieldEvidence(
                             field_path=f"lines[{o_idx}].qty.candidate_vision",
                             source_kind="vision_llm",
                             raw_value=str(v_match.qty),
                             normalized_value=str(v_match.qty),
-                            confidence=0.65,
+                            confidence=0.75,
                             extractor="openai_vision",
                             verification_state="model_proposed",
-                            review_reason="Vision quantity failed line arithmetic check",
+                            review_reason=f"Conflicting line quantity proposed by Vision AI ({v_match.qty}) against OCR ({o_line.qty})",
                         )
                     )
-            elif not o_line.sku_ref and v_match.sku:
-                o_line = o_line.model_copy(update={"sku_ref": v_match.sku})
+                    updated_sku = o_line.sku_ref or v_match.sku
+                    o_line = o_line.model_copy(update={"sku_ref": updated_sku, "issues": issues})
+                elif not o_line.sku_ref and v_match.sku:
+                    o_line = o_line.model_copy(update={"sku_ref": v_match.sku})
+
+            # Case 2: OCR quantity is truly missing/unrecovered (<= 0)
+            else:
+                has_unrecovered_qty = any(
+                    iss
+                    in (
+                        "QTY_ZERO_OR_MISSING",
+                        "QTY_UNRECOVERED",
+                        "CELL_MERGE_SUSPECTED",
+                    )
+                    for iss in o_line.issues
+                ) or o_line.qty <= Decimal("0.0000")
+
+                if has_unrecovered_qty and v_match.qty > Decimal("0.0000"):
+                    exp_amt = (v_match.qty * o_line.unit_price) - o_line.discount
+                    if abs(o_line.line_amount - exp_amt) < Decimal("0.0100"):
+                        cleaned_issues = [
+                            iss
+                            for iss in o_line.issues
+                            if iss
+                            not in (
+                                "QTY_ZERO_OR_MISSING",
+                                "QTY_UNRECOVERED",
+                                "ARITHMETIC_MISMATCH",
+                                "CELL_MERGE_SUSPECTED",
+                            )
+                        ]
+                        dynamic_conf = round(min(0.88, 0.70 + (match_score / 150.0) * 0.18), 4)
+                        o_line = o_line.model_copy(
+                            update={
+                                "qty": v_match.qty,
+                                "raw_qty": str(v_match.qty),
+                                "sku_ref": o_line.sku_ref or v_match.sku,
+                                "issues": cleaned_issues,
+                            }
+                        )
+                        table_line_evidence.append(
+                            FieldEvidence(
+                                field_path=f"lines[{o_idx}].qty",
+                                source_kind="vision_llm",
+                                raw_value=str(v_match.qty),
+                                normalized_value=str(v_match.qty),
+                                confidence=dynamic_conf,
+                                extractor="openai_vision",
+                                verification_state="arithmetically_consistent",
+                                review_reason="Recovered missing quantity validated by arithmetic consistency",
+                            )
+                        )
+                    else:
+                        issues = list(o_line.issues)
+                        mis_msg = f"VISION_QUANTITY_ARITHMETIC_MISMATCH: Vision={v_match.qty} * Price={o_line.unit_price} != Amt={o_line.line_amount}"
+                        issues.append(mis_msg)
+                        if parser_issues is not None:
+                            parser_issues.append(mis_msg)
+                        o_line = o_line.model_copy(update={"issues": issues})
+                        table_line_evidence.append(
+                            FieldEvidence(
+                                field_path=f"lines[{o_idx}].qty.candidate_vision",
+                                source_kind="vision_llm",
+                                raw_value=str(v_match.qty),
+                                normalized_value=str(v_match.qty),
+                                confidence=0.65,
+                                extractor="openai_vision",
+                                verification_state="model_proposed",
+                                review_reason="Vision quantity failed line arithmetic check",
+                            )
+                        )
+                elif not o_line.sku_ref and v_match.sku:
+                    o_line = o_line.model_copy(update={"sku_ref": v_match.sku})
 
             reconciled_lines.append(o_line)
 
@@ -751,11 +856,14 @@ class DocumentAIService:
                         header, vision_res, parser_issues, vision_header_evidence
                     )
 
-                    if is_table_lines and chosen_lines and vision_res.line_items:
+                    if chosen_lines and vision_res.line_items:
                         chosen_lines = self._match_and_reconcile_lines(
-                            chosen_lines, vision_res.line_items, table_line_evidence
+                            chosen_lines,
+                            vision_res.line_items,
+                            table_line_evidence,
+                            parser_issues,
                         )
-                    elif (not chosen_lines or has_zero_qty) and vision_res.line_items:
+                    elif (not chosen_lines) and vision_res.line_items:
                         v_lines: list[InvoiceLine] = []
                         for idx, item in enumerate(vision_res.line_items, start=1):
                             line_sku = item.sku or ""
@@ -814,7 +922,7 @@ class DocumentAIService:
         )
         if vision_header_evidence:
             evidence.extend(vision_header_evidence)
-        if is_table_lines and table_line_evidence:
+        if table_line_evidence:
             evidence.extend(table_line_evidence)
         elif used_vision and not is_table_lines:
             for line in chosen_lines:

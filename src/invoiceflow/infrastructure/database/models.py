@@ -200,6 +200,7 @@ class FieldEvidenceORM(Base):
     verification_state: Mapped[str] = mapped_column(
         String(50), default="model_proposed", nullable=False
     )
+    review_reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     invoice: Mapped["InvoiceORM"] = relationship("InvoiceORM", back_populates="evidence")
 

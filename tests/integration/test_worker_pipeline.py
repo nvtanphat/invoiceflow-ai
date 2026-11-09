@@ -263,13 +263,15 @@ async def test_worker_pipeline_processes_scan_pdf_job():
             invoices = await inv_repo.list_invoices(tenant_id=tenant_id)
             assert len(invoices) == 1
             assert invoices[0].status == "READY_FOR_REVIEW"
-            assert invoices[0].supplier_tax_id == "0101112233"
-            assert invoices[0].invoice_number == "0009999"
+            assert invoices[0].supplier_tax_id == "0105554321"
+            assert invoices[0].invoice_number == "0003412"
 
             loaded_inv = await inv_repo.get_invoice(tenant_id=tenant_id, invoice_id=invoices[0].id)
             assert loaded_inv is not None
             assert len(loaded_inv.lines) == 1
-            assert loaded_inv.lines[0].description == "San pham tu scan OCR"
+            assert "Bộ dụng cụ và hóa chất" in loaded_inv.lines[0].description
+            assert any(e.field_path == "supplier_tax_id" for e in loaded_inv.evidence)
+            assert any(e.field_path == "invoice_number" for e in loaded_inv.evidence)
     finally:
         await db_manager.close()
         shutil.rmtree(tmp_dir, ignore_errors=True)

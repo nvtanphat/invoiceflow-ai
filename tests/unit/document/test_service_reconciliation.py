@@ -570,3 +570,224 @@ async def test_document_ai_service_handles_ambiguous_line_matches():
 
     agg = result.invoice_aggregate
     assert any("LINE_MATCH_AMBIGUOUS" in iss for iss in agg.lines[0].issues)
+
+
+@pytest.mark.asyncio
+async def test_document_ai_service_preserves_ocr_valid_qty_when_vision_differs():
+    """Verify that when OCR already recognized a valid non-zero quantity,
+    Vision AI NEVER overwrites it even if Vision's quantity satisfies arithmetic consistency.
+    Both values must be preserved: OCR value kept in line, Vision value stored as candidate evidence,
+    and LINE_QTY_CONFLICT is raised.
+    """
+    mock_llm = MagicMock()
+    mock_llm._client = MagicMock()
+    mock_llm.extract_invoice_data = AsyncMock(
+        return_value=ExtractionResult(
+            supplier_tax_id="0101234567",
+            amount_payable=Decimal("8000.0000"),
+            line_items=[
+                ExtractedLine(
+                    line_no=1,
+                    sku="ITEM-X",
+                    description="Vật tư X",
+                    qty=Decimal("8.0000"),
+                    unit_price=Decimal("1000.0000"),
+                    line_amount=Decimal("8000.0000"),
+                ),
+            ],
+        )
+    )
+
+    service = DocumentAIService(llm_adapter=mock_llm)
+
+    cell_bbox = BoundingBox(
+        page_index=0,
+        x0=10.0,
+        y0=50.0,
+        x1=100.0,
+        y1=70.0,
+        coordinate_system=CoordinateSystem.PDF_POINTS,
+    )
+    table = DocumentTable(
+        id="tbl-test",
+        page_index=0,
+        row_count=2,
+        column_count=5,
+        cells=[
+            DocumentCell(row_index=0, col_index=0, text="STT", bbox=cell_bbox),
+            DocumentCell(row_index=0, col_index=1, text="Ten hang", bbox=cell_bbox),
+            DocumentCell(row_index=0, col_index=2, text="So luong", bbox=cell_bbox),
+            DocumentCell(row_index=0, col_index=3, text="Don gia", bbox=cell_bbox),
+            DocumentCell(row_index=0, col_index=4, text="Thanh tien", bbox=cell_bbox),
+            DocumentCell(row_index=1, col_index=0, text="1", bbox=cell_bbox),
+            DocumentCell(row_index=1, col_index=1, text="Vat tu X [ITEM-X]", bbox=cell_bbox),
+            DocumentCell(row_index=1, col_index=2, text="10.0000", bbox=cell_bbox),
+            DocumentCell(row_index=1, col_index=3, text="1000.0000", bbox=cell_bbox),
+            DocumentCell(row_index=1, col_index=4, text="8000.0000", bbox=cell_bbox),
+        ],
+    )
+
+    mock_docling = MagicMock()
+    mock_docling.extract_canonical.return_value = CanonicalDocument(
+        document_id=uuid.uuid4(),
+        tenant_id=uuid.uuid4(),
+        source_format="pdf",
+        parser_name="docling",
+        parser_version="2.87.0",
+        config_hash="test",
+        source_checksum="test",
+        page_count=1,
+        elements=[],
+        tables=[table],
+    )
+    mock_docling._normalize_page_rotation.side_effect = lambda b: b
+    service._docling_adapter = mock_docling
+
+    mock_inspector = MagicMock()
+    mock_profile = MagicMock()
+    mock_profile.has_rotated_pages = False
+    mock_profile.classification = "pdf_scan"
+    mock_profile.table_count = 1
+    mock_inspector.inspect.return_value = mock_profile
+    service._pdf_inspector = mock_inspector
+
+    import fitz
+
+    doc = fitz.open()
+    doc.new_page()
+    pdf_bytes = doc.write()
+    doc.close()
+
+    result = await service.process_document(
+        tenant_id=uuid.uuid4(),
+        document_id=uuid.uuid4(),
+        filename="test_ocr_qty_preserve.pdf",
+        content=pdf_bytes,
+    )
+
+    agg = result.invoice_aggregate
+    assert len(agg.lines) == 1
+    assert agg.lines[0].qty == Decimal("10.0000")
+    assert any("LINE_QTY_CONFLICT" in iss for iss in agg.lines[0].issues)
+    assert any("LINE_QTY_CONFLICT" in iss for iss in agg.parser_issues)
+    assert "ARITHMETIC_MISMATCH" in agg.lines[0].issues
+
+    cand_evs = [ev for ev in agg.evidence if ev.field_path == "lines[0].qty.candidate_vision"]
+    assert len(cand_evs) == 1
+    assert cand_evs[0].raw_value == "8.0000"
+    assert cand_evs[0].verification_state == "model_proposed"
+    assert cand_evs[0].review_reason is not None
+
+
+@pytest.mark.asyncio
+async def test_review_service_blocks_approval_on_unresolved_candidate_conflicts():
+    """Verify that ReviewService blocks approval with ValueError when unresolved candidate vision
+    evidence (verification_state='model_proposed') exists, and permits approval once resolved.
+    """
+    from invoiceflow.application.review.service import ReviewService
+    from invoiceflow.infrastructure.database.models import (
+        FieldEvidenceORM,
+        InvoiceLineORM,
+        InvoiceORM,
+        MatchResultORM,
+    )
+    from invoiceflow.infrastructure.database.session import DatabaseSessionManager
+
+    db_manager = DatabaseSessionManager(database_url="sqlite+aiosqlite:///:memory:", echo=False)
+    await db_manager.create_tables()
+
+    tenant_id = str(uuid.uuid4())
+    doc_id = str(uuid.uuid4())
+    inv_id = str(uuid.uuid4())
+    actor_id = str(uuid.uuid4())
+
+    async with db_manager.session() as session:
+        inv = InvoiceORM(
+            id=inv_id,
+            tenant_id=tenant_id,
+            document_id=doc_id,
+            revision=1,
+            status="READY_FOR_REVIEW",
+            supplier_tax_id="0105554321",
+            supplier_name="Cong ty Alpha",
+            invoice_number="0001234",
+            currency="VND",
+            subtotal=Decimal("8000.0000"),
+            discount_total=Decimal("0.0000"),
+            tax_total=Decimal("800.0000"),
+            amount_payable=Decimal("8800.0000"),
+            rounding_adjustment=Decimal("0.0000"),
+            signature_status="verified",
+            tax_authority_status="verified",
+        )
+        session.add(inv)
+
+        line = InvoiceLineORM(
+            id=str(uuid.uuid4()),
+            invoice_id=inv_id,
+            line_no=1,
+            description="San pham X",
+            qty=Decimal("8.0000"),
+            unit_price=Decimal("1000.0000"),
+            discount=Decimal("0.0000"),
+            line_amount=Decimal("8000.0000"),
+        )
+        session.add(line)
+
+        cand_ev = FieldEvidenceORM(
+            id=str(uuid.uuid4()),
+            invoice_id=inv_id,
+            field_path="supplier_tax_id.candidate_vision",
+            source_kind="vision_llm",
+            raw_value="0109999999",
+            normalized_value="0109999999",
+            confidence=0.80,
+            extractor="openai_vision",
+            verification_state="model_proposed",
+            review_reason="Conflicting candidate from Vision AI",
+        )
+        session.add(cand_ev)
+
+        match_result = MatchResultORM(
+            tenant_id=tenant_id,
+            invoice_id=inv_id,
+            status="MATCHED",
+            is_matched=True,
+            requires_review=False,
+            issues_json="[]",
+        )
+        session.add(match_result)
+        await session.commit()
+
+    async with db_manager.session() as session:
+        review_service = ReviewService(session)
+
+        with pytest.raises(ValueError, match="xung đột tài chính chưa giải quyết"):
+            await review_service.approve_invoice(
+                tenant_id=tenant_id,
+                invoice_id=inv_id,
+                expected_revision=1,
+                actor_id=actor_id,
+            )
+
+        updated = await review_service.update_invoice_fields(
+            tenant_id=tenant_id,
+            invoice_id=inv_id,
+            expected_revision=1,
+            actor_id=actor_id,
+            patches={"supplier_tax_id": "0105554321"},
+            reason="Reviewer verified supplier tax ID against original invoice",
+        )
+        assert updated.revision == 2
+
+        approved = await review_service.approve_invoice(
+            tenant_id=tenant_id,
+            invoice_id=inv_id,
+            expected_revision=2,
+            actor_id=actor_id,
+            notes="Duyệt hóa đơn sau khi xác minh",
+        )
+        assert approved.status == "APPROVED"
+        assert approved.revision == 3
+
+    await db_manager.close()

@@ -25,7 +25,16 @@ def upgrade() -> None:
             nullable=False,
         ),
     )
+    op.add_column(
+        'field_evidences',
+        sa.Column(
+            'review_reason',
+            sa.Text(),
+            nullable=True,
+        ),
+    )
 
 
 def downgrade() -> None:
+    op.drop_column('field_evidences', 'review_reason')
     op.drop_column('field_evidences', 'verification_state')

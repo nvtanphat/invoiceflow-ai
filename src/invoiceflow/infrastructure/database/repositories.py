@@ -167,6 +167,7 @@ class InvoiceRepository:
                 confidence=ev.confidence,
                 extractor=ev.extractor,
                 verification_state=getattr(ev, "verification_state", "model_proposed"),
+                review_reason=getattr(ev, "review_reason", None),
             )
             self._session.add(ev_orm)
 
