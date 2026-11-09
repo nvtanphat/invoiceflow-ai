@@ -436,24 +436,39 @@ export const ExtractionPanel: React.FC = () => {
 
       {/* Action Footer */}
       {!isDocProcessing && (
-        <div className="foot">
+        <div className="foot" style={{ display: "flex", gap: "8px", alignItems: "center" }}>
           <div
             className="btn o"
             onClick={() => setReviewNoteModal(true)}
-            style={{ cursor: "pointer" }}
+            style={{ cursor: "pointer", flex: 1 }}
           >
             <Icon name="flag" />
             Cần rà soát
           </div>
-          <div
+          <button
+            type="button"
             className={`btn p ${hasArithmeticMismatch || isApproved ? "dis" : ""}`}
             id="btnApprove"
             onClick={handleApprove}
-            style={{ cursor: hasArithmeticMismatch || isApproved ? "not-allowed" : "pointer" }}
+            style={{
+              cursor: hasArithmeticMismatch || isApproved ? "not-allowed" : "pointer",
+              flex: 1.2,
+              border: "none",
+            }}
           >
             <Icon name="check" />
-            {isApproved ? "Đã phê duyệt" : "Phê duyệt"}
-          </div>
+            {isApproved ? "Đã phê duyệt" : "Phê duyệt (Approve)"}
+          </button>
+          {isApproved && (
+            <button
+              type="button"
+              className="bt s"
+              style={{ height: "46px", padding: "0 10px" }}
+              onClick={() => setActivePage("doi-soat")}
+            >
+              <Icon name="layers" /> Xem 3-Way Matching
+            </button>
+          )}
         </div>
       )}
 
