@@ -1,6 +1,8 @@
+from enum import Enum
 import hashlib
 import logging
 import os
+import threading
 import time
 from typing import Any, List, Optional
 from uuid import UUID
@@ -19,6 +21,86 @@ from invoiceflow.infrastructure.document.text_normalization import normalize_ext
 logger = logging.getLogger(__name__)
 
 
+class DoclingPatchStatus(str, Enum):
+    UNINITIALIZED = "uninitialized"
+    ACTIVE = "active"
+    UNAVAILABLE = "unavailable"
+    FALLBACK_ACTIVE = "fallback_active"
+
+
+def spatial_group_cells(cells: list[Any]) -> list[list[Any]]:
+    """Groups text cells into reading lines (top-to-bottom, left-to-right) based on
+    vertical overlap and horizontal coordinates."""
+    if not cells:
+        return []
+    cell_info = []
+    for c in cells:
+        bb = getattr(c, "rect", None)
+        if bb is not None and hasattr(bb, "to_bounding_box"):
+            box = bb.to_bounding_box()
+            left, top, right, bottom = box.l, box.t, box.r, box.b
+        elif (
+            hasattr(c, "left")
+            and hasattr(c, "top")
+            and hasattr(c, "right")
+            and hasattr(c, "bottom")
+        ):
+            left, top, right, bottom = c.left, c.top, c.right, c.bottom
+        elif hasattr(c, "l") and hasattr(c, "t") and hasattr(c, "r") and hasattr(c, "b"):
+            left, top, right, bottom = c.l, c.t, c.r, c.b
+        elif hasattr(c, "bbox") and c.bbox is not None:
+            box = c.bbox
+            left, top, right, bottom = box.x0, box.y0, box.x1, box.y1
+        elif isinstance(c, dict) and "left" in c:
+            left, top, right, bottom = c["left"], c["top"], c["right"], c["bottom"]
+        elif isinstance(c, dict) and "l" in c:
+            left, top, right, bottom = c["l"], c["t"], c["r"], c["b"]
+        else:
+            continue
+
+        cell_info.append(
+            {
+                "cell": c,
+                "left": float(left),
+                "top": float(top),
+                "right": float(right),
+                "bottom": float(bottom),
+                "y_center": float((top + bottom) / 2.0),
+                "height": max(float(bottom - top), 1.0),
+            }
+        )
+
+    if not cell_info:
+        return []
+
+    cell_info.sort(key=lambda x: x["y_center"])
+    lines: list[list[Any]] = []
+    cur_line: list[dict] = []
+    cur_y = None
+    cur_h = None
+    for item in cell_info:
+        if not cur_line:
+            cur_line.append(item)
+            cur_y = item["y_center"]
+            cur_h = item["height"]
+        else:
+            threshold = max(cur_h, item["height"]) * 0.6
+            if abs(item["y_center"] - cur_y) < threshold:
+                cur_line.append(item)
+                cur_y = sum(x["y_center"] for x in cur_line) / len(cur_line)
+                cur_h = max(x["height"] for x in cur_line)
+            else:
+                cur_line.sort(key=lambda x: x["left"])
+                lines.append([x["cell"] for x in cur_line])
+                cur_line = [item]
+                cur_y = item["y_center"]
+                cur_h = item["height"]
+    if cur_line:
+        cur_line.sort(key=lambda x: x["left"])
+        lines.append([x["cell"] for x in cur_line])
+    return lines
+
+
 class DoclingAdapter:
     """Infrastructure adapter converting PDF documents to CanonicalDocument using Docling.
 
@@ -26,6 +108,13 @@ class DoclingAdapter:
     when running on resource-constrained hardware (e.g. CPU-only, 16GB RAM) or when
     Docling dependencies are unavailable.
     """
+
+    _patch_lock = threading.Lock()
+    _patch_status: DoclingPatchStatus = DoclingPatchStatus.UNINITIALIZED
+
+    @classmethod
+    def get_patch_status(cls) -> DoclingPatchStatus:
+        return cls._patch_status
 
     def __init__(
         self,
@@ -50,185 +139,163 @@ class DoclingAdapter:
         self._ocr_dpi = ocr_dpi
         self._ocr_languages = ocr_languages
 
-    def _patch_docling_reading_order(self) -> None:
+    @classmethod
+    def _patch_docling_reading_order(cls) -> DoclingPatchStatus:
         """Patches Docling's layout postprocessor and page assemble model to order
         OCR word boxes in natural reading bands (top-to-bottom, left-to-right) rather
         than raw detection box discovery indices, eliminating out-of-order text line
-        assembly on scanned documents.
+        assembly on scanned documents. Thread-safe and idempotent.
         """
-        try:
-            from docling.utils.layout_postprocessor import LayoutPostprocessor
-            from docling_core.types.doc.page import TextCell
-            import docling.models.stages.page_assemble.page_assemble_model as pam
+        with cls._patch_lock:
+            if cls._patch_status in (DoclingPatchStatus.ACTIVE, DoclingPatchStatus.UNAVAILABLE):
+                return cls._patch_status
 
-            if getattr(LayoutPostprocessor, "_invoiceflow_spatial_patched", False):
-                return
+            try:
+                from docling.utils.layout_postprocessor import LayoutPostprocessor
+                import docling.models.stages.page_assemble.page_assemble_model as pam
 
-            def spatial_group_cells(cells: list[TextCell]) -> list[list[TextCell]]:
-                if not cells:
-                    return []
-                cell_info = []
-                for c in cells:
-                    bb = c.rect.to_bounding_box()
-                    cell_info.append(
-                        {
-                            "cell": c,
-                            "l": bb.l,
-                            "t": bb.t,
-                            "r": bb.r,
-                            "b": bb.b,
-                            "y_center": (bb.t + bb.b) / 2.0,
-                            "height": max(bb.b - bb.t, 1.0),
-                        }
+                if not hasattr(LayoutPostprocessor, "_sort_cells") or not hasattr(
+                    pam.PageAssembleModel, "__call__"
+                ):
+                    logger.warning(
+                        "Docling internal API incompatible for spatial reading-order patch: "
+                        "LayoutPostprocessor._sort_cells=%s, PageAssembleModel.__call__=%s",
+                        hasattr(LayoutPostprocessor, "_sort_cells"),
+                        hasattr(pam.PageAssembleModel, "__call__"),
                     )
-                cell_info.sort(key=lambda x: x["y_center"])
-                lines: list[list[TextCell]] = []
-                cur_line: list[dict] = []
-                cur_y = None
-                cur_h = None
-                for item in cell_info:
-                    if not cur_line:
-                        cur_line.append(item)
-                        cur_y = item["y_center"]
-                        cur_h = item["height"]
-                    else:
-                        threshold = max(cur_h, item["height"]) * 0.6
-                        if abs(item["y_center"] - cur_y) < threshold:
-                            cur_line.append(item)
-                            cur_y = sum(x["y_center"] for x in cur_line) / len(cur_line)
-                            cur_h = max(x["height"] for x in cur_line)
-                        else:
-                            cur_line.sort(key=lambda x: x["l"])
-                            lines.append([x["cell"] for x in cur_line])
-                            cur_line = [item]
-                            cur_y = item["y_center"]
-                            cur_h = item["height"]
-                if cur_line:
-                    cur_line.sort(key=lambda x: x["l"])
-                    lines.append([x["cell"] for x in cur_line])
-                return lines
+                    cls._patch_status = DoclingPatchStatus.UNAVAILABLE
+                    return cls._patch_status
 
-            def spatial_sort_cells(postprocessor_self, cells: list[TextCell]) -> list[TextCell]:
-                sorted_res: list[TextCell] = []
-                for line in spatial_group_cells(cells):
-                    sorted_res.extend(line)
-                return sorted_res
+                def spatial_sort_cells(postprocessor_self, cells: list[Any]) -> list[Any]:
+                    sorted_res: list[Any] = []
+                    for line in spatial_group_cells(cells):
+                        sorted_res.extend(line)
+                    return sorted_res
 
-            LayoutPostprocessor._sort_cells = spatial_sort_cells
+                LayoutPostprocessor._sort_cells = spatial_sort_cells
 
-            def custom_pam_call(pam_self, conv_res, page_batch):
-                from docling.models.stages.layout.layout_model import LayoutModel
-                from docling.datamodel.base_models import (
-                    AssembledUnit,
-                    ContainerElement,
-                    FigureElement,
-                    Table,
-                    TextElement,
-                )
-                from docling.utils.profiling import TimeRecorder
+                def custom_pam_call(pam_self, conv_res, page_batch):
+                    from docling.models.stages.layout.layout_model import LayoutModel
+                    from docling.datamodel.base_models import (
+                        AssembledUnit,
+                        ContainerElement,
+                        FigureElement,
+                        Table,
+                        TextElement,
+                    )
+                    from docling.utils.profiling import TimeRecorder
 
-                for page in page_batch:
-                    if page._backend is None or not page._backend.is_valid():
-                        yield page
-                        continue
-                    with TimeRecorder(conv_res, "page_assemble"):
-                        if page.predictions.layout is None:
+                    for page in page_batch:
+                        if page._backend is None or not page._backend.is_valid():
                             yield page
                             continue
-                        elements = []
-                        headers = []
-                        body = []
-                        for cluster in page.predictions.layout.clusters:
-                            if cluster.label in LayoutModel.TEXT_ELEM_LABELS:
-                                is_ocr = any(getattr(c, "from_ocr", False) for c in cluster.cells)
-                                if is_ocr:
-                                    line_groups = spatial_group_cells(cluster.cells)
-                                    text_lines = []
-                                    for grp in line_groups:
-                                        ws = [
-                                            c.text.replace("\x02", "-").strip()
-                                            for c in grp
-                                            if c.text.strip()
+                        with TimeRecorder(conv_res, "page_assemble"):
+                            if page.predictions.layout is None:
+                                yield page
+                                continue
+                            elements = []
+                            headers = []
+                            body = []
+                            for cluster in page.predictions.layout.clusters:
+                                if cluster.label in LayoutModel.TEXT_ELEM_LABELS:
+                                    is_ocr = any(
+                                        getattr(c, "from_ocr", False) for c in cluster.cells
+                                    )
+                                    if is_ocr:
+                                        line_groups = spatial_group_cells(cluster.cells)
+                                        text_lines = []
+                                        for grp in line_groups:
+                                            ws = [
+                                                c.text.replace("\x02", "-").strip()
+                                                for c in grp
+                                                if c.text.strip()
+                                            ]
+                                            if ws:
+                                                text_lines.append(" ".join(ws))
+                                        text = "\n".join(text_lines)
+                                    else:
+                                        textlines = [
+                                            cell.text.replace("\x02", "-").strip()
+                                            for cell in cluster.cells
+                                            if len(cell.text.strip()) > 0
                                         ]
-                                        if ws:
-                                            text_lines.append(" ".join(ws))
-                                    text = "\n".join(text_lines)
-                                else:
-                                    textlines = [
-                                        cell.text.replace("\x02", "-").strip()
-                                        for cell in cluster.cells
-                                        if len(cell.text.strip()) > 0
-                                    ]
-                                    text = pam_self.sanitize_text(textlines)
+                                        text = pam_self.sanitize_text(textlines)
 
-                                hyperlink = pam_self._match_hyperlink(cluster.bbox, page)
-                                text_el = TextElement(
-                                    label=cluster.label,
-                                    id=cluster.id,
-                                    text=text,
-                                    hyperlink=hyperlink,
-                                    page_no=page.page_no,
-                                    cluster=cluster,
-                                )
-                                elements.append(text_el)
-                                if cluster.label in LayoutModel.PAGE_HEADER_LABELS:
-                                    headers.append(text_el)
-                                else:
-                                    body.append(text_el)
-                            elif cluster.label in LayoutModel.TABLE_LABELS:
-                                tbl = None
-                                if page.predictions.tablestructure:
-                                    tbl = page.predictions.tablestructure.table_map.get(
-                                        cluster.id, None
-                                    )
-                                if not tbl:
-                                    tbl = Table(
+                                    hyperlink = pam_self._match_hyperlink(cluster.bbox, page)
+                                    text_el = TextElement(
                                         label=cluster.label,
                                         id=cluster.id,
-                                        text="",
-                                        otsl_seq=[],
-                                        table_cells=[],
-                                        cluster=cluster,
+                                        text=text,
+                                        hyperlink=hyperlink,
                                         page_no=page.page_no,
+                                        cluster=cluster,
                                     )
-                                elements.append(tbl)
-                                body.append(tbl)
-                            elif cluster.label == LayoutModel.FIGURE_LABEL:
-                                fig = None
-                                if page.predictions.figures_classification:
-                                    fig = page.predictions.figures_classification.figure_map.get(
-                                        cluster.id, None
-                                    )
-                                if not fig:
-                                    fig = FigureElement(
+                                    elements.append(text_el)
+                                    if cluster.label in LayoutModel.PAGE_HEADER_LABELS:
+                                        headers.append(text_el)
+                                    else:
+                                        body.append(text_el)
+                                elif cluster.label in LayoutModel.TABLE_LABELS:
+                                    tbl = None
+                                    if page.predictions.tablestructure:
+                                        tbl = page.predictions.tablestructure.table_map.get(
+                                            cluster.id, None
+                                        )
+                                    if not tbl:
+                                        tbl = Table(
+                                            label=cluster.label,
+                                            id=cluster.id,
+                                            text="",
+                                            otsl_seq=[],
+                                            table_cells=[],
+                                            cluster=cluster,
+                                            page_no=page.page_no,
+                                        )
+                                    elements.append(tbl)
+                                    body.append(tbl)
+                                elif cluster.label == LayoutModel.FIGURE_LABEL:
+                                    fig = None
+                                    if page.predictions.figures_classification:
+                                        fig = (
+                                            page.predictions.figures_classification.figure_map.get(
+                                                cluster.id, None
+                                            )
+                                        )
+                                    if not fig:
+                                        fig = FigureElement(
+                                            label=cluster.label,
+                                            id=cluster.id,
+                                            text="",
+                                            data=None,
+                                            cluster=cluster,
+                                            page_no=page.page_no,
+                                        )
+                                    elements.append(fig)
+                                    body.append(fig)
+                                elif cluster.label in LayoutModel.CONTAINER_LABELS:
+                                    container_el = ContainerElement(
                                         label=cluster.label,
                                         id=cluster.id,
-                                        text="",
-                                        data=None,
-                                        cluster=cluster,
                                         page_no=page.page_no,
+                                        cluster=cluster,
                                     )
-                                elements.append(fig)
-                                body.append(fig)
-                            elif cluster.label in LayoutModel.CONTAINER_LABELS:
-                                container_el = ContainerElement(
-                                    label=cluster.label,
-                                    id=cluster.id,
-                                    page_no=page.page_no,
-                                    cluster=cluster,
-                                )
-                                elements.append(container_el)
-                                body.append(container_el)
+                                    elements.append(container_el)
+                                    body.append(container_el)
 
-                        page.assembled = AssembledUnit(
-                            elements=elements, headers=headers, body=body
-                        )
-                    yield page
+                            page.assembled = AssembledUnit(
+                                elements=elements, headers=headers, body=body
+                            )
+                        yield page
 
-            pam.PageAssembleModel.__call__ = custom_pam_call
-            LayoutPostprocessor._invoiceflow_spatial_patched = True
-        except Exception as exc:
-            logger.warning("Could not apply Docling spatial reading-order patch: %s", exc)
+                pam.PageAssembleModel.__call__ = custom_pam_call
+                LayoutPostprocessor._invoiceflow_spatial_patched = True
+                cls._patch_status = DoclingPatchStatus.ACTIVE
+                logger.info("Docling reading order spatial patch successfully activated.")
+                return cls._patch_status
+            except Exception as exc:
+                cls._patch_status = DoclingPatchStatus.UNAVAILABLE
+                logger.warning("Could not apply Docling spatial reading-order patch: %s", exc)
+                return cls._patch_status
 
     def _get_converter(self, do_ocr: bool = False):
         if do_ocr in self._converters:

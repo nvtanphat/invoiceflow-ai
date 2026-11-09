@@ -53,6 +53,7 @@ class FieldEvidence(BaseModel):
     normalized_value: Optional[str] = None
     confidence: Optional[float] = None
     extractor: str = "deterministic"
+    verification_state: str = "model_proposed"
     review_reason: Optional[str] = None
 
 

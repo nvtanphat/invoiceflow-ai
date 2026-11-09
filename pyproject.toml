@@ -33,7 +33,7 @@ dependencies = [
 
 [project.optional-dependencies]
 documents = [
-    "docling>=2.87.0",
+    "docling>=2.87.0,<3.0.0",
     "easyocr>=1.7.2",
 ]
 dev = [

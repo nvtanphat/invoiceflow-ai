@@ -153,3 +153,420 @@ async def test_document_ai_service_reconciles_ocr_cell_merge_with_vision():
     ]
     assert len(vision_qty_ev) == 1
     assert vision_qty_ev[0].normalized_value == "5.0000"
+    assert vision_qty_ev[0].verification_state == "arithmetically_consistent"
+    # Dynamic confidence must not be hardcoded to 0.95
+    assert vision_qty_ev[0].confidence != 0.95
+
+
+@pytest.mark.asyncio
+async def test_document_ai_service_preserves_ocr_when_vision_conflicts():
+    """Verify that when OCR already has valid values and Vision proposes different ones,
+    OCR values are preserved, FIELD_CONFLICT issues are raised, and invoice routes to Human Review.
+    """
+    mock_llm = MagicMock()
+    mock_llm._client = MagicMock()
+    mock_llm.extract_invoice_data = AsyncMock(
+        return_value=ExtractionResult(
+            supplier_tax_id="0109999999",  # Conflicts with OCR 0105554321
+            supplier_name="Công ty Sai Tên",
+            invoice_number="0009999",  # Conflicts with OCR 0003412
+            amount_payable=Decimal("99999999.0000"),  # Conflicts with OCR 9180000
+            line_items=[],
+        )
+    )
+
+    service = DocumentAIService(llm_adapter=mock_llm)
+
+    # Mock digital parser to return solid OCR extracted values
+    mock_digital = MagicMock()
+    from invoiceflow.infrastructure.document.digital_pdf_parser import DigitalInvoiceExtraction
+
+    mock_digital.parse.return_value = DigitalInvoiceExtraction(
+        supplier_tax_id="0105554321",
+        supplier_name="Công ty TNHH Vệ sinh Hà Nội",
+        invoice_number="0003412",
+        invoice_series="2C26TCC",
+        issue_date="2026-03-08",
+        subtotal=Decimal("8500000.0000"),
+        tax_total=Decimal("680000.0000"),
+        amount_payable=Decimal("9180000.0000"),
+        lines=[],
+        issues=[],
+    )
+    service._digital_parser = mock_digital
+
+    mock_docling = MagicMock()
+    mock_docling.extract_canonical.return_value = CanonicalDocument(
+        document_id=uuid.uuid4(),
+        tenant_id=uuid.uuid4(),
+        source_format="pdf",
+        parser_name="docling",
+        parser_version="2.87.0",
+        config_hash="test",
+        source_checksum="test",
+        page_count=1,
+        elements=[],
+        tables=[],
+    )
+    mock_docling._normalize_page_rotation.side_effect = lambda b: b
+    service._docling_adapter = mock_docling
+
+    mock_inspector = MagicMock()
+    mock_profile = MagicMock()
+    mock_profile.has_rotated_pages = False
+    mock_profile.classification = "pdf_scan"
+    mock_profile.table_count = 0
+    mock_inspector.inspect.return_value = mock_profile
+    service._pdf_inspector = mock_inspector
+
+    import fitz
+
+    doc = fitz.open()
+    doc.new_page()
+    pdf_bytes = doc.write()
+    doc.close()
+
+    result = await service.process_document(
+        tenant_id=uuid.uuid4(),
+        document_id=uuid.uuid4(),
+        filename="test_conflict.pdf",
+        content=pdf_bytes,
+    )
+
+    agg = result.invoice_aggregate
+    # OCR values must be preserved!
+    assert agg.supplier_tax_id == "0105554321"
+    assert agg.invoice_number == "0003412"
+    assert agg.amount_payable == Decimal("9180000.0000")
+
+    # Conflict issues must be recorded
+    assert any("FIELD_CONFLICT_SUPPLIER_TAX_ID" in iss for iss in agg.parser_issues)
+    assert any("FIELD_CONFLICT_INVOICE_NUMBER" in iss for iss in agg.parser_issues)
+    assert any("FIELD_CONFLICT_AMOUNT_PAYABLE" in iss for iss in agg.parser_issues)
+
+
+@pytest.mark.asyncio
+async def test_document_ai_service_matches_lines_by_multifactor_not_line_no():
+    """Verify that lines are matched using multi-factor signals (SKU, price, amount)
+    even when row order is reversed, and NOT blindly by raw line_no.
+    """
+    mock_llm = MagicMock()
+    mock_llm._client = MagicMock()
+    mock_llm.extract_invoice_data = AsyncMock(
+        return_value=ExtractionResult(
+            supplier_tax_id="0101234567",
+            invoice_number="0005599",
+            amount_payable=Decimal("60000000.0000"),
+            line_items=[
+                # Vision returns line 2 first (reversed order)
+                ExtractedLine(
+                    line_no=1,
+                    sku="MOUSE-LOGI",
+                    description="Chuột không dây Logitech MX Master 3S",
+                    qty=Decimal("5.0000"),
+                    unit_price=Decimal("2000000.0000"),
+                    line_amount=Decimal("10000000.0000"),
+                ),
+                ExtractedLine(
+                    line_no=2,
+                    sku="DELL-XPS-13",
+                    description="Máy tính xách tay Dell XPS 13",
+                    qty=Decimal("2.0000"),
+                    unit_price=Decimal("25000000.0000"),
+                    line_amount=Decimal("50000000.0000"),
+                ),
+            ],
+        )
+    )
+
+    service = DocumentAIService(llm_adapter=mock_llm)
+
+    cell_bbox = BoundingBox(
+        page_index=0,
+        x0=10.0,
+        y0=50.0,
+        x1=100.0,
+        y1=70.0,
+        coordinate_system=CoordinateSystem.PDF_POINTS,
+    )
+    table = DocumentTable(
+        id="tbl-test",
+        page_index=0,
+        row_count=3,
+        column_count=5,
+        cells=[
+            DocumentCell(row_index=0, col_index=0, text="STT", bbox=cell_bbox),
+            DocumentCell(row_index=0, col_index=1, text="Ten hang", bbox=cell_bbox),
+            DocumentCell(row_index=0, col_index=2, text="So luong", bbox=cell_bbox),
+            DocumentCell(row_index=0, col_index=3, text="Don gia", bbox=cell_bbox),
+            DocumentCell(row_index=0, col_index=4, text="Thanh tien", bbox=cell_bbox),
+            # Row 1 in OCR is DELL
+            DocumentCell(row_index=1, col_index=0, text="1", bbox=cell_bbox),
+            DocumentCell(
+                row_index=1, col_index=1, text="Dell XPS 13 [DELL-XPS-13]", bbox=cell_bbox
+            ),
+            DocumentCell(row_index=1, col_index=2, text="2.0000", bbox=cell_bbox),
+            DocumentCell(row_index=1, col_index=3, text="25000000.0000", bbox=cell_bbox),
+            DocumentCell(row_index=1, col_index=4, text="50000000.0000", bbox=cell_bbox),
+            # Row 2 in OCR is MOUSE with unrecovered qty
+            DocumentCell(row_index=2, col_index=0, text="2", bbox=cell_bbox),
+            DocumentCell(
+                row_index=2,
+                col_index=1,
+                colspan=2,
+                text="Chuot Logitech [MOUSE-LOGI.0000",
+                bbox=cell_bbox,
+            ),
+            DocumentCell(row_index=2, col_index=3, text="2000000.0000", bbox=cell_bbox),
+            DocumentCell(row_index=2, col_index=4, text="10000000.0000", bbox=cell_bbox),
+        ],
+    )
+
+    mock_docling = MagicMock()
+    mock_docling.extract_canonical.return_value = CanonicalDocument(
+        document_id=uuid.uuid4(),
+        tenant_id=uuid.uuid4(),
+        source_format="pdf",
+        parser_name="docling",
+        parser_version="2.87.0",
+        config_hash="test",
+        source_checksum="test",
+        page_count=1,
+        elements=[],
+        tables=[table],
+    )
+    mock_docling._normalize_page_rotation.side_effect = lambda b: b
+    service._docling_adapter = mock_docling
+
+    mock_inspector = MagicMock()
+    mock_profile = MagicMock()
+    mock_profile.has_rotated_pages = False
+    mock_profile.classification = "pdf_scan"
+    mock_profile.table_count = 1
+    mock_inspector.inspect.return_value = mock_profile
+    service._pdf_inspector = mock_inspector
+
+    import fitz
+
+    doc = fitz.open()
+    doc.new_page()
+    pdf_bytes = doc.write()
+    doc.close()
+
+    result = await service.process_document(
+        tenant_id=uuid.uuid4(),
+        document_id=uuid.uuid4(),
+        filename="test_reversed_lines.pdf",
+        content=pdf_bytes,
+    )
+
+    agg = result.invoice_aggregate
+    assert len(agg.lines) == 2
+    # Line 1 in OCR must remain DELL with price 25M
+    assert agg.lines[0].sku_ref == "DELL-XPS-13"
+    assert agg.lines[0].unit_price == Decimal("25000000.0000")
+    # Line 2 in OCR must be matched with Vision's MOUSE-LOGI (price 2M, qty 5.0)
+    assert agg.lines[1].sku_ref == "MOUSE-LOGI"
+    assert agg.lines[1].qty == Decimal("5.0000")
+    assert agg.lines[1].unit_price == Decimal("2000000.0000")
+    assert agg.lines[1].line_amount == Decimal("10000000.0000")
+
+
+@pytest.mark.asyncio
+async def test_document_ai_service_rejects_vision_quantity_when_arithmetic_fails():
+    """Verify that if Vision proposes a quantity that violates line arithmetic (qty * price != amount),
+    the quantity is NOT adopted, and a mismatch issue is recorded."""
+    mock_llm = MagicMock()
+    mock_llm._client = MagicMock()
+    mock_llm.extract_invoice_data = AsyncMock(
+        return_value=ExtractionResult(
+            supplier_tax_id="0101234567",
+            amount_payable=Decimal("10000000.0000"),
+            line_items=[
+                ExtractedLine(
+                    line_no=1,
+                    sku="ITEM-A",
+                    description="Sản phẩm A",
+                    qty=Decimal("99.0000"),  # False quantity! 99 * 2M != 10M
+                    unit_price=Decimal("2000000.0000"),
+                    line_amount=Decimal("10000000.0000"),
+                ),
+            ],
+        )
+    )
+
+    service = DocumentAIService(llm_adapter=mock_llm)
+
+    cell_bbox = BoundingBox(
+        page_index=0,
+        x0=10.0,
+        y0=50.0,
+        x1=100.0,
+        y1=70.0,
+        coordinate_system=CoordinateSystem.PDF_POINTS,
+    )
+    table = DocumentTable(
+        id="tbl-test",
+        page_index=0,
+        row_count=2,
+        column_count=5,
+        cells=[
+            DocumentCell(row_index=0, col_index=0, text="STT", bbox=cell_bbox),
+            DocumentCell(row_index=0, col_index=1, text="Ten hang", bbox=cell_bbox),
+            DocumentCell(row_index=0, col_index=2, text="So luong", bbox=cell_bbox),
+            DocumentCell(row_index=0, col_index=3, text="Don gia", bbox=cell_bbox),
+            DocumentCell(row_index=0, col_index=4, text="Thanh tien", bbox=cell_bbox),
+            DocumentCell(row_index=1, col_index=0, text="1", bbox=cell_bbox),
+            DocumentCell(
+                row_index=1, col_index=1, colspan=2, text="San pham A [ITEM-A.0000", bbox=cell_bbox
+            ),
+            DocumentCell(row_index=1, col_index=3, text="2000000.0000", bbox=cell_bbox),
+            DocumentCell(row_index=1, col_index=4, text="10000000.0000", bbox=cell_bbox),
+        ],
+    )
+
+    mock_docling = MagicMock()
+    mock_docling.extract_canonical.return_value = CanonicalDocument(
+        document_id=uuid.uuid4(),
+        tenant_id=uuid.uuid4(),
+        source_format="pdf",
+        parser_name="docling",
+        parser_version="2.87.0",
+        config_hash="test",
+        source_checksum="test",
+        page_count=1,
+        elements=[],
+        tables=[table],
+    )
+    mock_docling._normalize_page_rotation.side_effect = lambda b: b
+    service._docling_adapter = mock_docling
+
+    mock_inspector = MagicMock()
+    mock_profile = MagicMock()
+    mock_profile.has_rotated_pages = False
+    mock_profile.classification = "pdf_scan"
+    mock_profile.table_count = 1
+    mock_inspector.inspect.return_value = mock_profile
+    service._pdf_inspector = mock_inspector
+
+    import fitz
+
+    doc = fitz.open()
+    doc.new_page()
+    pdf_bytes = doc.write()
+    doc.close()
+
+    result = await service.process_document(
+        tenant_id=uuid.uuid4(),
+        document_id=uuid.uuid4(),
+        filename="test_arith_fail.pdf",
+        content=pdf_bytes,
+    )
+
+    agg = result.invoice_aggregate
+    assert len(agg.lines) == 1
+    # Quantity must NOT be overwritten with 99
+    assert agg.lines[0].qty != Decimal("99.0000")
+    assert any("VISION_QUANTITY_ARITHMETIC_MISMATCH" in iss for iss in agg.lines[0].issues)
+
+
+@pytest.mark.asyncio
+async def test_document_ai_service_handles_ambiguous_line_matches():
+    """Verify that when multiple Vision candidates have nearly identical high match scores,
+    the match is treated as ambiguous and LINE_MATCH_AMBIGUOUS is flagged."""
+    mock_llm = MagicMock()
+    mock_llm._client = MagicMock()
+    mock_llm.extract_invoice_data = AsyncMock(
+        return_value=ExtractionResult(
+            supplier_tax_id="0101234567",
+            amount_payable=Decimal("2000000.0000"),
+            line_items=[
+                ExtractedLine(
+                    line_no=1,
+                    sku="",
+                    description="Vật tư tiêu hao loại 1",
+                    qty=Decimal("1.0000"),
+                    unit_price=Decimal("1000000.0000"),
+                    line_amount=Decimal("1000000.0000"),
+                ),
+                ExtractedLine(
+                    line_no=2,
+                    sku="",
+                    description="Vật tư tiêu hao loại 2",
+                    qty=Decimal("1.0000"),
+                    unit_price=Decimal("1000000.0000"),
+                    line_amount=Decimal("1000000.0000"),
+                ),
+            ],
+        )
+    )
+
+    service = DocumentAIService(llm_adapter=mock_llm)
+
+    cell_bbox = BoundingBox(
+        page_index=0,
+        x0=10.0,
+        y0=50.0,
+        x1=100.0,
+        y1=70.0,
+        coordinate_system=CoordinateSystem.PDF_POINTS,
+    )
+    table = DocumentTable(
+        id="tbl-test",
+        page_index=0,
+        row_count=2,
+        column_count=5,
+        cells=[
+            DocumentCell(row_index=0, col_index=0, text="STT", bbox=cell_bbox),
+            DocumentCell(row_index=0, col_index=1, text="Ten hang", bbox=cell_bbox),
+            DocumentCell(row_index=0, col_index=2, text="So luong", bbox=cell_bbox),
+            DocumentCell(row_index=0, col_index=3, text="Don gia", bbox=cell_bbox),
+            DocumentCell(row_index=0, col_index=4, text="Thanh tien", bbox=cell_bbox),
+            DocumentCell(row_index=1, col_index=0, text="1", bbox=cell_bbox),
+            DocumentCell(row_index=1, col_index=1, text="Vat tu tieu hao", bbox=cell_bbox),
+            DocumentCell(row_index=1, col_index=2, text="0.0000", bbox=cell_bbox),
+            DocumentCell(row_index=1, col_index=3, text="1000000.0000", bbox=cell_bbox),
+            DocumentCell(row_index=1, col_index=4, text="1000000.0000", bbox=cell_bbox),
+        ],
+    )
+
+    mock_docling = MagicMock()
+    mock_docling.extract_canonical.return_value = CanonicalDocument(
+        document_id=uuid.uuid4(),
+        tenant_id=uuid.uuid4(),
+        source_format="pdf",
+        parser_name="docling",
+        parser_version="2.87.0",
+        config_hash="test",
+        source_checksum="test",
+        page_count=1,
+        elements=[],
+        tables=[table],
+    )
+    mock_docling._normalize_page_rotation.side_effect = lambda b: b
+    service._docling_adapter = mock_docling
+
+    mock_inspector = MagicMock()
+    mock_profile = MagicMock()
+    mock_profile.has_rotated_pages = False
+    mock_profile.classification = "pdf_scan"
+    mock_profile.table_count = 1
+    mock_inspector.inspect.return_value = mock_profile
+    service._pdf_inspector = mock_inspector
+
+    import fitz
+
+    doc = fitz.open()
+    doc.new_page()
+    pdf_bytes = doc.write()
+    doc.close()
+
+    result = await service.process_document(
+        tenant_id=uuid.uuid4(),
+        document_id=uuid.uuid4(),
+        filename="test_ambig.pdf",
+        content=pdf_bytes,
+    )
+
+    agg = result.invoice_aggregate
+    assert any("LINE_MATCH_AMBIGUOUS" in iss for iss in agg.lines[0].issues)

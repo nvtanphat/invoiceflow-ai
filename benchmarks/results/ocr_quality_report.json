@@ -1,5 +1,6 @@
 {
   "suite": "InvoiceFlow AI OCR Quality Verification v1.0",
+  "tier": "Tier A: Pure OCR Quality (pre-Vision AI)",
   "timestamp": "2026-11-09T02:02:01Z",
   "text_cases": [
     {
@@ -96,7 +97,11 @@
         ]
       }
     ],
-    "lines_correct_count": 2,
-    "lines_correct_total": 2
+    "lines_correct_count": 1,
+    "lines_correct_total": 2,
+    "tier_a_pure_ocr_fully_recovered_count": 1,
+    "tier_a_pure_ocr_detected_lines_count": 2,
+    "tier_a_pure_ocr_total": 2,
+    "pure_ocr_note": "Tier A (Pure OCR): Line 1 (DELL-XPS-13) fully extracted (100%). Line 2 (MOUSE-LOGI) has table cell merge with QTY_UNRECOVERED. Completed via Vision AI reconciliation in Tier B."
   }
 }

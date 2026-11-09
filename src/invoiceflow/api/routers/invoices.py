@@ -168,6 +168,7 @@ async def get_invoice(
                 "confidence": float(e.confidence)
                 if getattr(e, "confidence", None) is not None
                 else 1.0,
+                "verification_state": getattr(e, "verification_state", "model_proposed"),
             }
             for e in evidence
         ],
