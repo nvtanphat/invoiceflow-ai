@@ -99,11 +99,11 @@ def generate_diverse_invoice_pdf(
             color=(0.5, 0.5, 0.5),
         )
     _draw_text(page, (55, y_table + 17), "STT", fontsize=9)
-    _draw_text(page, (85, y_table + 17), "Ten hang hoa, dich vu / SKU", fontsize=9)
-    _draw_text(page, (310, y_table + 17), "So luong", fontsize=9)
-    _draw_text(page, (370, y_table + 17), "Don gia", fontsize=9)
-    _draw_text(page, (440, y_table + 17), "Thue suat", fontsize=9)
-    _draw_text(page, (480, y_table + 17), "Thanh tien", fontsize=9)
+    _draw_text(page, (80, y_table + 17), "Ten hang hoa, dich vu / SKU", fontsize=9)
+    _draw_text(page, (275, y_table + 17), "So luong", fontsize=9)
+    _draw_text(page, (330, y_table + 17), "Don gia", fontsize=9)
+    _draw_text(page, (405, y_table + 17), "Thue suat", fontsize=9)
+    _draw_text(page, (460, y_table + 17), "Thanh tien", fontsize=9)
 
     curr_y = y_table + 25
     for idx, item in enumerate(spec["lines"], start=1):
@@ -111,11 +111,11 @@ def generate_diverse_invoice_pdf(
             page.draw_rect(fitz.Rect(50, curr_y, 545, curr_y + 26), color=(0.75, 0.75, 0.75))
         _draw_text(page, (55, curr_y + 17), str(idx), fontsize=9)
         sku_str = f" [{item['sku']}]" if item.get("sku") else ""
-        _draw_text(page, (85, curr_y + 17), f"{item['desc']}{sku_str}", fontsize=9)
-        _draw_text(page, (310, curr_y + 17), str(item["qty"]), fontsize=9)
-        _draw_text(page, (370, curr_y + 17), str(item["unit_price"]), fontsize=9)
-        _draw_text(page, (440, curr_y + 17), f"{item['tax_rate']}%", fontsize=9)
-        _draw_text(page, (480, curr_y + 17), str(item["line_amount"]), fontsize=9)
+        _draw_text(page, (80, curr_y + 17), f"{item['desc']}{sku_str}", fontsize=9)
+        _draw_text(page, (275, curr_y + 17), str(item["qty"]), fontsize=9)
+        _draw_text(page, (330, curr_y + 17), str(item["unit_price"]), fontsize=9)
+        _draw_text(page, (405, curr_y + 17), f"{item['tax_rate']}%", fontsize=9)
+        _draw_text(page, (460, curr_y + 17), str(item["line_amount"]), fontsize=9)
         curr_y += 26
 
     curr_y += 20

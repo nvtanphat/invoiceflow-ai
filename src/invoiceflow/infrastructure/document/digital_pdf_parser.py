@@ -183,7 +183,7 @@ class DigitalPDFParser:
         # 8. Multi-line Items Extraction
         lines: List[DigitalExtractedLine] = []
         pattern_lines = re.compile(
-            r"([^\r\n\[]+?)\s*(?:\[([A-Z0-9_-]+)\])?\s+([0-9.,]+)\s+([0-9.,]+)\s+([0-9.,]+)%\s+([0-9.,]+)",
+            r"([^\r\n\[]+?)\s*(?:\[([A-Z0-9_-]+)\])?\s*([0-9.,]+)\s+([0-9.,]+)\s+([0-9.,]+)%\s+([0-9.,]+)",
             re.MULTILINE,
         )
 

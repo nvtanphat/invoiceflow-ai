@@ -283,6 +283,13 @@ class StructureAwareTableExtractor:
         raw_price = data.get("unit_price", "0")
         raw_amount = data.get("line_amount", "0")
 
+        if "%" in raw_amount:
+            m_fused = re.search(r"([0-9.,]+)%\s*([0-9.,]+)", raw_amount)
+            if m_fused:
+                if not data.get("tax_rate"):
+                    data["tax_rate"] = m_fused.group(1)
+                raw_amount = m_fused.group(2)
+
         qty, qty_issue = self._parse_decimal(raw_qty, is_qty=True)
         price, price_issue = self._parse_decimal(raw_price)
         amount, amount_issue = self._parse_decimal(raw_amount)
