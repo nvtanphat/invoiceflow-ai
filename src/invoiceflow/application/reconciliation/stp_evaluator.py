@@ -88,8 +88,12 @@ class STPEvaluator:
         has_invalid = False
 
         critical_fields = {
-            "supplier_tax_id", "supplier_name", "invoice_number",
-            "issue_date", "subtotal", "amount_payable",
+            "supplier_tax_id",
+            "supplier_name",
+            "invoice_number",
+            "issue_date",
+            "subtotal",
+            "amount_payable",
         }
         for ev in invoice.evidence:
             critical_field = ev.field_path in critical_fields or (
@@ -111,7 +115,11 @@ class STPEvaluator:
                 FieldVerificationState.MODEL_PROPOSED,
             ):
                 review_reasons.append(f"UNVERIFIED_CRITICAL_FIELD: {ev.field_path} ({state.value})")
-            if critical_field and state == FieldVerificationState.ARITHMETICALLY_CONSISTENT and ev.source_kind == "vision_llm":
+            if (
+                critical_field
+                and state == FieldVerificationState.ARITHMETICALLY_CONSISTENT
+                and ev.source_kind == "vision_llm"
+            ):
                 review_reasons.append(f"VISION_ONLY_ARITHMETIC_EVIDENCE: {ev.field_path}")
             if state == FieldVerificationState.CONFLICT:
                 has_conflict = True

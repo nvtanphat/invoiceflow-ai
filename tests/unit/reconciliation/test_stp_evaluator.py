@@ -245,7 +245,13 @@ def test_stp_evaluator_approves_within_tolerance_match():
         issues=[],
     )
 
-    inv.evidence = [FieldEvidence(field_path="supplier_tax_id", source_kind="xml", verification_state=FieldVerificationState.VALID)]
+    inv.evidence = [
+        FieldEvidence(
+            field_path="supplier_tax_id",
+            source_kind="xml",
+            verification_state=FieldVerificationState.VALID,
+        )
+    ]
     policy = TolerancePolicy(tenant_id=tenant_id, separation_of_duties_required=False)
     res = evaluator.evaluate(invoice=inv, match_report=match_report, policy=policy)
 
@@ -265,18 +271,22 @@ def _eligible_invoice_and_match():
         invoice_number="INV-SECURE",
         subtotal=Decimal("2000000.0000"),
         amount_payable=Decimal("2000000.0000"),
-        lines=[InvoiceLine(
-            line_no=1,
-            description="Equipment",
-            qty=Decimal("2.0000"),
-            unit_price=Decimal("1000000.0000"),
-            line_amount=Decimal("2000000.0000"),
-        )],
-        evidence=[FieldEvidence(
-            field_path="supplier_tax_id",
-            source_kind="xml",
-            verification_state=FieldVerificationState.VALID,
-        )],
+        lines=[
+            InvoiceLine(
+                line_no=1,
+                description="Equipment",
+                qty=Decimal("2.0000"),
+                unit_price=Decimal("1000000.0000"),
+                line_amount=Decimal("2000000.0000"),
+            )
+        ],
+        evidence=[
+            FieldEvidence(
+                field_path="supplier_tax_id",
+                source_kind="xml",
+                verification_state=FieldVerificationState.VALID,
+            )
+        ],
     )
     matched = MatchReport(
         invoice_id=invoice.id,
@@ -328,11 +338,13 @@ def test_stp_blocks_unverified_critical_fields():
         FieldVerificationState.UNCERTAIN,
         FieldVerificationState.MODEL_PROPOSED,
     ):
-        invoice.evidence = [FieldEvidence(
-            field_path="amount_payable",
-            source_kind="vision_llm",
-            verification_state=state,
-        )]
+        invoice.evidence = [
+            FieldEvidence(
+                field_path="amount_payable",
+                source_kind="vision_llm",
+                verification_state=state,
+            )
+        ]
         result = STPEvaluator().evaluate(invoice, matched, policy)
         assert not result.is_stp_eligible
         assert any("UNVERIFIED_CRITICAL_FIELD" in reason for reason in result.review_reasons)
