@@ -74,7 +74,9 @@ class DigitalPDFParser:
 
         # 1. Invoice Series
         m_series = re.search(
-            r"(?:Ky hieu|Ký hiệu|Series)(?:\s*\([^)]*\))?:\s*([A-Z0-9/_-]+)", text, re.IGNORECASE
+            r"(?:Ky hieu mau so|Ký hiệu mẫu số|Mẫu số - Ký hiệu|Ky hieu|Ký hiệu|Series)(?:\s*\([^)]*\))?[:\s]+([A-Z0-9/_-]+)",
+            text,
+            re.IGNORECASE,
         )
         if m_series:
             data["invoice_series"] = m_series.group(1).strip()
@@ -82,25 +84,39 @@ class DigitalPDFParser:
 
         # 2. Invoice Number (preserving leading zeros as string)
         m_inv_no = re.search(
-            r"(?:So|Số|Invoice No|No\.?)(?:\s*\([^)]*\))?:\s*([0-9]+)", text, re.IGNORECASE
+            r"(?<!mau\s)(?<!mẫu\s)(?<!ky hieu\s)(?<!ký hiệu\s)(?:\bSố hóa đơn\b|\bSo hoa don\b|\bHóa đơn số\b|\bHoa don so\b|\bSố HĐ\b|\bSo HĐ\b|\bInvoice No\b|\bNo\.?|\bSố\b|\bSo\b)(?:\s*\([^)]*\))?[:\s]+([0-9]+)",
+            text,
+            re.IGNORECASE,
         )
         if m_inv_no:
             data["invoice_number"] = m_inv_no.group(1).strip()
             fields_found += 1
 
-        # 3. Issue Date
-        m_date = re.search(
-            r"(?:Ngay|Ngày|Date)(?:\s*\([^)]*\))?:\s*([0-9]{4}-[0-9]{2}-[0-9]{2}|[0-9]{2}/[0-9]{2}/[0-9]{4})",
+        # 3. Issue Date (natural Vietnamese or standard numeric)
+        m_nat_date = re.search(
+            r"(?:Ngay|Ngày)(?:\s*\([^)]*\))?\s*([0-9]{1,2})\s*(?:thang|tháng)\s*([0-9]{1,2})\s*(?:nam|năm)\s*([0-9]{4})",
             text,
             re.IGNORECASE,
         )
-        if m_date:
-            raw_d = m_date.group(1).strip()
-            if "/" in raw_d:
-                parts = raw_d.split("/")
-                raw_d = f"{parts[2]}-{parts[1]}-{parts[0]}"
-            data["issue_date"] = raw_d
+        if m_nat_date:
+            day = m_nat_date.group(1).zfill(2)
+            month = m_nat_date.group(2).zfill(2)
+            year = m_nat_date.group(3)
+            data["issue_date"] = f"{year}-{month}-{day}"
             fields_found += 1
+        else:
+            m_date = re.search(
+                r"(?:Ngay|Ngày|Date)(?:\s*\([^)]*\))?[:\s]+([0-9]{4}-[0-9]{2}-[0-9]{2}|[0-9]{2}/[0-9]{2}/[0-9]{4})",
+                text,
+                re.IGNORECASE,
+            )
+            if m_date:
+                raw_d = m_date.group(1).strip()
+                if "/" in raw_d:
+                    parts = raw_d.split("/")
+                    raw_d = f"{parts[2]}-{parts[1]}-{parts[0]}"
+                data["issue_date"] = raw_d
+                fields_found += 1
 
         # 4. Supplier Name
         m_supp = re.search(
@@ -130,22 +146,40 @@ class DigitalPDFParser:
             data["buyer_name"] = clean_buyer
             fields_found += 1
 
-        # 6. Tax IDs (preserving leading zeros as string)
-        tax_ids = re.findall(
-            r"(?:Ma so thue|Mã số thuế|Tax ID|MST)(?:\s*\([^)]*\))?:\s*([0-9-]{10,14})",
+        # 6. Tax IDs (contextual: Seller vs Buyer)
+        m_supp_tax = re.search(
+            r"(?:Don vi ban|Đơn vị bán|Người bán|Bên bán|Seller|Supplier)[^\r\n]*?(?:MST|Ma so thue|Mã số thuế|Tax ID)[:\s]+([0-9]{10}(?:-[0-9]{3})?)",
             text,
             re.IGNORECASE,
         )
-        if len(tax_ids) >= 1:
-            data["supplier_tax_id"] = tax_ids[0].strip()
+        m_buyer_tax = re.search(
+            r"(?:Don vi mua|Đơn vị mua|Người mua|Bên mua|Buyer|Khách hàng)[^\r\n]*?(?:MST|Ma so thue|Mã số thuế|Tax ID)[:\s]+([0-9]{10}(?:-[0-9]{3})?)",
+            text,
+            re.IGNORECASE,
+        )
+        if m_supp_tax:
+            data["supplier_tax_id"] = m_supp_tax.group(1).strip()
             fields_found += 1
-        if len(tax_ids) >= 2:
-            data["buyer_tax_id"] = tax_ids[1].strip()
+        if m_buyer_tax:
+            data["buyer_tax_id"] = m_buyer_tax.group(1).strip()
             fields_found += 1
+
+        if not data.get("supplier_tax_id") or not data.get("buyer_tax_id"):
+            tax_ids = re.findall(
+                r"(?:Ma so thue|Mã số thuế|Tax ID|MST)(?:\s*\([^)]*\))?[:\s]+([0-9-]{10,14})",
+                text,
+                re.IGNORECASE,
+            )
+            if not data.get("supplier_tax_id") and len(tax_ids) >= 1:
+                data["supplier_tax_id"] = tax_ids[0].strip()
+                fields_found += 1
+            if not data.get("buyer_tax_id") and len(tax_ids) >= 2:
+                data["buyer_tax_id"] = tax_ids[1].strip()
+                fields_found += 1
 
         # 7. Monetary Totals
         m_subtotal = re.search(
-            r"(?:Cong tien hang|Cộng tiền hàng|Subtotal)(?:\s*\([^)]*\))?:\s*([0-9.,]+)",
+            r"(?:Cong tien hang|Cộng tiền hàng|Subtotal)(?:\s*\([^)]*\))?:\s*([0-9.,\s]+?)(?=\s*(?:[₫đ$]|VND|VNĐ|\r|\n|$))",
             text,
             re.IGNORECASE,
         )
@@ -157,7 +191,7 @@ class DigitalPDFParser:
             fields_found += 1
 
         m_tax = re.search(
-            r"(?:Tien thue GTGT|Tiền thuế GTGT|Tax Total)(?:\s*\([^)]*\))?:\s*([0-9.,]+)",
+            r"(?:Tien thue GTGT|Tiền thuế GTGT|Tax Total)(?:\s*\([^)]*\))?:\s*([0-9.,\s]+?)(?=\s*(?:[₫đ$]|VND|VNĐ|\r|\n|$))",
             text,
             re.IGNORECASE,
         )
@@ -169,7 +203,7 @@ class DigitalPDFParser:
             fields_found += 1
 
         m_total = re.search(
-            r"(?:Tong cong|Tổng cộng|Total Amount)(?:\s*\([^)]*\))?:\s*([0-9.,]+)",
+            r"(?:Tong cong|Tổng cộng|Total Amount)(?:\s*\([^)]*\))?:\s*([0-9.,\s]+?)(?=\s*(?:[₫đ$]|VND|VNĐ|\r|\n|$))",
             text,
             re.IGNORECASE,
         )
@@ -387,7 +421,14 @@ class DigitalPDFParser:
     def _parse_decimal(self, val: Any, is_qty: bool = False) -> tuple[Decimal, Optional[str]]:
         if not val or not str(val).strip():
             return Decimal("0.0000"), None
-        s = str(val).strip()
+        s = str(val).strip().replace("\u00a0", " ")
+        # Strip currency symbols and clean outer whitespace
+        s = re.sub(r"(?i)(?:vnd|vnđ|usd|eur|[₫đ$])", "", s).strip()
+        # Normalise space-separated thousand groups e.g. "25 000 000"
+        s = re.sub(r"(\d)\s+(\d{3})\b", r"\1\2", s)
+        # Strip trailing % if present
+        if s.endswith("%"):
+            s = s[:-1].strip()
         issue: Optional[str] = None
 
         if not re.search(r"\d", s):

@@ -382,54 +382,82 @@ export const ExtractionPanel: React.FC = () => {
               Bằng chứng OCR và toạ độ BBox được trích xuất từ tài liệu gốc. Di chuột để xem vị trí trên chứng từ:
             </div>
             {inv.evidence && inv.evidence.length > 0 ? (
-              inv.evidence.map((ev, i) => (
-                <div
-                  key={i}
-                  className="ev"
-                  onMouseEnter={() => setHighlightedField(ev.field_name)}
-                  onMouseLeave={() => setHighlightedField(null)}
-                  style={{
-                    cursor: "pointer",
-                    padding: "10px 12px",
-                    border: highlightedField === ev.field_name ? "1.5px solid var(--blue)" : "1px solid var(--line)",
-                    borderRadius: "8px",
-                    marginBottom: "8px",
-                    background: highlightedField === ev.field_name ? "var(--blue-soft)" : "#fff",
-                    transition: "all .15s ease",
-                  }}
-                >
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <div style={{ fontWeight: 600, fontSize: "13px", color: "var(--navy)" }}>
-                      {ev.field_name}
+              inv.evidence.map((ev, i) => {
+                const conf = ev.confidence != null ? Math.round(ev.confidence * 100) : 100;
+                const confClass = conf >= 85 ? "k-g" : conf >= 70 ? "k-b" : "k-r";
+                const isCandidate = (ev.field_name || "").endsWith(".candidate_vision");
+                const state = ev.verification_state;
+
+                return (
+                  <div
+                    key={i}
+                    className="ev"
+                    onMouseEnter={() => setHighlightedField(ev.field_name)}
+                    onMouseLeave={() => setHighlightedField(null)}
+                    style={{
+                      cursor: "pointer",
+                      padding: "10px 12px",
+                      border:
+                        highlightedField === ev.field_name
+                          ? "1.5px solid var(--blue)"
+                          : isCandidate
+                          ? "1px solid #fca5a5"
+                          : "1px solid var(--line)",
+                      borderRadius: "8px",
+                      marginBottom: "8px",
+                      background:
+                        highlightedField === ev.field_name
+                          ? "var(--blue-soft)"
+                          : isCandidate
+                          ? "#fff5f5"
+                          : "#fff",
+                      transition: "all .15s ease",
+                    }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <div style={{ fontWeight: 600, fontSize: "13px", color: isCandidate ? "#b91c1c" : "var(--navy)" }}>
+                        {ev.field_name}
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                        {isCandidate && (
+                          <span className="k k-r" style={{ fontSize: "10px" }}>Ứng viên Vision</span>
+                        )}
+                        {state === "valid" || state === "verified" ? (
+                          <span className="k k-g" style={{ fontSize: "10px" }}>Đã xác thực</span>
+                        ) : state === "arithmetically_consistent" ? (
+                          <span className="k k-g" style={{ fontSize: "10px" }}>Khớp số học</span>
+                        ) : state === "human_approved" || state === "corrected" ? (
+                          <span className="k" style={{ fontSize: "10px", background: "#f3e8ff", color: "#7e22ce" }}>Kế toán duyệt</span>
+                        ) : state === "conflict" ? (
+                          <span className="k k-r" style={{ fontSize: "10px" }}>Xung đột</span>
+                        ) : state === "invalid" || state === "rejected" ? (
+                          <span className="k k-r" style={{ fontSize: "10px" }}>Không hợp lệ</span>
+                        ) : state === "missing" ? (
+                          <span className="k k-r" style={{ fontSize: "10px" }}>Thiếu dữ liệu</span>
+                        ) : state === "zero" || state === "uncertain" ? (
+                          <span className="k" style={{ fontSize: "10px", background: "#fef3c7", color: "#b45309" }}>Cần chú ý</span>
+                        ) : (
+                          <span className="k k-b" style={{ fontSize: "10px" }}>AI đề xuất</span>
+                        )}
+                        <span className={`k ${confClass}`} style={{ fontSize: "11px" }}>
+                          {conf}%
+                        </span>
+                      </div>
                     </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                      {ev.verification_state === "verified" ? (
-                        <span className="k k-g" style={{ fontSize: "10px" }}>Đã xác thực</span>
-                      ) : ev.verification_state === "corrected" ? (
-                        <span className="k" style={{ fontSize: "10px", background: "#f3e8ff", color: "#7e22ce" }}>Đính chính</span>
-                      ) : ev.verification_state === "rejected" ? (
-                        <span className="k k-r" style={{ fontSize: "10px" }}>Từ chối</span>
-                      ) : (
-                        <span className="k k-b" style={{ fontSize: "10px" }}>AI đề xuất</span>
+                    <div style={{ fontSize: "12px", color: "#3b4557", margin: "4px 0" }}>
+                      Giá trị: <b>{ev.raw_value || "—"}</b>
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "11px", color: "var(--muted)" }}>
+                      <span>{ev.source_kind || ev.source || "OCR"} · Trang {(ev.page_index ?? ev.page ?? 0) + 1}</span>
+                      {ev.review_reason && (
+                        <span className="k k-r" style={{ fontSize: "10px" }}>
+                          {ev.review_reason}
+                        </span>
                       )}
-                      <span className="k k-g" style={{ fontSize: "11px" }}>
-                        {Math.round((ev.confidence ?? 1.0) * 100)}%
-                      </span>
                     </div>
                   </div>
-                  <div style={{ fontSize: "12px", color: "#3b4557", margin: "4px 0" }}>
-                    Giá trị: <b>{ev.raw_value}</b>
-                  </div>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "11px", color: "var(--muted)" }}>
-                    <span>{ev.source_kind || ev.source || "OCR"} · Trang {(ev.page_index ?? ev.page ?? 0) + 1}</span>
-                    {ev.review_reason && (
-                      <span className="k k-r" style={{ fontSize: "10px" }}>
-                        {ev.review_reason}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              ))
+                );
+              })
             ) : (
               <div className="empty" style={{ padding: "30px 10px", textAlign: "center" }}>
                 <Icon name="img" style={{ width: "32px", height: "32px", margin: "0 auto 8px" }} />

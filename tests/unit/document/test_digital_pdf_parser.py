@@ -39,3 +39,35 @@ def test_digital_pdf_parser_handles_empty_text():
     assert res.supplier_name is None
     assert res.supplier_tax_id is None
     assert len(res.lines) == 0
+
+
+def test_digital_pdf_parser_natural_vietnamese_date_and_currencies():
+    parser = DigitalPDFParser()
+    text = """
+    HOA DON GIA TRI GIA TANG
+    Ky hieu mau so: 1C26TAA
+    So hoa don: 0009876
+    Ngay 18 thang 04 nam 2026
+    Don vi ban: Cong ty Co phan Dau khi Mien Bac
+    Ma so thue: 0101112222
+    Don vi mua: Cong ty TNHH Ky thuat Cong nghe Gamma
+    Ma so thue: 0303334444
+
+    STT Ten hang hoa, dich vu So luong Don gia Thanh tien
+    1 Xang Ron 95-V [RON-95] 500.000 24.500 8.0% 12.250.000
+
+    Cong tien hang: 12 250 000 đ
+    Tien thue GTGT: 980 000 VND
+    Tong cong: 13 230 000 đ
+    """
+    res = parser.parse(text)
+    assert res.invoice_series == "1C26TAA"
+    assert res.invoice_number == "0009876"
+    assert res.issue_date == "2026-04-18"
+    assert res.supplier_tax_id == "0101112222"
+    assert res.buyer_tax_id == "0303334444"
+    assert res.subtotal == Decimal("12250000.0000")
+    assert res.tax_total == Decimal("980000.0000")
+    assert res.amount_payable == Decimal("13230000.0000")
+    assert len(res.lines) == 1
+    assert res.lines[0].sku == "RON-95"

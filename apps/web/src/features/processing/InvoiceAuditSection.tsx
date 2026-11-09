@@ -22,13 +22,16 @@ export const InvoiceAuditSection: React.FC<InvoiceAuditSectionProps> = ({
   const isSignatureInvalid =
     inv.signature_status === "INVALID" ||
     inv.signature_status === "invalid";
+  const isDuplicate = Boolean(
+    inv.issues && inv.issues.some((i) => i.code === "DUPLICATE_INVOICE")
+  );
   const hasIssues = Boolean(
     (inv.issues && inv.issues.length > 0) ||
     inv.status === "REVIEW_REQUIRED" ||
     inv.status === "REQUIRES_REVIEW" ||
     inv.status === "DISCREPANCY_DETECTED"
   );
-  const isOk = !isBadMst && !hasIssues && !isSignatureInvalid;
+  const isOk = !isBadMst && !hasIssues && !isSignatureInvalid && !isDuplicate;
 
   const getTaxStatusLabel = () => {
     if (isBadMst) return "MST không tồn tại / Ngừng HĐ";
@@ -86,13 +89,15 @@ export const InvoiceAuditSection: React.FC<InvoiceAuditSectionProps> = ({
           </div>
 
           <div className="ck">
-            <span className="cc">
-              <Icon name="check" />
+            <span className={`cc ${isDuplicate ? "red" : ""}`}>
+              <Icon name={isDuplicate ? "x" : "check"} />
             </span>
             <div>
-              Kiểm tra trùng lặp: Đạt
+              Kiểm tra trùng lặp: {isDuplicate ? "Phát hiện hóa đơn trùng lặp" : "Đạt"}
               <small>
-                Số hóa đơn duy nhất trong kỳ: {inv.invoice_series || "—"} – {inv.invoice_number || "—"}
+                {isDuplicate
+                  ? "Hóa đơn này bị trùng số/ký hiệu mẫu với hóa đơn khác trong hệ thống."
+                  : `Số hóa đơn duy nhất trong kỳ: ${inv.invoice_series || "—"} – ${inv.invoice_number || "—"}`}
               </small>
             </div>
           </div>

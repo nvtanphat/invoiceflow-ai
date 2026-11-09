@@ -214,7 +214,19 @@ async def render_document_page(
         )
         return response
     elif doc.mime_type.startswith("image/"):
-        return Response(content=content, media_type=doc.mime_type)
+        import fitz
+
+        pix = fitz.Pixmap(content)
+        w, h = float(pix.width), float(pix.height)
+        response = Response(content=content, media_type=doc.mime_type)
+        response.headers["X-Page-Width"] = str(w)
+        response.headers["X-Page-Height"] = str(h)
+        response.headers["X-Page-Count"] = "1"
+        response.headers["X-Page-Rotation"] = "0"
+        response.headers["Access-Control-Expose-Headers"] = (
+            "X-Page-Width, X-Page-Height, X-Page-Count, X-Page-Rotation"
+        )
+        return response
     else:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

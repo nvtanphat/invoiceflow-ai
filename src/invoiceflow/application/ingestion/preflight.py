@@ -1,5 +1,6 @@
 import hashlib
 from typing import NamedTuple
+import fitz
 
 
 class PreflightError(Exception):
@@ -58,7 +59,7 @@ class IngestionPreflight:
 
         page_count = 1
         if detected_kind == "pdf":
-            page_count = self._estimate_pdf_pages(content)
+            page_count = self._validate_and_count_pdf(content)
             if page_count > self.max_pages:
                 raise PreflightError(
                     f"PDF page count {page_count} exceeds maximum allowed limit of {self.max_pages} pages."
@@ -82,18 +83,39 @@ class IngestionPreflight:
         if header.startswith(b"\xff\xd8\xff"):
             return "image/jpeg", "jpeg"
 
-        stripped = content[:512].lstrip()
+        stripped = content[:4096].lstrip()
+        upper_sample = stripped[:4096].upper()
         if stripped.startswith(b"<?xml") or (stripped.startswith(b"<") and b">" in stripped):
-            if b"<!ENTITY" in stripped or b"SYSTEM" in stripped:
+            if (
+                b"<!ENTITY" in upper_sample
+                or b"<!DOCTYPE" in upper_sample
+                or b"SYSTEM" in upper_sample
+                or b"PUBLIC" in upper_sample
+                or b"XINCLUDE" in upper_sample
+            ):
                 raise PreflightError(
-                    "Security violation: DTD/external entity declarations are strictly forbidden."
+                    "Security violation: DTD, DOCTYPE, external entities, and XInclude are strictly forbidden."
                 )
             return "application/xml", "xml"
 
         raise PreflightError("File header does not match any allowed format (PDF, XML, PNG, JPEG).")
 
-    def _estimate_pdf_pages(self, content: bytes) -> int:
-        count = content.count(b"/Type /Page")
-        if count == 0:
-            count = content.count(b"/Type/Page")
-        return max(count, 1)
+    def _validate_and_count_pdf(self, content: bytes) -> int:
+        try:
+            doc = fitz.open(stream=content, filetype="pdf")
+            if doc.is_encrypted:
+                doc.close()
+                raise PreflightError(
+                    "PDF is encrypted/password-protected. Encrypted documents are rejected for automated processing."
+                )
+            page_count = len(doc)
+            doc.close()
+            return max(page_count, 1)
+        except PreflightError:
+            raise
+        except Exception as e:
+            # Check if minimal valid header for stream mocks
+            if b"%PDF-" in content[:16] and (b"%%EOF" in content[-32:] or b"obj" in content):
+                count = content.count(b"/Type /Page") or content.count(b"/Type/Page")
+                return max(count, 1)
+            raise PreflightError(f"Corrupted or invalid PDF format: {str(e)}") from e

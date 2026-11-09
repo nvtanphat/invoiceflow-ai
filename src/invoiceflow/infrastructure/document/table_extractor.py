@@ -26,7 +26,18 @@ class StructureAwareTableExtractor:
 
     COLUMN_PATTERNS: Dict[str, List[str]] = {
         "line_no": ["stt", "no", "item", "tt"],
-        "sku": ["ma hang", "ma sp", "sku", "part no", "model"],
+        "sku": [
+            "ma hang",
+            "ma sp",
+            "sku",
+            "part no",
+            "model",
+            "ma so",
+            "ma hang hoa",
+            "ma vat tu",
+            "ma dich vu",
+            "item code",
+        ],
         "description": [
             "ten hang hoa",
             "ten hang",
@@ -36,14 +47,58 @@ class StructureAwareTableExtractor:
             "hang hoa",
             "dien giai",
             "san pham",
+            "ten hang hoa, dich vu",
+            "ten vat tu",
+            "ten vat tu, hang hoa",
+            "quy cach",
+            "noi dung hang hoa",
         ],
-        "unit": ["don vi tinh", "dvt", "unit"],
-        "qty": ["so luong", "sl", "qty", "quantity"],
-        "unit_price": ["don gia", "dg", "unit price", "price", "gia"],
+        "unit": ["don vi tinh", "dvt", "unit", "d.v.t", "don vi", "uom"],
+        "qty": ["so luong", "sl", "qty", "quantity", "s.l", "so lg", "so luong thuc te"],
+        "unit_price": [
+            "don gia",
+            "dg",
+            "unit price",
+            "price",
+            "gia",
+            "d.gia",
+            "don gia sau thue",
+            "don gia chua thue",
+        ],
         "discount": ["chiet khau", "ck", "discount", "giam gia"],
-        "tax_rate": ["thue suat", "vat %", "thue %", "tax rate", "% thue"],
-        "line_amount": ["thanh tien", "amount", "total", "tien hang"],
+        "tax_rate": [
+            "thue suat",
+            "vat %",
+            "thue %",
+            "tax rate",
+            "% thue",
+            "thue suat gtgt",
+            "thue vat",
+            "ts gtgt",
+            "ts %",
+        ],
+        "line_amount": [
+            "thanh tien",
+            "amount",
+            "total",
+            "tien hang",
+            "cong tien",
+            "tien thanh toan",
+            "thanh tien vnd",
+        ],
     }
+
+    _SUMMARY_ROW_PATTERNS = [
+        "cong tien hang",
+        "tong cong",
+        "tien thue",
+        "thue gtgt",
+        "tong tien thanh toan",
+        "chuyen sang trang sau",
+        "mang sang tu trang truoc",
+        "subtotal",
+        "total amount",
+    ]
 
     def extract_lines(self, tables: List[DocumentTable]) -> List[InvoiceLine]:
         lines, _ = self.extract_lines_with_evidence(tables)
@@ -105,12 +160,27 @@ class StructureAwareTableExtractor:
             row_cells = rows_map[r_idx]
             extracted_data = self._extract_row_data(row_cells, col_mapping, r_idx)
 
+            if self._is_summary_row(extracted_data):
+                if current_line is not None and self._has_line_identity(current_line):
+                    line, evidence = self._finalize_line(current_line, len(lines) + 1, len(lines))
+                    lines.append(line)
+                    all_evidence.extend(evidence)
+                    current_line = None
+                continue
+
             if self._is_continuation_row(extracted_data, current_line):
                 continuation_text = extracted_data.get("description", "").strip()
                 if continuation_text and current_line:
                     current_line["description"] = (
                         f"{current_line['description']} {continuation_text}".strip()
                     )
+                    cont_cell = extracted_data.get("_cells", {}).get("description")
+                    cur_cell = current_line.get("_cells", {}).get("description")
+                    if cur_cell and cur_cell.bbox and cont_cell and cont_cell.bbox:
+                        cur_cell.bbox.x0 = min(cur_cell.bbox.x0, cont_cell.bbox.x0)
+                        cur_cell.bbox.y0 = min(cur_cell.bbox.y0, cont_cell.bbox.y0)
+                        cur_cell.bbox.x1 = max(cur_cell.bbox.x1, cont_cell.bbox.x1)
+                        cur_cell.bbox.y1 = max(cur_cell.bbox.y1, cont_cell.bbox.y1)
                 continue
 
             if current_line is not None and self._has_line_identity(current_line):
@@ -236,13 +306,21 @@ class StructureAwareTableExtractor:
             data["_merged_fields"] = merged_fields
         return data
 
+    def _is_summary_row(self, data: Dict[str, Any]) -> bool:
+        desc = _strip_accents(str(data.get("description", ""))).lower().strip()
+        sku = _strip_accents(str(data.get("sku", ""))).lower().strip()
+        row_text = f"{desc} {sku}".strip()
+        return any(pattern in row_text for pattern in self._SUMMARY_ROW_PATTERNS)
+
     def _is_continuation_row(
         self, extracted: Dict[str, Any], current_line: Optional[Dict[str, Any]]
     ) -> bool:
         if current_line is None:
             return False
-        has_new_financials = any(
-            extracted.get(k) for k in ["line_no", "sku", "qty", "unit_price", "line_amount"]
+        line_no_str = str(extracted.get("line_no", "")).strip()
+        has_valid_line_no = bool(line_no_str and re.search(r"\d", line_no_str))
+        has_new_financials = has_valid_line_no or any(
+            extracted.get(k) for k in ["sku", "qty", "unit_price", "line_amount"]
         )
         has_description = bool(extracted.get("description"))
         return not has_new_financials and has_description
@@ -258,6 +336,8 @@ class StructureAwareTableExtractor:
             line_no = fallback_line_no
 
         sku = data.get("sku")
+        if sku:
+            sku = sku.replace("\u00ad", "-").replace("–", "-").replace("—", "-").strip()
         desc = data.get("description", "Sản phẩm / Dịch vụ")
         unit = data.get("unit")
 
@@ -265,17 +345,22 @@ class StructureAwareTableExtractor:
         if not sku:
             bracket_match = _BRACKET_SKU_PATTERN.search(desc)
             if bracket_match:
-                sku = bracket_match.group(1)
+                sku = (
+                    bracket_match.group(1)
+                    .replace("\u00ad", "-")
+                    .replace("–", "-")
+                    .replace("—", "-")
+                )
                 desc = _BRACKET_SKU_PATTERN.sub("", desc).strip()
                 sku_from_description = True
             else:
-                m_unbr = re.search(r"\b([A-Z0-9]+(?:-[A-Z0-9]+)+)\b", desc)
+                m_unbr = re.search(r"\b([A-Z0-9]+(?:[-_/][A-Z0-9]+)+)\b", desc)
                 if m_unbr:
                     cand = m_unbr.group(1)
                     if not re.match(r"^\d{4}-\d{2}-\d{2}$", cand) and not re.match(
                         r"^\d{10}-\d{3}$", cand
                     ):
-                        sku = cand
+                        sku = cand.replace("\u00ad", "-").replace("–", "-").replace("—", "-")
                         desc = desc.replace(cand, "").strip(" -:,")
                         sku_from_description = True
 
@@ -400,7 +485,11 @@ class StructureAwareTableExtractor:
     def _parse_decimal(self, val: Any, is_qty: bool = False) -> tuple[Decimal, Optional[str]]:
         if not val or not str(val).strip():
             return Decimal("0.0000"), None
-        s = str(val).strip()
+        s = str(val).strip().replace("\u00a0", " ")
+        # Strip currency symbols and clean outer whitespace
+        s = re.sub(r"(?i)(?:vnd|vnđ|usd|eur|[₫đ$])", "", s).strip()
+        # Normalise space-separated thousand groups e.g. "25 000 000"
+        s = re.sub(r"(\d)\s+(\d{3})\b", r"\1\2", s)
         # A trailing "%" marks a percentage, never a thousands-grouped
         # integer; strip it before the separator heuristics below so e.g.
         # "10.00%" (a whole table cell value) isn't misread as "10,000%".

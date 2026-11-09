@@ -492,3 +492,115 @@ def test_hyphenated_skus_preserved_without_truncation():
     assert len(lines) == 2
     assert lines[0].sku_ref == "PAPER-A4-80"
     assert lines[1].sku_ref == "LAP-DELL-5520"
+
+
+def test_table_extractor_filters_summary_rows():
+    """Verify that table footer rows like 'Cộng tiền hàng' or 'Tổng cộng' are ignored."""
+    headers = [
+        DocumentCell(row_index=0, col_index=0, text="STT"),
+        DocumentCell(row_index=0, col_index=1, text="Tên hàng hóa"),
+        DocumentCell(row_index=0, col_index=2, text="Số lượng"),
+        DocumentCell(row_index=0, col_index=3, text="Đơn giá"),
+        DocumentCell(row_index=0, col_index=4, text="Thành tiền"),
+    ]
+    rows = [
+        # Line 1
+        DocumentCell(row_index=1, col_index=0, text="1"),
+        DocumentCell(row_index=1, col_index=1, text="Bàn làm việc gỗ sồi"),
+        DocumentCell(row_index=1, col_index=2, text="2"),
+        DocumentCell(row_index=1, col_index=3, text="3.500.000"),
+        DocumentCell(row_index=1, col_index=4, text="7.000.000"),
+        # Table Summary Row 1: Cong tien hang
+        DocumentCell(row_index=2, col_index=0, text=""),
+        DocumentCell(row_index=2, col_index=1, text="Cộng tiền hàng (Subtotal)"),
+        DocumentCell(row_index=2, col_index=2, text=""),
+        DocumentCell(row_index=2, col_index=3, text=""),
+        DocumentCell(row_index=2, col_index=4, text="7.000.000"),
+        # Table Summary Row 2: Tien thue
+        DocumentCell(row_index=3, col_index=0, text=""),
+        DocumentCell(row_index=3, col_index=1, text="Tiền thuế GTGT (8%)"),
+        DocumentCell(row_index=3, col_index=2, text=""),
+        DocumentCell(row_index=3, col_index=3, text=""),
+        DocumentCell(row_index=3, col_index=4, text="560.000"),
+        # Table Summary Row 3: Tong cong
+        DocumentCell(row_index=4, col_index=0, text=""),
+        DocumentCell(row_index=4, col_index=1, text="Tổng cộng tiền thanh toán"),
+        DocumentCell(row_index=4, col_index=2, text=""),
+        DocumentCell(row_index=4, col_index=3, text=""),
+        DocumentCell(row_index=4, col_index=4, text="7.560.000"),
+    ]
+    table = DocumentTable(
+        id="tbl-with-summary-rows",
+        page_index=0,
+        row_count=5,
+        column_count=5,
+        cells=headers + rows,
+    )
+    extractor = StructureAwareTableExtractor()
+    lines = extractor.extract_invoice_lines(table)
+
+    # Exactly 1 real line item, 3 summary rows safely skipped
+    assert len(lines) == 1
+    assert lines[0].line_no == 1
+    assert lines[0].description == "Bàn làm việc gỗ sồi"
+    assert lines[0].line_amount == Decimal("7000000.0000")
+
+
+def test_table_extractor_merges_multiline_description_and_expands_bbox():
+    """Verify continuation lines merge text and expand the description BBox."""
+    headers = [
+        DocumentCell(row_index=0, col_index=0, text="STT"),
+        DocumentCell(row_index=0, col_index=1, text="Tên hàng"),
+        DocumentCell(row_index=0, col_index=2, text="Số lượng"),
+        DocumentCell(row_index=0, col_index=3, text="Đơn giá"),
+        DocumentCell(row_index=0, col_index=4, text="Thành tiền"),
+    ]
+    rows = [
+        # Main row with initial description
+        DocumentCell(row_index=1, col_index=0, text="1"),
+        DocumentCell(
+            row_index=1,
+            col_index=1,
+            text="Máy in laser Canon LBP 2900",
+            bbox=_make_bbox(0, 100, 50, 300, 70),
+        ),
+        DocumentCell(row_index=1, col_index=2, text="1"),
+        DocumentCell(row_index=1, col_index=3, text="3.200.000"),
+        DocumentCell(row_index=1, col_index=4, text="3.200.000"),
+        # Continuation row 1
+        DocumentCell(
+            row_index=2,
+            col_index=1,
+            text="(Kèm 01 hộp mực chính hãng Cartridge 303)",
+            bbox=_make_bbox(0, 100, 75, 320, 95),
+        ),
+        # Continuation row 2
+        DocumentCell(
+            row_index=3,
+            col_index=1,
+            text="(Bảo hành 12 tháng tại trung tâm ủy quyền)",
+            bbox=_make_bbox(0, 100, 100, 350, 120),
+        ),
+    ]
+    table = DocumentTable(
+        id="tbl-multiline-bbox",
+        page_index=0,
+        row_count=4,
+        column_count=5,
+        cells=headers + rows,
+    )
+    extractor = StructureAwareTableExtractor()
+    lines, evidence = extractor.extract_invoice_lines_with_evidence(table)
+
+    assert len(lines) == 1
+    assert "Máy in laser Canon LBP 2900" in lines[0].description
+    assert "Kèm 01 hộp mực chính hãng" in lines[0].description
+    assert "Bảo hành 12 tháng" in lines[0].description
+
+    # Find description evidence
+    desc_ev = next(ev for ev in evidence if ev.field_path == "lines[0].description")
+    assert desc_ev.bbox is not None
+    # BBox must span from top of line 1 (y0=50) to bottom of continuation line 2 (y1=120)
+    assert desc_ev.bbox.y0 == 50
+    assert desc_ev.bbox.y1 == 120
+    assert desc_ev.bbox.x1 == 350

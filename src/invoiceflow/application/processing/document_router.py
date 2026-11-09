@@ -6,6 +6,7 @@ class ProcessingRoute(str, Enum):
     XML_DETERMINISTIC = "xml_deterministic"
     PDF_DIGITAL = "pdf_digital"
     DOCLING_OCR_STRUCTURED = "docling_ocr_structured"
+    IMAGE_PREPROCESSED_OCR = "image_preprocessed_ocr"
     VISION_FALLBACK = "vision_fallback"
     MANUAL_REVIEW = "manual_review"
 
@@ -30,6 +31,9 @@ class DocumentRouter:
     ) -> ProcessingRoute:
         if detected_kind in ("xml", "xml_invoice", "xml_standard"):
             return ProcessingRoute.XML_DETERMINISTIC
+
+        if detected_kind in ("image", "png", "jpeg", "jpg", "image/png", "image/jpeg"):
+            return ProcessingRoute.IMAGE_PREPROCESSED_OCR
 
         if detected_kind in ("pdf", "digital_pdf", "scanned_pdf", "mixed_pdf"):
             if is_difficult and budget_available:

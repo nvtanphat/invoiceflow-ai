@@ -1,0 +1,200 @@
+import cv2
+import fitz
+import numpy as np
+
+from invoiceflow.infrastructure.document.image_preprocessor import (
+    GeometryTransform,
+    ImagePreprocessor,
+    ImageQualityMetrics,
+    PreprocessedImageResult,
+)
+
+
+def _create_synthetic_invoice_image(
+    width: int = 800,
+    height: int = 1100,
+    bg_color: int = 250,
+) -> np.ndarray:
+    img = np.full((height, width, 3), bg_color, dtype=np.uint8)
+
+    # Title
+    cv2.putText(
+        img, "HOA DON GIA TRI GIA TANG", (180, 80), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 0), 2
+    )
+    cv2.putText(img, "Mau so: 1C26TAA", (50, 140), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (30, 30, 30), 1)
+    cv2.putText(img, "So: 0001234", (550, 140), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (30, 30, 30), 1)
+
+    # Supplier info
+    cv2.putText(
+        img,
+        "Don vi ban: Cong ty Co phan Thuong mai Alpha",
+        (50, 190),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.6,
+        (0, 0, 0),
+        1,
+    )
+    cv2.putText(
+        img, "Ma so thue: 0101234567", (50, 220), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 1
+    )
+
+    # Table Header
+    cv2.rectangle(img, (40, 270), (760, 310), (220, 220, 220), -1)
+    cv2.rectangle(img, (40, 270), (760, 310), (0, 0, 0), 1)
+    cv2.putText(img, "STT", (50, 295), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1)
+    cv2.putText(
+        img, "Ten hang hoa, dich vu", (120, 295), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1
+    )
+    cv2.putText(img, "So luong", (450, 295), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1)
+    cv2.putText(img, "Don gia", (550, 295), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1)
+    cv2.putText(img, "Thanh tien", (660, 295), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1)
+
+    # Table Row
+    cv2.rectangle(img, (40, 310), (760, 360), (0, 0, 0), 1)
+    cv2.putText(img, "1", (55, 340), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1)
+    cv2.putText(
+        img, "Laptop Dell Precision 5520", (120, 340), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1
+    )
+    cv2.putText(img, "2", (470, 340), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1)
+    cv2.putText(img, "25,000,000", (540, 340), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1)
+    cv2.putText(img, "50,000,000", (650, 340), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1)
+
+    # Totals
+    cv2.putText(
+        img, "Tong cong: 50,000,000 VND", (480, 420), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 2
+    )
+    return img
+
+
+def test_image_quality_assessment_clean_vs_blurry():
+    preprocessor = ImagePreprocessor(blur_threshold=65.0)
+    clean_img = _create_synthetic_invoice_image()
+
+    metrics_clean = preprocessor.assess_quality(clean_img)
+    assert isinstance(metrics_clean, ImageQualityMetrics)
+    assert not metrics_clean.is_blurry
+    assert metrics_clean.blur_score > 65.0
+    assert not metrics_clean.is_low_contrast
+
+    # Heavy blur simulation
+    blurry_img = cv2.GaussianBlur(clean_img, (25, 25), 10.0)
+    metrics_blurry = preprocessor.assess_quality(blurry_img)
+    assert metrics_blurry.is_blurry
+    assert metrics_blurry.blur_score < 65.0
+
+
+def test_image_quality_assessment_shadow_and_low_contrast():
+    preprocessor = ImagePreprocessor()
+    img = _create_synthetic_invoice_image()
+
+    # Apply synthetic dark shadow gradient across top-left to bottom-right
+    h, w = img.shape[:2]
+    y, x = np.mgrid[0:h, 0:w]
+    gradient = ((x + y) / float(w + h) * 180).astype(np.uint8)
+    shadowed_img = np.clip(img.astype(np.int32) - gradient[:, :, None], 0, 255).astype(np.uint8)
+
+    metrics = preprocessor.assess_quality(shadowed_img)
+    assert metrics.is_uneven_illumination
+
+
+def test_boundary_detection_and_perspective_correction():
+    preprocessor = ImagePreprocessor()
+
+    # Place an invoice page onto a larger dark background with perspective warp
+    canvas_w, canvas_h = 1200, 1600
+    canvas = np.full((canvas_h, canvas_w, 3), 40, dtype=np.uint8)  # dark desk background
+
+    invoice = _create_synthetic_invoice_image(width=600, height=850)
+    ih, iw = invoice.shape[:2]
+
+    # Source points (corners of invoice)
+    src_pts = np.array([[0, 0], [iw, 0], [iw, ih], [0, ih]], dtype="float32")
+
+    # Tilted quadrilateral on desk (perspective projection simulation)
+    dst_pts = np.array(
+        [[200, 250], [950, 180], [900, 1350], [150, 1400]],
+        dtype="float32",
+    )
+    m = cv2.getPerspectiveTransform(src_pts, dst_pts)
+    warped_invoice = cv2.warpPerspective(invoice, m, (canvas_w, canvas_h))
+
+    # Mask and paste onto canvas
+    mask = cv2.warpPerspective(np.full((ih, iw), 255, dtype=np.uint8), m, (canvas_w, canvas_h))
+    canvas[mask > 0] = warped_invoice[mask > 0]
+
+    # Detect boundary
+    quad = preprocessor.detect_document_boundary(canvas)
+    assert quad is not None
+    assert quad.shape == (4, 2)
+
+    # Correct perspective
+    rectified, matrix, inv_matrix = preprocessor.correct_perspective(canvas, quad)
+    assert rectified.shape[0] > 700
+    assert rectified.shape[1] > 500
+
+    # Verify bidirectional point mapping
+    geom = GeometryTransform(
+        applied_perspective=True,
+        perspective_matrix=matrix.flatten().tolist(),
+        inverse_perspective_matrix=inv_matrix.flatten().tolist(),
+    )
+    # The origin (0, 0) of the rectified document should map close to top-left of quad in canvas
+    orig_x, orig_y = geom.map_point_to_original(0.0, 0.0)
+    assert abs(orig_x - quad[0][0]) < 15.0
+    assert abs(orig_y - quad[0][1]) < 15.0
+
+
+def test_shadow_removal_enhancement():
+    preprocessor = ImagePreprocessor()
+    img = _create_synthetic_invoice_image(width=600, height=800)
+
+    # Inject shadow
+    h, w = img.shape[:2]
+    shadow_mask = np.zeros((h, w), dtype=np.float32)
+    cv2.circle(shadow_mask, (w // 2, h // 2), 250, 0.7, -1)
+    shadow_mask = cv2.GaussianBlur(shadow_mask, (81, 81), 40.0)
+    shadowed = (img * (1.0 - shadow_mask[:, :, None])).astype(np.uint8)
+
+    enhanced = preprocessor.enhance_lighting_and_shadows(shadowed)
+    assert enhanced.shape == shadowed.shape
+
+    # The background in the shadowed center should be brightened back up
+    center_val_before = np.mean(shadowed[h // 2 - 20 : h // 2 + 20, w // 2 - 20 : w // 2 + 20])
+    center_val_after = np.mean(enhanced[h // 2 - 20 : h // 2 + 20, w // 2 - 20 : w // 2 + 20])
+    assert center_val_after > center_val_before + 30.0
+
+
+def test_deskew_correction():
+    preprocessor = ImagePreprocessor()
+    img = _create_synthetic_invoice_image(width=600, height=800)
+
+    # Rotate by 3 degrees
+    h, w = img.shape[:2]
+    rot_mat = cv2.getRotationMatrix2D((w // 2, h // 2), 3.0, 1.0)
+    rotated = cv2.warpAffine(img, rot_mat, (w, h), borderValue=(250, 250, 250))
+
+    deskewed, angle = preprocessor.estimate_and_correct_skew(rotated)
+    assert abs(angle) >= 0.5
+    assert deskewed.shape == rotated.shape
+
+
+def test_end_to_end_preprocess_generates_valid_pdf():
+    preprocessor = ImagePreprocessor()
+    img = _create_synthetic_invoice_image()
+
+    _, enc = cv2.imencode(".png", img)
+    raw_bytes = enc.tobytes()
+
+    result = preprocessor.preprocess(raw_bytes)
+    assert isinstance(result, PreprocessedImageResult)
+    assert len(result.processed_image_bytes) > 0
+    assert len(result.pdf_bytes) > 0
+    assert result.pdf_bytes.startswith(b"%PDF-")
+
+    # Validate that PDF can be parsed by fitz
+    doc = fitz.open(stream=result.pdf_bytes, filetype="pdf")
+    assert len(doc) == 1
+    page = doc.load_page(0)
+    assert page.rect.width > 200
+    assert page.rect.height > 200
+    doc.close()

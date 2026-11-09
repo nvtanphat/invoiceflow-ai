@@ -7,7 +7,14 @@ from invoiceflow.application.processing.document_router import DocumentRouter, P
 from invoiceflow.application.processing.evidence_mapper import EvidenceMapper
 from invoiceflow.application.processing.service import DocumentAIService
 from invoiceflow.application.reconciliation.service import ReconciliationService
-from invoiceflow.infrastructure.database.models import AuditLogORM, ProcessingJobORM
+from invoiceflow.application.reconciliation.stp_evaluator import STPEvaluator
+from invoiceflow.domain.policies.models import TolerancePolicy
+from invoiceflow.infrastructure.database.models import (
+    AuditLogORM,
+    InvoiceORM,
+    ProcessingJobORM,
+    TolerancePolicyORM,
+)
 from invoiceflow.infrastructure.database.repositories import DocumentRepository, InvoiceRepository
 from invoiceflow.infrastructure.database.session import DatabaseSessionManager
 from invoiceflow.infrastructure.document.docling_adapter import DoclingAdapter
@@ -37,6 +44,7 @@ class JobCoordinator:
         llm_adapter: Optional[LLMProviderPort] = None,
         docling_adapter: Optional[DoclingAdapter] = None,
         signature_verifier: Optional[SignatureVerifierPort] = None,
+        stp_evaluator: Optional[STPEvaluator] = None,
         document_ai_service: Optional[DocumentAIService] = None,
     ):
         self._db_manager = db_manager
@@ -49,6 +57,7 @@ class JobCoordinator:
             fallback_extractor=self._layout_extractor
         )
         self._signature_verifier = signature_verifier or XMLSignatureVerifier()
+        self._stp_evaluator = stp_evaluator or STPEvaluator()
         self._router = DocumentRouter()
         self._evidence_mapper = EvidenceMapper()
 
@@ -156,13 +165,69 @@ class JobCoordinator:
                 )
 
                 reconciliation = ReconciliationService(session)
-                await reconciliation.reconcile_invoice(result.invoice_aggregate)
+                match_report = await reconciliation.reconcile_invoice(result.invoice_aggregate)
 
-                await session.execute(
-                    update(ProcessingJobORM)
-                    .where(ProcessingJobORM.id == job_id)
-                    .values(status="READY_FOR_REVIEW", stage="COMPLETED")
+                # Straight-Through Processing (STP) risk-based evaluation
+                policy_stmt = select(TolerancePolicyORM).where(
+                    TolerancePolicyORM.tenant_id == doc.tenant_id
                 )
+                policy_orm = (await session.execute(policy_stmt)).scalars().first()
+                policy = (
+                    TolerancePolicy(
+                        tenant_id=doc.tenant_id,
+                        auto_approve_threshold=policy_orm.auto_approve_threshold,
+                        price_tolerance_pct=policy_orm.price_tolerance_pct,
+                        qty_tolerance_pct=policy_orm.qty_tolerance_pct,
+                        max_amount_delta=policy_orm.max_amount_delta,
+                        separation_of_duties_required=policy_orm.separation_of_duties_required,
+                    )
+                    if policy_orm
+                    else TolerancePolicy(tenant_id=doc.tenant_id)
+                )
+
+                stp_eval = self._stp_evaluator.evaluate(
+                    invoice=result.invoice_aggregate,
+                    match_report=match_report,
+                    policy=policy,
+                )
+
+                if stp_eval.is_stp_eligible:
+                    await session.execute(
+                        update(InvoiceORM)
+                        .where(InvoiceORM.id == str(result.invoice_aggregate.id))
+                        .values(status="APPROVED")
+                    )
+                    session.add(
+                        AuditLogORM(
+                            tenant_id=doc.tenant_id,
+                            action="AUTO_APPROVED_STP",
+                            actor_id="system_stp",
+                            aggregate_type="INVOICE",
+                            aggregate_id=str(result.invoice_aggregate.id),
+                            details_json=json.dumps({"stp_reasons": stp_eval.stp_reasons}),
+                        )
+                    )
+                    await session.execute(
+                        update(ProcessingJobORM)
+                        .where(ProcessingJobORM.id == job_id)
+                        .values(status="APPROVED", stage="COMPLETED")
+                    )
+                else:
+                    session.add(
+                        AuditLogORM(
+                            tenant_id=doc.tenant_id,
+                            action="ROUTED_TO_HUMAN_REVIEW",
+                            actor_id="system_stp",
+                            aggregate_type="INVOICE",
+                            aggregate_id=str(result.invoice_aggregate.id),
+                            details_json=json.dumps({"review_reasons": stp_eval.review_reasons}),
+                        )
+                    )
+                    await session.execute(
+                        update(ProcessingJobORM)
+                        .where(ProcessingJobORM.id == job_id)
+                        .values(status="READY_FOR_REVIEW", stage="COMPLETED")
+                    )
 
             return True
 

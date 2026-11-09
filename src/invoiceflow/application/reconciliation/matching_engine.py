@@ -1,5 +1,7 @@
 from decimal import Decimal
+import re
 from typing import List, Optional
+import unicodedata
 from invoiceflow.domain.invoices.models import InvoiceAggregate
 from invoiceflow.domain.policies.models import TolerancePolicy
 from invoiceflow.domain.purchasing.models import (
@@ -11,6 +13,52 @@ from invoiceflow.domain.purchasing.models import (
     POLine,
     PurchaseOrder,
 )
+
+_UOM_SYNONYMS = {
+    "cai": "cai",
+    "chiec": "cai",
+    "pc": "cai",
+    "pcs": "cai",
+    "piece": "cai",
+    "pieces": "cai",
+    "bo": "bo",
+    "set": "bo",
+    "sets": "bo",
+    "hop": "hop",
+    "box": "hop",
+    "boxes": "hop",
+    "thung": "thung",
+    "carton": "thung",
+    "ctn": "thung",
+    "kg": "kg",
+    "kilogram": "kg",
+    "kilo": "kg",
+    "g": "g",
+    "gram": "g",
+    "m": "m",
+    "met": "m",
+    "meter": "m",
+    "cuon": "cuon",
+    "roll": "cuon",
+    "rolls": "cuon",
+    "goi": "goi",
+    "pack": "goi",
+    "package": "goi",
+    "binh": "binh",
+    "can": "can",
+    "chai": "chai",
+    "bottle": "chai",
+    "lo": "lo",
+}
+
+
+def _normalize_uom(uom: Optional[str]) -> Optional[str]:
+    if not uom:
+        return None
+    text = unicodedata.normalize("NFD", uom.strip().lower())
+    clean = "".join(ch for ch in text if unicodedata.category(ch) != "Mn")
+    clean = re.sub(r"[^\w]", "", clean)
+    return _UOM_SYNONYMS.get(clean, clean)
 
 
 class MatchingEngine:
@@ -42,6 +90,20 @@ class MatchingEngine:
                 issues=issues,
             )
 
+        # Check total amount delta policy
+        amount_delta = abs(invoice.amount_payable - po.subtotal)
+        if amount_delta > policy.max_amount_delta:
+            issues.append(
+                MatchIssue(
+                    code="MAX_AMOUNT_DELTA_EXCEEDED",
+                    severity=IssueSeverity.WARNING,
+                    message=f"Total invoice amount deviation ({amount_delta}) exceeds max policy delta ({policy.max_amount_delta}).",
+                    field_path="amount_payable",
+                    actual_value=str(invoice.amount_payable),
+                    expected_value=str(po.subtotal),
+                )
+            )
+
         # Build index of PO lines
         po_lines_by_id = {line.id: line for line in po.lines}
         po_lines_by_sku = {line.sku: line for line in po.lines if line.sku}
@@ -59,9 +121,11 @@ class MatchingEngine:
         has_price_variance = False
         has_qty_variance = False
         has_missing_grn = False
+        has_minor_price_variance = False
+        has_minor_qty_variance = False
 
         for inv_line in invoice.lines:
-            # 1. Match to PO line
+            # 1. Multi-factor match to PO line
             matched_po_line: Optional[POLine] = None
             if (
                 inv_line.purchase_order_line_id
@@ -70,8 +134,22 @@ class MatchingEngine:
                 matched_po_line = po_lines_by_id[inv_line.purchase_order_line_id]
             elif inv_line.sku_ref and inv_line.sku_ref in po_lines_by_sku:
                 matched_po_line = po_lines_by_sku[inv_line.sku_ref]
-            elif inv_line.line_no in po_lines_by_no:
-                matched_po_line = po_lines_by_no[inv_line.line_no]
+            else:
+                # Text token similarity match on description
+                inv_tokens = set(re.findall(r"\w+", inv_line.description.lower()))
+                best_sim = 0.0
+                best_cand = None
+                for candidate_po_line in po.lines:
+                    po_tokens = set(re.findall(r"\w+", candidate_po_line.description.lower()))
+                    if inv_tokens and po_tokens:
+                        sim = len(inv_tokens & po_tokens) / len(inv_tokens | po_tokens)
+                        if sim > best_sim:
+                            best_sim = sim
+                            best_cand = candidate_po_line
+                if best_cand and best_sim >= 0.50:
+                    matched_po_line = best_cand
+                elif inv_line.line_no in po_lines_by_no:
+                    matched_po_line = po_lines_by_no[inv_line.line_no]
 
             if not matched_po_line:
                 issues.append(
@@ -83,6 +161,22 @@ class MatchingEngine:
                     )
                 )
                 continue
+
+            # Unit of Measure (UoM) cross-validation
+            norm_inv_unit = _normalize_uom(inv_line.unit)
+            norm_po_unit = _normalize_uom(matched_po_line.unit)
+            if norm_inv_unit and norm_po_unit and norm_inv_unit != norm_po_unit:
+                issues.append(
+                    MatchIssue(
+                        code="UOM_MISMATCH",
+                        severity=IssueSeverity.WARNING,
+                        message=f"Line {inv_line.line_no}: Invoiced unit '{inv_line.unit}' differs from PO unit '{matched_po_line.unit}'.",
+                        line_no=inv_line.line_no,
+                        field_path=f"lines[{inv_line.line_no}].unit",
+                        actual_value=inv_line.unit,
+                        expected_value=matched_po_line.unit,
+                    )
+                )
 
             # 2. Price match
             if not policy.is_price_within_tolerance(
@@ -100,6 +194,8 @@ class MatchingEngine:
                         expected_value=str(matched_po_line.unit_price),
                     )
                 )
+            elif inv_line.unit_price != matched_po_line.unit_price:
+                has_minor_price_variance = True
 
             # 3. 3-way quantity match with GRN
             if receipts is not None:
@@ -129,8 +225,12 @@ class MatchingEngine:
                             expected_value=str(tot_received),
                         )
                     )
+                elif inv_line.qty != tot_received:
+                    has_minor_qty_variance = True
 
         # Determine overall match status
+        has_critical_issue = any(i.severity == IssueSeverity.CRITICAL for i in issues)
+
         if has_qty_variance:
             status = MatchStatus.QUANTITY_VARIANCE
             is_matched = False
@@ -143,6 +243,14 @@ class MatchingEngine:
             status = MatchStatus.MISSING_GRN
             is_matched = False
             requires_review = True
+        elif has_critical_issue:
+            status = MatchStatus.EXCEPTION
+            is_matched = False
+            requires_review = True
+        elif has_minor_price_variance or has_minor_qty_variance:
+            status = MatchStatus.MATCHED_WITHIN_TOLERANCE
+            is_matched = True
+            requires_review = False
         elif issues:
             status = MatchStatus.EXCEPTION
             is_matched = False

@@ -10,7 +10,9 @@ import fitz
 
 from invoiceflow.application.processing.document_router import DocumentRouter, ProcessingRoute
 from invoiceflow.application.processing.evidence_mapper import EvidenceMapper
+from invoiceflow.application.processing.multi_signal_verifier import MultiSignalVerifier
 from invoiceflow.config import Settings, get_settings
+from invoiceflow.domain.documents.models import BoundingBox
 from invoiceflow.domain.invoices.models import (
     FieldEvidence,
     InvoiceAggregate,
@@ -19,8 +21,10 @@ from invoiceflow.domain.invoices.models import (
 )
 from invoiceflow.infrastructure.document.digital_pdf_parser import DigitalPDFParser
 from invoiceflow.infrastructure.document.docling_adapter import DoclingAdapter
+from invoiceflow.infrastructure.document.image_preprocessor import ImagePreprocessor
 from invoiceflow.infrastructure.document.layout_extractor import LayoutExtractor
 from invoiceflow.infrastructure.document.pdf_inspector import ClassificationStr, PDFInspector
+from invoiceflow.infrastructure.document.region_recoverer import RegionOCRRecoverer
 from invoiceflow.infrastructure.document.signature_verifier import (
     SignatureVerifierPort,
     XMLSignatureVerifier,
@@ -66,6 +70,9 @@ class DocumentAIService:
         signature_verifier: Optional[SignatureVerifierPort] = None,
         router: Optional[DocumentRouter] = None,
         evidence_mapper: Optional[EvidenceMapper] = None,
+        image_preprocessor: Optional[ImagePreprocessor] = None,
+        region_recoverer: Optional[RegionOCRRecoverer] = None,
+        multi_signal_verifier: Optional[MultiSignalVerifier] = None,
         settings: Optional[Settings] = None,
     ):
         self._settings = settings or get_settings()
@@ -79,6 +86,9 @@ class DocumentAIService:
         self._signature_verifier = signature_verifier or XMLSignatureVerifier()
         self._router = router or DocumentRouter()
         self._evidence_mapper = evidence_mapper or EvidenceMapper()
+        self._image_preprocessor = image_preprocessor or ImagePreprocessor()
+        self._region_recoverer = region_recoverer or RegionOCRRecoverer()
+        self._multi_signal_verifier = multi_signal_verifier or MultiSignalVerifier()
         self._digital_parser = DigitalPDFParser()
         self._table_extractor = StructureAwareTableExtractor()
 
@@ -97,8 +107,16 @@ class DocumentAIService:
             or content.strip().startswith(b"<?xml")
             or content.strip().startswith(b"<HDon")
         )
+        is_image = (
+            (mime_type and mime_type.startswith("image/"))
+            or filename.lower().endswith((".png", ".jpg", ".jpeg", ".webp", ".tiff", ".bmp"))
+            or content.startswith(b"\x89PNG")
+            or content.startswith(b"\xff\xd8")
+        )
         if is_xml:
             result = self._process_xml(tenant_id, document_id, filename, content)
+        elif is_image:
+            result = await self._process_image(tenant_id, document_id, filename, content)
         else:
             result = await self._process_pdf(tenant_id, document_id, filename, content)
 
@@ -129,6 +147,7 @@ class DocumentAIService:
                 extractor="xml_signature_verifier",
             )
         )
+        inv_agg = self._multi_signal_verifier.verify_invoice(inv_agg)
         raw_lines = [
             {
                 "line_no": line.line_no,
@@ -164,6 +183,61 @@ class DocumentAIService:
             raw_header=raw_header,
             raw_lines=raw_lines,
         )
+
+    async def _process_image(
+        self,
+        tenant_id: Union[UUID, str],
+        document_id: Union[UUID, str],
+        filename: str,
+        content: bytes,
+    ) -> DocumentAIResult:
+        prep_res = self._image_preprocessor.preprocess(content)
+        result = await self._process_pdf(
+            tenant_id=tenant_id,
+            document_id=document_id,
+            filename=filename,
+            content=prep_res.pdf_bytes,
+        )
+        result.route = ProcessingRoute.IMAGE_PREPROCESSED_OCR
+
+        evidence_list = result.invoice_aggregate.evidence
+        evidence_list.append(
+            FieldEvidence(
+                field_path="image_preprocessing.quality",
+                source_kind="image_preprocessing",
+                raw_value=f"blur={prep_res.quality.blur_score}, brightness={prep_res.quality.brightness_mean}, contrast={prep_res.quality.contrast_std}",
+                normalized_value="enhanced" if prep_res.transform.applied_enhancement else "clean",
+                confidence=0.95,
+                extractor="opencv_image_preprocessor",
+                verification_state="verified",
+            )
+        )
+        if prep_res.transform.applied_perspective:
+            evidence_list.append(
+                FieldEvidence(
+                    field_path="image_preprocessing.perspective_correction",
+                    source_kind="image_preprocessing",
+                    raw_value=f"orig_dim={prep_res.transform.original_width}x{prep_res.transform.original_height}",
+                    normalized_value=f"proc_dim={prep_res.transform.processed_width}x{prep_res.transform.processed_height}",
+                    confidence=0.92,
+                    extractor="opencv_image_preprocessor",
+                    verification_state="verified",
+                )
+            )
+        if prep_res.transform.applied_deskew:
+            evidence_list.append(
+                FieldEvidence(
+                    field_path="image_preprocessing.deskew",
+                    source_kind="image_preprocessing",
+                    raw_value=f"angle={prep_res.transform.deskew_angle:.2f}",
+                    normalized_value="deskewed",
+                    confidence=0.90,
+                    extractor="opencv_image_preprocessor",
+                    verification_state="verified",
+                )
+            )
+
+        return result
 
     @staticmethod
     def _validate_tax_id(tax_id: Optional[str]) -> bool:
@@ -773,6 +847,129 @@ class DocumentAIService:
             chosen_lines = table_lines
             is_table_lines = True
 
+        if self._region_recoverer is not None:
+            try:
+                doc_pdf_rec = fitz.open(stream=content, filetype="pdf")
+                if not header["supplier_tax_id"]:
+                    rec_tax = self._region_recoverer.recover_missing_header_field(
+                        doc_pdf_rec, page_index=0, field_name="supplier_tax_id"
+                    )
+                    if rec_tax and self._validate_tax_id(rec_tax[0]):
+                        header["supplier_tax_id"] = rec_tax[0]
+                        table_line_evidence.append(
+                            FieldEvidence(
+                                field_path="supplier_tax_id",
+                                source_kind="ocr_region_retry",
+                                raw_value=rec_tax[0],
+                                normalized_value=rec_tax[0],
+                                confidence=min(0.92, rec_tax[1]),
+                                extractor="region_ocr_recoverer",
+                                verification_state="verified",
+                            )
+                        )
+                if not header["invoice_number"]:
+                    rec_inv = self._region_recoverer.recover_missing_header_field(
+                        doc_pdf_rec, page_index=0, field_name="invoice_number"
+                    )
+                    if rec_inv:
+                        header["invoice_number"] = rec_inv[0]
+                        table_line_evidence.append(
+                            FieldEvidence(
+                                field_path="invoice_number",
+                                source_kind="ocr_region_retry",
+                                raw_value=rec_inv[0],
+                                normalized_value=rec_inv[0],
+                                confidence=min(0.90, rec_inv[1]),
+                                extractor="region_ocr_recoverer",
+                                verification_state="verified",
+                            )
+                        )
+
+                recovered_lines: list[InvoiceLine] = []
+                for idx, line in enumerate(chosen_lines):
+                    needs_qty_rec = (line.qty <= Decimal("0.0000")) or any(
+                        iss
+                        in (
+                            "CELL_MERGE_SUSPECTED",
+                            "QTY_ZERO_OR_MISSING",
+                            "QTY_UNRECOVERED",
+                            "ARITHMETIC_MISMATCH",
+                        )
+                        for iss in line.issues
+                    )
+                    if (
+                        needs_qty_rec
+                        and line.unit_price > Decimal("0.0000")
+                        and line.line_amount > Decimal("0.0000")
+                    ):
+                        line_evs = [
+                            ev
+                            for ev in table_line_evidence
+                            if ev.field_path.startswith(f"lines[{idx}].") and ev.bbox is not None
+                        ]
+                        target_bbox = None
+                        target_page = 0
+                        if line_evs:
+                            target_page = line_evs[0].bbox.page_index
+                            min_x0 = min(ev.bbox.x0 for ev in line_evs if ev.bbox.x0 is not None)
+                            min_y0 = min(ev.bbox.y0 for ev in line_evs if ev.bbox.y0 is not None)
+                            max_x1 = max(ev.bbox.x1 for ev in line_evs if ev.bbox.x1 is not None)
+                            max_y1 = max(ev.bbox.y1 for ev in line_evs if ev.bbox.y1 is not None)
+                            target_bbox = BoundingBox(
+                                page_index=target_page,
+                                x0=min_x0,
+                                y0=min_y0,
+                                x1=max_x1,
+                                y1=max_y1,
+                            )
+
+                        rec_qty_res = self._region_recoverer.recover_line_quantity(
+                            doc_pdf_rec,
+                            page_index=target_page,
+                            line_bbox=target_bbox,
+                            unit_price=line.unit_price,
+                            line_amount=line.line_amount,
+                            discount=line.discount,
+                        )
+                        if rec_qty_res is not None:
+                            cand_qty, rec_conf = rec_qty_res
+                            cleaned_issues = [
+                                iss
+                                for iss in line.issues
+                                if iss
+                                not in (
+                                    "CELL_MERGE_SUSPECTED",
+                                    "QTY_ZERO_OR_MISSING",
+                                    "QTY_UNRECOVERED",
+                                    "ARITHMETIC_MISMATCH",
+                                )
+                            ]
+                            line = line.model_copy(
+                                update={
+                                    "qty": cand_qty,
+                                    "raw_qty": str(cand_qty),
+                                    "issues": cleaned_issues,
+                                }
+                            )
+                            table_line_evidence.append(
+                                FieldEvidence(
+                                    field_path=f"lines[{idx}].qty",
+                                    source_kind="ocr_region_retry",
+                                    raw_value=str(cand_qty),
+                                    normalized_value=str(cand_qty),
+                                    confidence=min(0.95, max(0.85, rec_conf)),
+                                    extractor="region_ocr_recoverer",
+                                    bbox=target_bbox,
+                                    verification_state="arithmetically_consistent",
+                                    review_reason="Recovered missing quantity validated by arithmetic consistency via Region OCR",
+                                )
+                            )
+                    recovered_lines.append(line)
+                chosen_lines = recovered_lines
+                doc_pdf_rec.close()
+            except Exception as e:
+                logger.debug("Exception during region OCR recovery: %s", e)
+
         has_zero_qty = any(line.qty <= Decimal("0.0000") for line in chosen_lines)
         has_line_issue = any(
             any(
@@ -971,6 +1168,7 @@ class DocumentAIService:
             evidence=evidence,
             parser_issues=parser_issues,
         )
+        inv_agg = self._multi_signal_verifier.verify_invoice(inv_agg)
 
         raw_header = {
             "supplier_tax_id": header["supplier_tax_id"],
