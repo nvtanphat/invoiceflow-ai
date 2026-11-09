@@ -6,7 +6,7 @@ import unicodedata
 from invoiceflow.domain.documents.models import DocumentCell, DocumentTable
 from invoiceflow.domain.invoices.models import FieldEvidence, InvoiceLine
 
-_BRACKET_SKU_PATTERN = re.compile(r"\[([A-Z0-9_-]+)\]")
+_BRACKET_SKU_PATTERN = re.compile(r"\[([A-Z0-9_-]+)(?:\]|\.[\d]*\s*|\s|$)")
 _LINE_FIELD_PATH_PATTERN = re.compile(r"^lines\[(\d+)\]\.(.+)$")
 
 
@@ -268,10 +268,27 @@ class StructureAwareTableExtractor:
                 sku = bracket_match.group(1)
                 desc = _BRACKET_SKU_PATTERN.sub("", desc).strip()
                 sku_from_description = True
+            else:
+                m_unbr = re.search(r"\b([A-Z0-9]+(?:-[A-Z0-9]+)+)\b", desc)
+                if m_unbr:
+                    cand = m_unbr.group(1)
+                    if not re.match(r"^\d{4}-\d{2}-\d{2}$", cand) and not re.match(
+                        r"^\d{10}-\d{3}$", cand
+                    ):
+                        sku = cand
+                        desc = desc.replace(cand, "").strip(" -:,")
+                        sku_from_description = True
 
         raw_qty = data.get("qty", "")
         raw_price = data.get("unit_price", "0")
         raw_amount = data.get("line_amount", "0")
+
+        if "%" in raw_amount:
+            m_fused = re.search(r"([0-9.,]+)%\s*([0-9.,]+)", raw_amount)
+            if m_fused:
+                if not data.get("tax_rate"):
+                    data["tax_rate"] = m_fused.group(1)
+                raw_amount = m_fused.group(2)
 
         qty, qty_issue = self._parse_decimal(raw_qty, is_qty=True)
         price, price_issue = self._parse_decimal(raw_price)
@@ -295,6 +312,8 @@ class StructureAwareTableExtractor:
             issues.append(amount_issue)
         if qty == Decimal("0.0000") and qty_issue is None:
             issues.append("QTY_ZERO_OR_MISSING")
+            if not raw_qty:
+                issues.append("QTY_UNRECOVERED")
 
         merged_fields = data.get("_merged_fields")
         if merged_fields:

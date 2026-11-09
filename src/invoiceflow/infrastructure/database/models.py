@@ -197,6 +197,10 @@ class FieldEvidenceORM(Base):
     normalized_value: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     confidence: Mapped[Optional[float]] = mapped_column(Numeric(5, 4), nullable=True)
     extractor: Mapped[str] = mapped_column(String(50), default="deterministic", nullable=False)
+    verification_state: Mapped[str] = mapped_column(
+        String(50), default="model_proposed", nullable=False
+    )
+    review_reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     invoice: Mapped["InvoiceORM"] = relationship("InvoiceORM", back_populates="evidence")
 

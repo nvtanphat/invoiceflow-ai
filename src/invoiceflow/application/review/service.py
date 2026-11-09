@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from invoiceflow.infrastructure.database.models import (
     AuditLogORM,
     DocumentORM,
+    FieldEvidenceORM,
     InvoiceLineORM,
     InvoiceORM,
     MatchResultORM,
@@ -111,6 +112,40 @@ class ReviewService:
                 f"Stale revision or concurrent update on invoice {invoice_id} (expected revision {expected_revision})."
             )
 
+        # Resolve associated candidate vision evidence when fields or lines are edited
+        for k in clean_values:
+            cand_path = f"{k}.candidate_vision"
+            await self._session.execute(
+                update(FieldEvidenceORM)
+                .where(
+                    FieldEvidenceORM.invoice_id == invoice_id,
+                    FieldEvidenceORM.field_path == cand_path,
+                )
+                .values(verification_state="human_approved")
+            )
+        if lines_patched and "lines" in patches and isinstance(patches["lines"], list):
+            for line_patch in patches["lines"]:
+                line_no = line_patch.get("line_no")
+                if line_no is not None:
+                    idx = int(line_no) - 1
+                    await self._session.execute(
+                        update(FieldEvidenceORM)
+                        .where(
+                            FieldEvidenceORM.invoice_id == invoice_id,
+                            FieldEvidenceORM.field_path == f"lines[{idx}].qty.candidate_vision",
+                        )
+                        .values(verification_state="human_approved")
+                    )
+        if patches.get("resolve_all_conflicts"):
+            await self._session.execute(
+                update(FieldEvidenceORM)
+                .where(
+                    FieldEvidenceORM.invoice_id == invoice_id,
+                    FieldEvidenceORM.field_path.like("%.candidate_vision"),
+                )
+                .values(verification_state="human_approved")
+            )
+
         audit = AuditLogORM(
             tenant_id=tenant_id,
             actor_id=actor_id,
@@ -195,6 +230,19 @@ class ReviewService:
         if not invoice or invoice.tenant_id != tenant_id:
             raise ValueError(f"Invoice {invoice_id} not found.")
 
+        # 0. Check for Unresolved Candidate Financial Conflicts
+        ev_stmt = select(FieldEvidenceORM).where(
+            FieldEvidenceORM.invoice_id == invoice_id,
+            FieldEvidenceORM.field_path.like("%.candidate_vision"),
+            FieldEvidenceORM.verification_state == "model_proposed",
+        )
+        unresolved_evs = (await self._session.execute(ev_stmt)).scalars().all()
+        if unresolved_evs:
+            conflict_fields = ", ".join(sorted({e.field_path for e in unresolved_evs}))
+            raise ValueError(
+                f"Không thể phê duyệt: Hóa đơn còn xung đột tài chính chưa giải quyết ({conflict_fields}). Vui lòng xác minh hoặc chỉnh sửa trước khi duyệt."
+            )
+
         # 1. Direct Intrinsic Line Arithmetic Check (Zero Tolerance)
         lines_stmt = select(InvoiceLineORM).where(InvoiceLineORM.invoice_id == invoice_id)
         current_lines = (await self._session.execute(lines_stmt)).scalars().all()
@@ -231,6 +279,7 @@ class ReviewService:
                     "PARSE_ERROR",
                     "AMBIGUOUS_NUMBER",
                 )
+                or "CONFLICT" in (iss.get("code") or "")
             ]
             if critical_issues:
                 blocking_codes = ", ".join(

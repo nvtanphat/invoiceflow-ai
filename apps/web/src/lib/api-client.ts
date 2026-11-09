@@ -50,6 +50,8 @@ export interface FieldEvidenceItem {
   table_id?: string | null;
   cell_id?: string | null;
   confidence: number;
+  verification_state?: string | null;
+  review_reason?: string | null;
   raw_value: string;
 }
 

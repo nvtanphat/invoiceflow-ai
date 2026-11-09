@@ -24,7 +24,7 @@ jobs:
       - name: Install System Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgl1 libglib2.0-0 libmupdf-dev tesseract-ocr
+          sudo apt-get install -y libgl1 libglib2.0-0 libmupdf-dev tesseract-ocr fonts-dejavu-core fonts-liberation
 
       - name: Install Python Dependencies
         run: |
@@ -48,7 +48,18 @@ jobs:
           OPENAI_BASE_URL: "https://api.modelapi.vn/v1"
           OPENAI_MODEL_ID: "gpt-6.1-sol"
         run: |
-          python -m pytest --ignore=tests/e2e -v --tb=short --cov=invoiceflow --cov-report=term-missing
+          set -o pipefail
+          python -m pytest --ignore=tests/e2e -v --tb=short --cov=invoiceflow --cov-report=term-missing 2>&1 | tee pytest_output.log
+
+      - name: Report Pytest Failures in Summary
+        if: always()
+        run: |
+          if [ -f pytest_output.log ]; then
+            echo "### Pytest Execution Summary" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            tail -n 100 pytest_output.log >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi
 
       - name: Run Application QA Verification
         env:

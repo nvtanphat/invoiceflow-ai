@@ -37,11 +37,15 @@ class EvidenceMapper:
                         break
 
             if matched_el:
+                page_idx = getattr(matched_el, "page_index", None)
+                if page_idx is None and getattr(matched_el, "bbox", None) is not None:
+                    page_idx = matched_el.bbox.page_index
+
                 evidence_list.append(
                     FieldEvidence(
                         field_path=field_path,
                         source_kind=canonical_doc.source_format,
-                        page_index=matched_el.page_index,
+                        page_index=page_idx,
                         bbox=matched_el.bbox,
                         raw_value=matched_el.text,
                         normalized_value=str_val,

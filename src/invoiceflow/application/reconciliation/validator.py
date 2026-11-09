@@ -95,7 +95,7 @@ class InvoiceValidator:
 
         # 5. Document-level parser issues propagation
         for p_issue in getattr(invoice, "parser_issues", []):
-            is_critical = any(k in p_issue for k in ["MISMATCH", "ERROR", "AMBIGUOUS"])
+            is_critical = any(k in p_issue for k in ["MISMATCH", "ERROR", "AMBIGUOUS", "CONFLICT"])
             issues.append(
                 MatchIssue(
                     code=p_issue,
@@ -104,7 +104,7 @@ class InvoiceValidator:
                 )
             )
 
-        # 6. Line-level parser issues propagation (e.g. ARITHMETIC_MISMATCH, AMBIGUOUS_NUMBER, PARSE_ERROR)
+        # 6. Line-level parser issues propagation (e.g. ARITHMETIC_MISMATCH, AMBIGUOUS_NUMBER, PARSE_ERROR, CONFLICT)
         for line in invoice.lines:
             for l_issue in getattr(line, "issues", []):
                 if l_issue == "ARITHMETIC_MISMATCH" and any(
@@ -112,7 +112,11 @@ class InvoiceValidator:
                     for i in issues
                 ):
                     continue
-                is_crit = l_issue in ("ARITHMETIC_MISMATCH", "PARSE_ERROR", "AMBIGUOUS_NUMBER")
+                is_crit = l_issue in (
+                    "ARITHMETIC_MISMATCH",
+                    "PARSE_ERROR",
+                    "AMBIGUOUS_NUMBER",
+                ) or any(k in l_issue for k in ["CONFLICT", "MISMATCH"])
                 issues.append(
                     MatchIssue(
                         code=l_issue,

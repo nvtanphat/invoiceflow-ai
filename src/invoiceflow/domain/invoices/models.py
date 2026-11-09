@@ -25,6 +25,18 @@ class VerificationStatus(str, Enum):
     UNKNOWN = "unknown"
 
 
+class FieldVerificationState(str, Enum):
+    VALID = "valid"
+    ZERO = "zero"
+    MISSING = "missing"
+    INVALID = "invalid"
+    UNCERTAIN = "uncertain"
+    CONFLICT = "conflict"
+    ARITHMETICALLY_CONSISTENT = "arithmetically_consistent"
+    MODEL_PROPOSED = "model_proposed"
+    HUMAN_APPROVED = "human_approved"
+
+
 class TaxBreakdown(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -53,6 +65,7 @@ class FieldEvidence(BaseModel):
     normalized_value: Optional[str] = None
     confidence: Optional[float] = None
     extractor: str = "deterministic"
+    verification_state: Union[FieldVerificationState, str] = FieldVerificationState.MODEL_PROPOSED
     review_reason: Optional[str] = None
 
 

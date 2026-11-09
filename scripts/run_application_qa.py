@@ -353,6 +353,7 @@ async def run_document_ai_pipeline(
 async def main() -> int:
     print("=" * 88)
     print(" INVOICEFLOW AI - APPLICATION QUALITY ASSURANCE & VERIFICATION")
+    print(" Tier B: Final Document AI Quality (Docling OCR + Vision AI Reconciliation)")
     print("=" * 88)
 
     cases = load_manifest()

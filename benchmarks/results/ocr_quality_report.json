@@ -1,14 +1,15 @@
 {
   "suite": "InvoiceFlow AI OCR Quality Verification v1.0",
-  "timestamp": "2026-11-08T21:25:04Z",
+  "tier": "Tier A: Pure OCR Quality (pre-Vision AI)",
+  "timestamp": "2026-11-09T07:44:22Z",
   "text_cases": [
     {
       "case_id": "CASE-03-PDF-SCAN",
       "description": "Scanned (image-only) Vietnamese invoice, no rotation",
       "used_fallback": false,
-      "latency_ms": 59416.86,
-      "cer": 0.1235,
-      "wer": 0.1111,
+      "latency_ms": 31397.54,
+      "cer": 0.0247,
+      "wer": 0.0278,
       "unmatched_hypothesis_lines": [],
       "expected_amounts": [
         "680000",
@@ -19,15 +20,15 @@
       "missing_amounts": [],
       "all_amounts_recognized": true,
       "reference_text": "HOA DON BAN HANG (SCAN)\nKy hieu: 2C26TCC  So: 0003412  Ngay: 2026-03-08\nBen ban: Công ty TNHH Dịch vụ Vệ sinh Công nghiệp Hà Nội - MST: 0105554321\nBen mua: Công ty Cổ phần Thương mại Alpha VN - MST: 0109998888\nHang hoa: Bộ dụng cụ và hóa chất vệ sinh sàn văn phòng [CLEAN-SET-01]\nSo luong: 10.0000  Don gia: 850000.0000  Thue: 8.00%\nTien hang: 8500000.0000  Thue GTGT: 680000.0000  Tong cong: 9180000.0000",
-      "recognized_text": "HOA DON BAN HANG (SCAN)\nKy hieu: 2C26TCC So: 0003412 Ngay: 2026-03-08 Ben ban: ty TNHH Dịch vụ Vệ sinh nghiệp Hà Nội MST: 0105554321 Ben mua: ty Cổ phần Thương mại Alpha VN MST: 0109998888 Hang hoa: Bộ dụng cụ và hóa chất vệ sinh sàn văn phòng [CLEAN-SET-01] So luong: 10.0000 Don gia: 850000.0000 Thue: 8.00% Tien hang: 8500000.0000 Thue GTGT: 680000.0000 Tong cong: 9180000.0000 Công Công Công"
+      "recognized_text": "HOA DON BAN HANG (SCAN)\nKy hieu: 2C26TCC So: 0003412 Ngay: 2026-03-08\nBen ban: Công ty TNHH Dịch vụ Vệ sinh Công nghiệp Hà Nội MST: 0105554321\nBen mua: Công ty Cổ phần Thương mại Alpha VN MST: 0109998888\nHang hoa: Bộ dụng cụ và hóa chất vệ sinh sàn văn phòng [CLEAN-SET-01]\nSo luong: 10.0000 Don gia: 850000.0000 Thue: 8.00%\nTien hang: 8500000.0000 Thue GTGT: 680000.0000 Tong cong: 9180000.0000"
     },
     {
       "case_id": "CASE-07-PDF-ROTATED-SCAN",
       "description": "Scanned (image-only) Vietnamese invoice, rotated 90 degrees",
       "used_fallback": false,
-      "latency_ms": 28094.66,
-      "cer": 0.1453,
-      "wer": 0.137,
+      "latency_ms": 20364.43,
+      "cer": 0.0242,
+      "wer": 0.0274,
       "unmatched_hypothesis_lines": [],
       "expected_amounts": [
         "680000",
@@ -38,13 +39,13 @@
       "missing_amounts": [],
       "all_amounts_recognized": true,
       "reference_text": "HOA DON BAN HANG (ROTATED SCAN)\nKy hieu: 2C26TCC  So: 0003499  Ngay: 2026-03-12\nBen ban: Công ty TNHH Dịch vụ Vệ sinh Công nghiệp Hà Nội - MST: 0105554321\nBen mua: Công ty Cổ phần Thương mại Alpha VN - MST: 0109998888\nHang hoa: Bộ dụng cụ và hóa chất vệ sinh sàn văn phòng [CLEAN-SET-01]\nSo luong: 10.0000  Don gia: 850000.0000  Thue: 8.00%\nTien hang: 8500000.0000  Thue GTGT: 680000.0000  Tong cong: 9180000.0000",
-      "recognized_text": "HOA DON BAN HANG (ROTATED SCAN)\nKy hieu: 2C26TCC So: 0003499 Ngay: 2026-03-12 Ben ban: ty TNHH Dịch vụ Vệ sinh nghiệp Hà Nội MST: 0105554321 Ben mua: ty Cổ Thương mại Alpha VN MST: 0109998888 Hang hoa: Bộ dụng cụ và hóa chất vệ sinh sàn văn phòng [CLEAN-SET-01] So luong: 10.0000 Don gia: 850000.0000 Thue: 8.00% Tien hang: 8500000.0000 Thue GTGT: 680000.0000 Tong cong: 9180000.0000 Công Công phần Công"
+      "recognized_text": "HOA DON BAN HANG (ROTATED SCAN)\nKy hieu: 2C26TCC So: 0003499 Ngay: 2026-03-12\nBen ban: Công ty TNHH Dịch vụ Vệ sinh Công nghiệp Hà Nội MST: 0105554321\nBen mua: Công ty Cổ phần Thương mại Alpha VN MST: 0109998888\nHang hoa: Bộ dụng cụ và hóa chất vệ sinh sàn văn phòng [CLEAN-SET-01]\nSo luong: 10.0000 Don gia: 850000.0000 Thue: 8.00%\nTien hang: 8500000.0000 Thue GTGT: 680000.0000 Tong cong: 9180000.0000"
     },
     {
       "case_id": "CASE-09-PDF-MIXED",
       "description": "Mixed PDF: page 1 digital text, page 2 scanned attachment image",
       "used_fallback": false,
-      "latency_ms": 25134.55,
+      "latency_ms": 19038.3,
       "cer": 0.0185,
       "wer": 0.0556,
       "unmatched_hypothesis_lines": [],
@@ -61,10 +62,10 @@
     "case_id": "CASE-10-PDF-SCAN-TABLE",
     "description": "Scanned pure-image invoice with a multi-row line-item table",
     "used_fallback": false,
-    "latency_ms": 21536.47,
+    "latency_ms": 22748.88,
     "tables_detected_by_ocr": 1,
     "lines_extracted": 2,
-    "evidence_entries": 10,
+    "evidence_entries": 11,
     "expected_lines": [
       {
         "sku": "DELL-XPS-13",
@@ -85,17 +86,22 @@
         "issues": []
       },
       {
-        "sku": null,
+        "sku": "MOUSE-LOGI",
         "qty": "0.0000",
         "line_amount": "10000000.0000",
         "issues": [
           "QTY_ZERO_OR_MISSING",
+          "QTY_UNRECOVERED",
           "CELL_MERGE_SUSPECTED",
           "ARITHMETIC_MISMATCH"
         ]
       }
     ],
     "lines_correct_count": 1,
-    "lines_correct_total": 2
+    "lines_correct_total": 2,
+    "tier_a_pure_ocr_fully_recovered_count": 1,
+    "tier_a_pure_ocr_detected_lines_count": 2,
+    "tier_a_pure_ocr_total": 2,
+    "pure_ocr_note": "Tier A (Pure OCR): Line 1 (DELL-XPS-13) fully extracted (100%). Line 2 (MOUSE-LOGI) has table cell merge with QTY_UNRECOVERED. Completed via Vision AI reconciliation in Tier B."
   }
 }

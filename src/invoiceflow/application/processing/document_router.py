@@ -28,17 +28,17 @@ class DocumentRouter:
         is_difficult: bool = False,
         budget_available: bool = True,
     ) -> ProcessingRoute:
-        if detected_kind == "xml":
+        if detected_kind in ("xml", "xml_invoice", "xml_standard"):
             return ProcessingRoute.XML_DETERMINISTIC
 
-        if detected_kind == "pdf":
+        if detected_kind in ("pdf", "digital_pdf", "scanned_pdf", "mixed_pdf"):
             if is_difficult and budget_available:
                 return ProcessingRoute.VISION_FALLBACK
 
-            if pdf_classification == "pdf_digital":
+            if pdf_classification in ("pdf_digital", "digital_pdf"):
                 return ProcessingRoute.PDF_DIGITAL
 
-            if pdf_classification == "pdf_scan":
+            if pdf_classification in ("pdf_scan", "scanned_pdf"):
                 # If document has table structure detected or is standard size, try Docling OCR first
                 if table_count > 0 or not is_difficult:
                     return ProcessingRoute.DOCLING_OCR_STRUCTURED
@@ -46,8 +46,8 @@ class DocumentRouter:
                     return ProcessingRoute.VISION_FALLBACK
                 return ProcessingRoute.DOCLING_OCR_STRUCTURED
 
-            if pdf_classification == "mixed":
-                return ProcessingRoute.PDF_DIGITAL
+            if pdf_classification in ("mixed", "mixed_pdf"):
+                return ProcessingRoute.DOCLING_OCR_STRUCTURED
 
         return (
             ProcessingRoute.VISION_FALLBACK if budget_available else ProcessingRoute.MANUAL_REVIEW
