@@ -6,7 +6,7 @@ import unicodedata
 from invoiceflow.domain.documents.models import DocumentCell, DocumentTable
 from invoiceflow.domain.invoices.models import FieldEvidence, InvoiceLine
 
-_BRACKET_SKU_PATTERN = re.compile(r"\[([A-Z0-9_-]+)\]")
+_BRACKET_SKU_PATTERN = re.compile(r"\[([A-Z0-9_-]+)(?:\]|\.[\d]*\s*|\s|$)")
 _LINE_FIELD_PATH_PATTERN = re.compile(r"^lines\[(\d+)\]\.(.+)$")
 
 
@@ -295,6 +295,8 @@ class StructureAwareTableExtractor:
             issues.append(amount_issue)
         if qty == Decimal("0.0000") and qty_issue is None:
             issues.append("QTY_ZERO_OR_MISSING")
+            if not raw_qty:
+                issues.append("QTY_UNRECOVERED")
 
         merged_fields = data.get("_merged_fields")
         if merged_fields:

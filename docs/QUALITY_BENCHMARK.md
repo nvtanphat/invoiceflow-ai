@@ -103,25 +103,25 @@ Mọi bản build hoặc release của InvoiceFlow AI phải vượt qua các ti
 
 | Case ID | Loại chứng từ | Kết quả | Header Match | Line Items F1 | Độ trễ xử lý |
 |---|---|:---:|:---:|:---:|---:|
-| **CASE-01-XML-STANDARD** | `xml_standard` | **PASS** | 100.0% | 100.0% | 4.5 ms |
-| **CASE-02-PDF-DIGITAL** | `pdf_digital` | **PASS** | 100.0% | 100.0% | 14,448.8 ms |
-| **CASE-03-PDF-SCAN** | `pdf_scan` | **PASS** | 72.7% | 100.0% | 27,899.0 ms |
-| **CASE-04-DISCREPANCY-PRICE** | `discrepancy_price` | **PASS** | 100.0% | 100.0% | 3,005.4 ms |
-| **CASE-05-DISCREPANCY-QTY** | `discrepancy_qty` | **PASS** | 100.0% | 100.0% | 1.7 ms |
-| **CASE-06-PDF-MULTI-LINE** | `pdf_digital_table` | **PASS** | 100.0% | 100.0% | 3,605.5 ms |
-| **CASE-07-PDF-ROTATED-SCAN** | `pdf_scan_rotated` | **PASS** | 72.7% | 100.0% | 31,509.8 ms |
-| **CASE-08-PDF-COMPLEX-AMOUNTS** | `pdf_digital_numeric` | **PASS** | 100.0% | 100.0% | 2,844.4 ms |
-| **CASE-09-PDF-MIXED** | `pdf_mixed` | **PASS** | 72.7% | 100.0% | 2,781.7 ms |
-| **CASE-10-PDF-SCAN-TABLE** | `pdf_scan_table` | **PASS** | 100.0% | 100.0% | 34,259.2 ms |
+| **CASE-01-XML-STANDARD** | `xml_standard` | **PASS** | 100.0% | 100.0% | 3.8 ms |
+| **CASE-02-PDF-DIGITAL** | `pdf_digital` | **PASS** | 100.0% | 100.0% | 58,854.1 ms |
+| **CASE-03-PDF-SCAN** | `pdf_scan` | **PASS** | 81.8% | 100.0% | 22,780.0 ms |
+| **CASE-04-DISCREPANCY-PRICE** | `discrepancy_price` | **PASS** | 100.0% | 100.0% | 2,228.5 ms |
+| **CASE-05-DISCREPANCY-QTY** | `discrepancy_qty` | **PASS** | 100.0% | 100.0% | 1.1 ms |
+| **CASE-06-PDF-MULTI-LINE** | `pdf_digital_table` | **PASS** | 100.0% | 100.0% | 2,687.5 ms |
+| **CASE-07-PDF-ROTATED-SCAN** | `pdf_scan_rotated` | **PASS** | 81.8% | 100.0% | 20,551.5 ms |
+| **CASE-08-PDF-COMPLEX-AMOUNTS** | `pdf_digital_numeric` | **PASS** | 100.0% | 100.0% | 2,210.8 ms |
+| **CASE-09-PDF-MIXED** | `pdf_mixed` | **PASS** | 100.0% | 100.0% | 2,112.8 ms |
+| **CASE-10-PDF-SCAN-TABLE** | `pdf_scan_table` | **PASS** | 100.0% | 100.0% | 55,178.3 ms |
 
 ### Tổng hợp chỉ số toàn hệ thống:
 
 - **Tỷ lệ vượt qua nghiệm thu (Overall Pass Rate):** **10/10 chứng từ (100.0%)**
-- **Độ chính xác thông tin chung (Overall Header Match):** **91.8%**
+- **Độ chính xác thông tin chung (Overall Header Match):** **96.4%**
 - **Độ chính xác dòng hàng (Overall Line Items F1):** **100.0%**
 - **Tính hợp lệ số học (Arithmetic Validity Rate):** **100.0% (Không có bất kỳ sai số số học nào)**
 - **Phát hiện chênh lệch đối soát (Anomaly Detection F1):** **100.0% (Nhận diện chính xác 100% lệch giá và lệch lượng)**
-- **Thời gian xử lý trung bình toàn pipeline:** **12,036.0 ms**
+- **Thời gian xử lý trung bình toàn pipeline:** **16,660.8 ms**
 
 ---
 

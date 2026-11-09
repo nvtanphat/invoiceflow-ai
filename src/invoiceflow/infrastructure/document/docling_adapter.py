@@ -50,6 +50,186 @@ class DoclingAdapter:
         self._ocr_dpi = ocr_dpi
         self._ocr_languages = ocr_languages
 
+    def _patch_docling_reading_order(self) -> None:
+        """Patches Docling's layout postprocessor and page assemble model to order
+        OCR word boxes in natural reading bands (top-to-bottom, left-to-right) rather
+        than raw detection box discovery indices, eliminating out-of-order text line
+        assembly on scanned documents.
+        """
+        try:
+            from docling.utils.layout_postprocessor import LayoutPostprocessor
+            from docling_core.types.doc.page import TextCell
+            import docling.models.stages.page_assemble.page_assemble_model as pam
+
+            if getattr(LayoutPostprocessor, "_invoiceflow_spatial_patched", False):
+                return
+
+            def spatial_group_cells(cells: list[TextCell]) -> list[list[TextCell]]:
+                if not cells:
+                    return []
+                cell_info = []
+                for c in cells:
+                    bb = c.rect.to_bounding_box()
+                    cell_info.append(
+                        {
+                            "cell": c,
+                            "l": bb.l,
+                            "t": bb.t,
+                            "r": bb.r,
+                            "b": bb.b,
+                            "y_center": (bb.t + bb.b) / 2.0,
+                            "height": max(bb.b - bb.t, 1.0),
+                        }
+                    )
+                cell_info.sort(key=lambda x: x["y_center"])
+                lines: list[list[TextCell]] = []
+                cur_line: list[dict] = []
+                cur_y = None
+                cur_h = None
+                for item in cell_info:
+                    if not cur_line:
+                        cur_line.append(item)
+                        cur_y = item["y_center"]
+                        cur_h = item["height"]
+                    else:
+                        threshold = max(cur_h, item["height"]) * 0.6
+                        if abs(item["y_center"] - cur_y) < threshold:
+                            cur_line.append(item)
+                            cur_y = sum(x["y_center"] for x in cur_line) / len(cur_line)
+                            cur_h = max(x["height"] for x in cur_line)
+                        else:
+                            cur_line.sort(key=lambda x: x["l"])
+                            lines.append([x["cell"] for x in cur_line])
+                            cur_line = [item]
+                            cur_y = item["y_center"]
+                            cur_h = item["height"]
+                if cur_line:
+                    cur_line.sort(key=lambda x: x["l"])
+                    lines.append([x["cell"] for x in cur_line])
+                return lines
+
+            def spatial_sort_cells(postprocessor_self, cells: list[TextCell]) -> list[TextCell]:
+                sorted_res: list[TextCell] = []
+                for line in spatial_group_cells(cells):
+                    sorted_res.extend(line)
+                return sorted_res
+
+            LayoutPostprocessor._sort_cells = spatial_sort_cells
+
+            def custom_pam_call(pam_self, conv_res, page_batch):
+                from docling.models.stages.layout.layout_model import LayoutModel
+                from docling.datamodel.base_models import (
+                    AssembledUnit,
+                    ContainerElement,
+                    FigureElement,
+                    Table,
+                    TextElement,
+                )
+                from docling.utils.profiling import TimeRecorder
+
+                for page in page_batch:
+                    if page._backend is None or not page._backend.is_valid():
+                        yield page
+                        continue
+                    with TimeRecorder(conv_res, "page_assemble"):
+                        if page.predictions.layout is None:
+                            yield page
+                            continue
+                        elements = []
+                        headers = []
+                        body = []
+                        for cluster in page.predictions.layout.clusters:
+                            if cluster.label in LayoutModel.TEXT_ELEM_LABELS:
+                                is_ocr = any(getattr(c, "from_ocr", False) for c in cluster.cells)
+                                if is_ocr:
+                                    line_groups = spatial_group_cells(cluster.cells)
+                                    text_lines = []
+                                    for grp in line_groups:
+                                        ws = [
+                                            c.text.replace("\x02", "-").strip()
+                                            for c in grp
+                                            if c.text.strip()
+                                        ]
+                                        if ws:
+                                            text_lines.append(" ".join(ws))
+                                    text = "\n".join(text_lines)
+                                else:
+                                    textlines = [
+                                        cell.text.replace("\x02", "-").strip()
+                                        for cell in cluster.cells
+                                        if len(cell.text.strip()) > 0
+                                    ]
+                                    text = pam_self.sanitize_text(textlines)
+
+                                hyperlink = pam_self._match_hyperlink(cluster.bbox, page)
+                                text_el = TextElement(
+                                    label=cluster.label,
+                                    id=cluster.id,
+                                    text=text,
+                                    hyperlink=hyperlink,
+                                    page_no=page.page_no,
+                                    cluster=cluster,
+                                )
+                                elements.append(text_el)
+                                if cluster.label in LayoutModel.PAGE_HEADER_LABELS:
+                                    headers.append(text_el)
+                                else:
+                                    body.append(text_el)
+                            elif cluster.label in LayoutModel.TABLE_LABELS:
+                                tbl = None
+                                if page.predictions.tablestructure:
+                                    tbl = page.predictions.tablestructure.table_map.get(
+                                        cluster.id, None
+                                    )
+                                if not tbl:
+                                    tbl = Table(
+                                        label=cluster.label,
+                                        id=cluster.id,
+                                        text="",
+                                        otsl_seq=[],
+                                        table_cells=[],
+                                        cluster=cluster,
+                                        page_no=page.page_no,
+                                    )
+                                elements.append(tbl)
+                                body.append(tbl)
+                            elif cluster.label == LayoutModel.FIGURE_LABEL:
+                                fig = None
+                                if page.predictions.figures_classification:
+                                    fig = page.predictions.figures_classification.figure_map.get(
+                                        cluster.id, None
+                                    )
+                                if not fig:
+                                    fig = FigureElement(
+                                        label=cluster.label,
+                                        id=cluster.id,
+                                        text="",
+                                        data=None,
+                                        cluster=cluster,
+                                        page_no=page.page_no,
+                                    )
+                                elements.append(fig)
+                                body.append(fig)
+                            elif cluster.label in LayoutModel.CONTAINER_LABELS:
+                                container_el = ContainerElement(
+                                    label=cluster.label,
+                                    id=cluster.id,
+                                    page_no=page.page_no,
+                                    cluster=cluster,
+                                )
+                                elements.append(container_el)
+                                body.append(container_el)
+
+                        page.assembled = AssembledUnit(
+                            elements=elements, headers=headers, body=body
+                        )
+                    yield page
+
+            pam.PageAssembleModel.__call__ = custom_pam_call
+            LayoutPostprocessor._invoiceflow_spatial_patched = True
+        except Exception as exc:
+            logger.warning("Could not apply Docling spatial reading-order patch: %s", exc)
+
     def _get_converter(self, do_ocr: bool = False):
         if do_ocr in self._converters:
             return self._converters[do_ocr]
@@ -66,6 +246,9 @@ class DoclingAdapter:
                 fd.are_symlinks_supported = lambda *args, **kwargs: False
         except Exception:
             pass
+
+        if do_ocr:
+            self._patch_docling_reading_order()
 
         from docling.datamodel.base_models import InputFormat
         from docling.datamodel.pipeline_options import (

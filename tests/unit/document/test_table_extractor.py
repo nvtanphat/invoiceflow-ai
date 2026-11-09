@@ -381,3 +381,76 @@ def test_extract_lines_with_evidence_links_fields_to_table_and_cell_ids():
     amount_ev = by_field["lines[0].line_amount"]
     assert amount_ev.cell_id == "tbl-1-r1-c4"
     assert amount_ev.normalized_value == "50000000.0000"
+
+
+def test_table_extractor_recovers_fused_sku_and_distinguishes_valid_zero():
+    extractor = StructureAwareTableExtractor()
+
+    # Case 1: Fused/unclosed bracket SKU from OCR cell merge
+    headers = [
+        DocumentCell(
+            row_index=0, col_index=0, text="Tên hàng hóa", bbox=_make_bbox(0, 10, 50, 200, 70)
+        ),
+        DocumentCell(
+            row_index=0, col_index=1, text="Số lượng", bbox=_make_bbox(0, 205, 50, 250, 70)
+        ),
+        DocumentCell(
+            row_index=0, col_index=2, text="Đơn giá", bbox=_make_bbox(0, 255, 50, 320, 70)
+        ),
+        DocumentCell(
+            row_index=0, col_index=3, text="Thành tiền", bbox=_make_bbox(0, 325, 50, 400, 70)
+        ),
+    ]
+    # Row with fused SKU and merged quantity slot
+    row1 = [
+        DocumentCell(
+            row_index=1,
+            col_index=0,
+            colspan=2,
+            text="Chuột dây Logitech MX Master 3S [MOUSE-LOGI.0000 không",
+            bbox=_make_bbox(0, 10, 75, 250, 95),
+        ),
+        DocumentCell(
+            row_index=1, col_index=2, text="2000000.0000", bbox=_make_bbox(0, 255, 75, 320, 95)
+        ),
+        DocumentCell(
+            row_index=1, col_index=3, text="10000000.0000", bbox=_make_bbox(0, 325, 75, 400, 95)
+        ),
+    ]
+    # Row with valid 0 quantity (e.g. complimentary sample)
+    row2 = [
+        DocumentCell(
+            row_index=2,
+            col_index=0,
+            text="Túi đựng laptop [BAG-SAMPLE-01]",
+            bbox=_make_bbox(0, 10, 100, 200, 120),
+        ),
+        DocumentCell(
+            row_index=2, col_index=1, text="0.0000", bbox=_make_bbox(0, 205, 100, 250, 120)
+        ),
+        DocumentCell(
+            row_index=2, col_index=2, text="0.0000", bbox=_make_bbox(0, 255, 100, 320, 120)
+        ),
+        DocumentCell(
+            row_index=2, col_index=3, text="0.0000", bbox=_make_bbox(0, 325, 100, 400, 120)
+        ),
+    ]
+
+    table = DocumentTable(
+        id="tbl-test", page_index=0, row_count=3, column_count=4, cells=headers + row1 + row2
+    )
+    lines = extractor.extract_lines([table])
+
+    assert len(lines) == 2
+    # Row 1 should extract MOUSE-LOGI SKU even with fused punctuation
+    assert lines[0].sku_ref == "MOUSE-LOGI"
+    assert "MOUSE-LOGI" not in lines[0].description
+    # Row 1 quantity was merged/missing, so it must be flagged as unrecovered
+    assert "QTY_UNRECOVERED" in lines[0].issues
+    assert "CELL_MERGE_SUSPECTED" in lines[0].issues
+
+    # Row 2 was explicitly 0, so it must NOT be flagged as QTY_UNRECOVERED
+    assert lines[1].sku_ref == "BAG-SAMPLE-01"
+    assert lines[1].qty == Decimal("0.0000")
+    assert "QTY_UNRECOVERED" not in lines[1].issues
+    assert "QTY_ZERO_OR_MISSING" in lines[1].issues

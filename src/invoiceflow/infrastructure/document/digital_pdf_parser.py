@@ -74,7 +74,7 @@ class DigitalPDFParser:
 
         # 1. Invoice Series
         m_series = re.search(
-            r"(?:Ky hieu|Ký hiệu|Series)(?:\s*\([^)]*\))?:\s*([^\r\n]+)", text, re.IGNORECASE
+            r"(?:Ky hieu|Ký hiệu|Series)(?:\s*\([^)]*\))?:\s*([A-Z0-9/_-]+)", text, re.IGNORECASE
         )
         if m_series:
             data["invoice_series"] = m_series.group(1).strip()
@@ -104,27 +104,35 @@ class DigitalPDFParser:
 
         # 4. Supplier Name
         m_supp = re.search(
-            r"(?:Don vi ban|Đơn vị bán|Supplier|Người bán)(?:\s*\([^)]*\))?:\s*([^\r\n]+)",
+            r"(?:Don vi ban|Đơn vị bán|Supplier|Người bán|Ben ban|Bên bán)(?:\s*\([^)]*\))?:\s*([^\r\n]+)",
             text,
             re.IGNORECASE,
         )
         if m_supp:
-            data["supplier_name"] = m_supp.group(1).strip()
+            raw_supp = m_supp.group(1).strip()
+            clean_supp = re.sub(
+                r"[\s-]+(?:MST|Ma so thue|Mã số thuế).*$", "", raw_supp, flags=re.IGNORECASE
+            ).strip()
+            data["supplier_name"] = clean_supp
             fields_found += 1
 
         # 5. Buyer Name
         m_buyer = re.search(
-            r"(?:Don vi mua|Đơn vị mua|Buyer|Người mua)(?:\s*\([^)]*\))?:\s*([^\r\n]+)",
+            r"(?:Don vi mua|Đơn vị mua|Buyer|Người mua|Ben mua|Bên mua)(?:\s*\([^)]*\))?:\s*([^\r\n]+)",
             text,
             re.IGNORECASE,
         )
         if m_buyer:
-            data["buyer_name"] = m_buyer.group(1).strip()
+            raw_buyer = m_buyer.group(1).strip()
+            clean_buyer = re.sub(
+                r"[\s-]+(?:MST|Ma so thue|Mã số thuế).*$", "", raw_buyer, flags=re.IGNORECASE
+            ).strip()
+            data["buyer_name"] = clean_buyer
             fields_found += 1
 
         # 6. Tax IDs (preserving leading zeros as string)
         tax_ids = re.findall(
-            r"(?:Ma so thue|Mã số thuế|Tax ID)(?:\s*\([^)]*\))?:\s*([0-9-]{10,14})",
+            r"(?:Ma so thue|Mã số thuế|Tax ID|MST)(?:\s*\([^)]*\))?:\s*([0-9-]{10,14})",
             text,
             re.IGNORECASE,
         )
@@ -263,6 +271,63 @@ class DigitalPDFParser:
                         raw_line_amount=str(line_amount),
                         line_amount=line_amount,
                         issues=line_issues,
+                    )
+                )
+
+        if not lines:
+            m_item = re.search(
+                r"(?:Hang hoa|Hàng hóa|Description|Ten hang)(?:\s*\([^)]*\))?:\s*([^\r\n]+)",
+                text,
+                re.IGNORECASE,
+            )
+            m_qty = re.search(
+                r"(?:So luong|Số lượng|Qty)(?:\s*\([^)]*\))?:\s*([0-9.,]+)",
+                text,
+                re.IGNORECASE,
+            )
+            m_price = re.search(
+                r"(?:Don gia|Đơn giá|Price)(?:\s*\([^)]*\))?:\s*([0-9.,]+)",
+                text,
+                re.IGNORECASE,
+            )
+            m_amt = re.search(
+                r"(?:Tien hang|Tiền hàng|Amount)(?:\s*\([^)]*\))?:\s*([0-9.,]+)",
+                text,
+                re.IGNORECASE,
+            )
+            if m_item and m_qty and m_price:
+                item_desc = m_item.group(1).strip()
+                item_sku = None
+                m_sku = re.search(r"\[([A-Z0-9_-]+)\]", item_desc)
+                if m_sku:
+                    item_sku = m_sku.group(1)
+                    item_desc = re.sub(r"\s*\[[A-Z0-9_-]+\]\s*", "", item_desc).strip()
+                qty_val, q_err = self._parse_decimal(m_qty.group(1), is_qty=True)
+                price_val, p_err = self._parse_decimal(m_price.group(1))
+                amt_val = qty_val * price_val
+                if m_amt:
+                    parsed_a, _ = self._parse_decimal(m_amt.group(1))
+                    if parsed_a > Decimal("0.0000"):
+                        amt_val = parsed_a
+                item_issues = []
+                if q_err:
+                    item_issues.append(q_err)
+                if p_err:
+                    item_issues.append(p_err)
+                lines.append(
+                    DigitalExtractedLine(
+                        line_no=1,
+                        sku=item_sku,
+                        description=item_desc,
+                        raw_qty=m_qty.group(1).strip(),
+                        qty=qty_val,
+                        raw_unit_price=m_price.group(1).strip(),
+                        unit_price=price_val,
+                        discount=Decimal("0.0000"),
+                        tax_rate=None,
+                        raw_line_amount=m_amt.group(1).strip() if m_amt else str(amt_val),
+                        line_amount=amt_val,
+                        issues=item_issues,
                     )
                 )
 

@@ -228,10 +228,13 @@ class DocumentAIService:
             for line in digital_res.lines
         )
 
-        if not has_invalid_table_lines:
+        if profile.classification == "pdf_scan" and table_lines:
             chosen_lines = table_lines
             is_table_lines = True
-        elif has_valid_digital_lines:
+        elif not has_invalid_table_lines:
+            chosen_lines = table_lines
+            is_table_lines = True
+        elif has_valid_digital_lines and len(digital_res.lines) >= len(table_lines):
             chosen_lines = [
                 InvoiceLine(
                     line_no=line.line_no,
@@ -255,6 +258,19 @@ class DocumentAIService:
             is_table_lines = True
 
         has_zero_qty = any(line.qty <= Decimal("0.0000") for line in chosen_lines)
+        has_line_issue = any(
+            any(
+                iss
+                in (
+                    "CELL_MERGE_SUSPECTED",
+                    "QTY_ZERO_OR_MISSING",
+                    "QTY_UNRECOVERED",
+                    "ARITHMETIC_MISMATCH",
+                )
+                for iss in line.issues
+            )
+            for line in chosen_lines
+        )
         missing_header = (
             not header["supplier_tax_id"]
             or not header["invoice_number"]
@@ -262,9 +278,9 @@ class DocumentAIService:
         )
         needs_vision = (
             route == ProcessingRoute.VISION_FALLBACK
-            or profile.classification == "pdf_scan"
             or not chosen_lines
             or has_zero_qty
+            or has_line_issue
             or missing_header
         )
 
@@ -283,14 +299,14 @@ class DocumentAIService:
 
         if needs_vision and can_use_vision:
             used_vision = True
-            if profile.classification == "pdf_scan":
-                fallback_reason = "SCANNED_PDF"
-            elif missing_header:
+            if missing_header:
                 fallback_reason = "MISSING_HEADER_FIELDS"
             elif not chosen_lines:
                 fallback_reason = "NO_LINES_EXTRACTED"
-            elif has_zero_qty:
-                fallback_reason = "INVALID_ZERO_QUANTITY_IN_OCR"
+            elif has_line_issue or has_zero_qty:
+                fallback_reason = "TABLE_CELL_MERGE_OR_UNRECOVERED_FIELDS"
+            elif profile.classification == "pdf_scan":
+                fallback_reason = "SCANNED_PDF"
             else:
                 fallback_reason = "VISION_FALLBACK_ROUTE"
 
@@ -393,15 +409,64 @@ class DocumentAIService:
                     ) and vision_res.tax_total > Decimal("0.0000"):
                         header["tax_total"] = vision_res.tax_total
 
-                    replace_lines_with_vision = (
-                        profile.classification == "pdf_scan"
-                        or not chosen_lines
-                        or has_zero_qty
-                        or (
-                            vision_res.line_items and len(chosen_lines) < len(vision_res.line_items)
-                        )
-                    )
-                    if replace_lines_with_vision and vision_res.line_items:
+                    if is_table_lines and chosen_lines and vision_res.line_items:
+                        reconciled_lines: list[InvoiceLine] = []
+                        for o_idx, o_line in enumerate(chosen_lines):
+                            v_match = None
+                            for vl in vision_res.line_items:
+                                if vl.sku and o_line.sku_ref and vl.sku == o_line.sku_ref:
+                                    v_match = vl
+                                    break
+                                elif vl.line_no == o_line.line_no:
+                                    v_match = vl
+                                    break
+
+                            if v_match:
+                                has_unrecovered_qty = any(
+                                    iss
+                                    in (
+                                        "QTY_ZERO_OR_MISSING",
+                                        "QTY_UNRECOVERED",
+                                        "CELL_MERGE_SUSPECTED",
+                                        "ARITHMETIC_MISMATCH",
+                                    )
+                                    for iss in o_line.issues
+                                )
+                                if has_unrecovered_qty and v_match.qty > Decimal("0.0000"):
+                                    exp_amt = (v_match.qty * o_line.unit_price) - o_line.discount
+                                    if abs(o_line.line_amount - exp_amt) < Decimal("0.0100"):
+                                        cleaned_issues = [
+                                            iss
+                                            for iss in o_line.issues
+                                            if iss
+                                            not in (
+                                                "QTY_ZERO_OR_MISSING",
+                                                "QTY_UNRECOVERED",
+                                                "ARITHMETIC_MISMATCH",
+                                                "CELL_MERGE_SUSPECTED",
+                                            )
+                                        ]
+                                        o_line = o_line.model_copy(
+                                            update={
+                                                "qty": v_match.qty,
+                                                "raw_qty": str(v_match.qty),
+                                                "sku_ref": o_line.sku_ref or v_match.sku,
+                                                "issues": cleaned_issues,
+                                            }
+                                        )
+                                        table_line_evidence.append(
+                                            FieldEvidence(
+                                                field_path=f"lines[{o_idx}].qty",
+                                                source_kind="vision_llm",
+                                                raw_value=str(v_match.qty),
+                                                normalized_value=str(v_match.qty),
+                                                confidence=0.95,
+                                                extractor="openai_vision",
+                                            )
+                                        )
+                            reconciled_lines.append(o_line)
+                        chosen_lines = reconciled_lines
+                    elif (not chosen_lines or has_zero_qty) and vision_res.line_items:
                         v_lines: list[InvoiceLine] = []
                         for idx, item in enumerate(vision_res.line_items, start=1):
                             line_sku = item.sku or ""
