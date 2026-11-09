@@ -261,12 +261,27 @@ export const ApprovalsPage: React.FC = () => {
                           <b>{fmt(inv.amount_payable)}</b>
                         </td>
                         <td>
-                          <span className={`k ${inv.id === "CASE-07" || inv.id === "CASE-09" ? "k-a" : "k-g"}`}>
-                            <Icon name={inv.id === "CASE-07" || inv.id === "CASE-09" ? "alert" : "check"} />
-                            {inv.id === "CASE-07" || inv.id === "CASE-09" ? "Lệch" : "Khớp"}
-                          </span>
+                          {(() => {
+                            const isMismatch =
+                              inv.status === "REVIEW_REQUIRED" ||
+                              Boolean(inv.issues && inv.issues.some((i) => i.severity === "ERROR" || i.severity === "critical"));
+                            return (
+                              <span className={`k ${isMismatch ? "k-a" : "k-g"}`}>
+                                <Icon name={isMismatch ? "alert" : "check"} />
+                                {isMismatch ? "Lệch" : "Khớp"}
+                              </span>
+                            );
+                          })()}
                         </td>
-                        <td>99.2%</td>
+                        <td>
+                          {inv.evidence && inv.evidence.length > 0
+                            ? `${(
+                                (inv.evidence.reduce((s, e) => s + (e.confidence ?? 1.0), 0) /
+                                  inv.evidence.length) *
+                                100
+                              ).toFixed(1)}%`
+                            : "—"}
+                        </td>
                         <td>
                           <span className={`k ${invAppr ? "k-g" : invRej ? "k-r" : "k-b"}`}>
                             {invAppr ? "Đã phê duyệt" : invRej ? "Đã từ chối" : "Chờ bạn duyệt"}
@@ -317,15 +332,27 @@ export const ApprovalsPage: React.FC = () => {
                 </div>
                 <div>
                   <small>Độ tin cậy trích xuất</small>
-                  <b>99.2%</b>
+                  <b>
+                    {curInv.evidence && curInv.evidence.length > 0
+                      ? `${(
+                          (curInv.evidence.reduce((s, e) => s + (e.confidence ?? 1.0), 0) /
+                            curInv.evidence.length) *
+                          100
+                        ).toFixed(1)}%`
+                      : "100% (XML)"}
+                  </b>
                 </div>
                 <div>
                   <small>PO / GRN</small>
-                  <b>{curInv.po_number || "PO-2026-0456"} / {curInv.grn_number || "GRN-0321"}</b>
+                  <b>{curInv.po_number || "—"} / {curInv.grn_number || "—"}</b>
                 </div>
                 <div>
                   <small>Đối soát 3-Way</small>
-                  <b>{curInv.id === "CASE-07" || curInv.id === "CASE-09" ? "Có chênh lệch" : "Khớp"}</b>
+                  <b>
+                    {curInv.issues && curInv.issues.length > 0 || curInv.status === "REVIEW_REQUIRED"
+                      ? "Có chênh lệch"
+                      : "Khớp"}
+                  </b>
                 </div>
               </div>
 

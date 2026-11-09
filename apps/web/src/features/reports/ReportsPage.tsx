@@ -44,8 +44,8 @@ export const ReportsPage: React.FC = () => {
     sup[sName] = (sup[sName] || 0) + amt;
   });
 
-  // Default vendor entries if sparse
-  if (Object.keys(sup).length < 5) {
+  const isDemo = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("demo") === "true";
+  if (isDemo && Object.keys(sup).length < 5) {
     sup["CÔNG TY CỔ PHẦN CÔNG NGHỆ THĂNG LONG"] = 125000000;
     sup["CÔNG TY TNHH PHẦN MỀM THỜI ĐẠI SỐ"] = 89000000;
     sup["CÔNG TY CP THIẾT BỊ VĂN PHÒNG MIỀN BẮC"] = 74500000;

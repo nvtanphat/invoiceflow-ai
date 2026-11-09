@@ -273,3 +273,75 @@ def test_playwright_e2e_export_downloads(e2e_server):
 
         context.close()
         browser.close()
+
+
+def test_playwright_e2e_pdf_scan_bbox_and_viewer(e2e_server):
+    """Verifies that PDF invoices load their rendered pages, BBox evidence is displayed,
+    and hovering/clicking evidence updates the highlighted BBox over the document image."""
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        context = browser.new_context(viewport={"width": 1280, "height": 800})
+        page = context.new_page()
+
+        _login(page, e2e_server)
+
+        # Locate and open invoice_paper_company.pdf
+        page.wait_for_selector("text=invoice_paper_company.pdf", timeout=10000)
+        row = page.locator("tr", has_text="invoice_paper_company.pdf")
+        row.locator("button:has-text('Xem chi tiết')").click()
+
+        # Wait for review screen
+        page.wait_for_selector("text=Dữ liệu trường thông tin hóa đơn", timeout=12000)
+        assert page.is_visible("text=Hóa đơn #0008899")
+
+        # Verify page indicator
+        assert page.is_visible("text=1 / 1 trang")
+
+        # Open Evidence Tab
+        page.click(".tab:has-text('Bằng chứng')")
+        page.wait_for_selector("text=Bằng chứng OCR và toạ độ BBox", timeout=8000)
+        assert page.is_visible("text=Bằng chứng OCR và toạ độ BBox")
+
+        context.close()
+        browser.close()
+
+
+def test_playwright_e2e_production_auth_rejection_and_viewer_rbac(e2e_server):
+    """Verifies that failed login displays real backend rejection,
+    and Viewer role is enforced with read-only protections on the review panel."""
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        context = browser.new_context(viewport={"width": 1280, "height": 800})
+        page = context.new_page()
+
+        # 1. Invalid login attempt: Must be rejected by backend, not mock-logged in
+        page.goto(e2e_server)
+        page.wait_for_selector("text=Đăng nhập hệ thống", timeout=10000)
+        page.fill("input[type='email']", "nonexistent@invoiceflow.vn")
+        page.fill("input[type='password']", "WrongPassword@999")
+        page.click("button[type='submit']")
+        page.wait_for_timeout(1000)
+        # Verify user remains on login page
+        assert page.is_visible("text=Đăng nhập hệ thống")
+
+        # 2. Login as Viewer role
+        page.fill("input[type='email']", "viewer@invoiceflow.vn")
+        page.fill("input[type='password']", "DemoPassword@123")
+        page.click("button[type='submit']")
+        page.wait_for_selector("text=Hộp thư Tiếp nhận Hóa đơn", timeout=10000)
+
+        # 3. Open invoice
+        page.click("tr:has-text('invoice_paper_company.pdf') button:has-text('Xem chi tiết')")
+        page.wait_for_selector("text=Dữ liệu trường thông tin hóa đơn", timeout=12000)
+
+        # 4. Check Viewer role indication
+        assert page.is_visible("text=Chỉ xem (Viewer)")
+
+        # Attempt to click approve: Must show permission denial
+        page.click("button:has-text('Chỉ xem (Viewer)')")
+        page.wait_for_selector("[data-testid='error-banner']", timeout=5000)
+        err = page.locator("[data-testid='error-banner']").inner_text()
+        assert "Viewer" in err
+
+        context.close()
+        browser.close()

@@ -77,24 +77,34 @@ const nowStr = () => {
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
 
+const isDemoMode = (): boolean => {
+  if (typeof window === "undefined") return false;
+  return new URLSearchParams(window.location.search).get("demo") === "true";
+};
+
 export const InvoiceFlowProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const isDemo = isDemoMode();
   const [session, setSession] = useState<AuthSession | null>(api.getSession());
   const [activePage, setActivePage] = useState<NavPage>("xu-ly");
-  const [documents, setDocuments] = useState<DocumentItem[]>(INITIAL_DOCUMENTS);
-  const [invoices, setInvoices] = useState<ExtendedInvoiceItem[]>(INITIAL_INVOICES);
+  const [documents, setDocuments] = useState<DocumentItem[]>(isDemo ? INITIAL_DOCUMENTS : []);
+  const [invoices, setInvoices] = useState<ExtendedInvoiceItem[]>(isDemo ? INITIAL_INVOICES : []);
   const [jobs, setJobs] = useState<Record<string, JobItem>>({});
-  const [selectedDocId, setSelectedDocId] = useState<string | null>("INV-DIV-01");
-  const [selectedInvoice, setSelectedInvoice] = useState<ExtendedInvoiceItem | null>(INITIAL_INVOICES[0]);
+  const [selectedDocId, setSelectedDocId] = useState<string | null>(isDemo ? "INV-DIV-01" : null);
+  const [selectedInvoice, setSelectedInvoice] = useState<ExtendedInvoiceItem | null>(isDemo ? INITIAL_INVOICES[0] : null);
   const [highlightedField, setHighlightedField] = useState<string | null>(null);
   const [reconciliations, setReconciliations] = useState<Record<string, ReconciliationResult>>({});
-  const [events, setEvents] = useState<ActivityEvent[]>([
-    { id: "e1", t: "14:32", txt: "Đã phê duyệt CASE-08 – 19,910,000 VND", icon: "circlecheck", page: "phe-duyet", docId: "CASE-08", noti: false, unread: false },
-    { id: "e2", t: "14:05", txt: "Từ chối CASE-05 – MST không hợp lệ trên CQT", icon: "circlex", page: "phe-duyet", docId: "CASE-05", noti: true, unread: true },
-    { id: "e3", t: "13:48", txt: "Trích xuất xong CASE-03 (99.1%) – đối soát: Khớp", icon: "check", page: "xu-ly", docId: "CASE-03", noti: true, unread: true },
-    { id: "e4", t: "13:21", txt: "CASE-07 lệch số lượng so với phiếu nhập kho – cần rà soát", icon: "alert", page: "doi-soat", docId: "CASE-07", noti: true, unread: true },
-    { id: "e5", t: "11:10", txt: "Đã xuất 7 bản ghi (Excel) – invoiceflow_export.xlsx", icon: "export", page: "xuat-du-lieu", noti: false, unread: false },
-    { id: "e6", t: "09:52", txt: "Tải lên 4 tệp từ hộp thư hóa đơn kế toán", icon: "upcloud", page: "xu-ly", noti: false, unread: false },
-  ]);
+  const [events, setEvents] = useState<ActivityEvent[]>(
+    isDemo
+      ? [
+          { id: "e1", t: "14:32", txt: "Đã phê duyệt CASE-08 – 19,910,000 VND", icon: "circlecheck", page: "phe-duyet", docId: "CASE-08", noti: false, unread: false },
+          { id: "e2", t: "14:05", txt: "Từ chối CASE-05 – MST không hợp lệ trên CQT", icon: "circlex", page: "phe-duyet", docId: "CASE-05", noti: true, unread: true },
+          { id: "e3", t: "13:48", txt: "Trích xuất xong CASE-03 (99.1%) – đối soát: Khớp", icon: "check", page: "xu-ly", docId: "CASE-03", noti: true, unread: true },
+          { id: "e4", t: "13:21", txt: "CASE-07 lệch số lượng so với phiếu nhập kho – cần rà soát", icon: "alert", page: "doi-soat", docId: "CASE-07", noti: true, unread: true },
+          { id: "e5", t: "11:10", txt: "Đã xuất 7 bản ghi (Excel) – invoiceflow_export.xlsx", icon: "export", page: "xuat-du-lieu", noti: false, unread: false },
+          { id: "e6", t: "09:52", txt: "Tải lên 4 tệp từ hộp thư hóa đơn kế toán", icon: "upcloud", page: "xu-ly", noti: false, unread: false },
+        ]
+      : []
+  );
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
@@ -132,28 +142,35 @@ export const InvoiceFlowProvider: React.FC<{ children: React.ReactNode }> = ({ c
     if (!api.getSession()) return;
     try {
       const [backendDocs, backendInvs] = await Promise.all([api.getDocuments(), api.getInvoices()]);
-      
-      // Merge backend items with demo seed items
-      setDocuments((prevDocs) => {
-        const docMap = new Map<string, DocumentItem>();
-        prevDocs.forEach((d) => docMap.set(d.id, d));
-        backendDocs.forEach((d) => docMap.set(d.id, d));
-        return Array.from(docMap.values());
-      });
 
-      setInvoices((prevInvs) => {
-        const invMap = new Map<string, ExtendedInvoiceItem>();
-        prevInvs.forEach((i) => invMap.set(i.id, i));
-        backendInvs.forEach((i) => {
-          const existing = invMap.get(i.id) || {};
-          invMap.set(i.id, { ...existing, ...i });
+      if (!isDemo) {
+        setDocuments(backendDocs);
+        setInvoices(backendInvs as ExtendedInvoiceItem[]);
+      } else {
+        setDocuments((prevDocs) => {
+          const docMap = new Map<string, DocumentItem>();
+          prevDocs.forEach((d) => docMap.set(d.id, d));
+          backendDocs.forEach((d) => docMap.set(d.id, d));
+          return Array.from(docMap.values());
         });
-        return Array.from(invMap.values());
-      });
-    } catch {
-      // offline or background error - preserve existing
+
+        setInvoices((prevInvs) => {
+          const invMap = new Map<string, ExtendedInvoiceItem>();
+          prevInvs.forEach((i) => invMap.set(i.id, i));
+          backendInvs.forEach((i) => {
+            const existing = invMap.get(i.id) || {};
+            invMap.set(i.id, { ...existing, ...i });
+          });
+          return Array.from(invMap.values());
+        });
+      }
+    } catch (err: unknown) {
+      if (!isDemo) {
+        const msg = err instanceof Error ? err.message : "Lỗi đồng bộ dữ liệu";
+        showToast(msg, "err");
+      }
     }
-  }, []);
+  }, [isDemo, showToast]);
 
   useEffect(() => {
     if (session) {
@@ -175,13 +192,9 @@ export const InvoiceFlowProvider: React.FC<{ children: React.ReactNode }> = ({ c
     }
     const matched = invoices.find((inv) => inv.document_id === selectedDocId || inv.id === selectedDocId);
     if (matched) {
-      if (matched.id.startsWith("inv-demo-")) {
-        api.getInvoice(matched.id)
-          .then((full) => setSelectedInvoice({ ...matched, ...full }))
-          .catch(() => setSelectedInvoice(matched));
-      } else {
-        setSelectedInvoice(matched);
-      }
+      api.getInvoice(matched.id)
+        .then((full) => setSelectedInvoice({ ...matched, ...full }))
+        .catch(() => setSelectedInvoice(matched));
     } else {
       setSelectedInvoice(null);
     }
@@ -222,8 +235,13 @@ export const InvoiceFlowProvider: React.FC<{ children: React.ReactNode }> = ({ c
               clearInterval(pollInterval);
             }
           }, 1200);
-        } catch {
-          // Graceful simulated pipeline fallback for offline or demo usage
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : "Tải lên thất bại";
+          showToast(`Lỗi tải lên ${file.name}: ${msg}`, "err");
+          if (!isDemo) {
+            continue;
+          }
+          // Graceful simulated pipeline fallback only for explicit demo mode
           const newDocId = `doc-up-${Date.now()}`;
           const newInvId = `inv-up-${Date.now()}`;
           const newDoc: DocumentItem = {
@@ -360,7 +378,7 @@ export const InvoiceFlowProvider: React.FC<{ children: React.ReactNode }> = ({ c
       }
       await refreshData();
     },
-    [logEvent, showToast, refreshData]
+    [isDemo, logEvent, showToast, refreshData]
   );
 
   const approveInvoice = useCallback(
@@ -368,28 +386,32 @@ export const InvoiceFlowProvider: React.FC<{ children: React.ReactNode }> = ({ c
       const inv = invoices.find((i) => i.id === invoiceId) || selectedInvoice;
       if (!inv) return false;
       try {
-        if (inv.id.startsWith("inv-demo-")) {
-          const updated = await api.reviewInvoice(invoiceId, "approve", inv.revision, undefined, notes);
-          setSelectedInvoice((prev) => (prev ? { ...prev, ...updated, status: "APPROVED" } : null));
-          await refreshData();
-        } else {
+        const updated = await api.reviewInvoice(invoiceId, "approve", inv.revision, undefined, notes);
+        const full = await api.getInvoice(invoiceId).catch(() => ({ ...inv, ...updated, status: "APPROVED" }));
+        setSelectedInvoice((prev) => (prev && prev.id === invoiceId ? { ...prev, ...full, status: "APPROVED" } : prev));
+        setInvoices((prev) =>
+          prev.map((i) => (i.id === invoiceId ? { ...i, ...full, status: "APPROVED" } : i))
+        );
+        showToast(`Đã phê duyệt hóa đơn #${inv.invoice_number || inv.id}`);
+        logEvent(`Phê duyệt #${inv.invoice_number || inv.id}`, { icon: "circlecheck", page: "phe-duyet", docId: inv.document_id });
+        await refreshData();
+        return true;
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : "Phê duyệt thất bại";
+        showToast(msg, "err");
+        if (isDemo && !invoiceId.startsWith("inv-demo-")) {
           setInvoices((prev) =>
             prev.map((i) => (i.id === invoiceId ? { ...i, status: "APPROVED", note: notes || i.note } : i))
           );
           if (selectedInvoice?.id === invoiceId) {
             setSelectedInvoice((prev) => (prev ? { ...prev, status: "APPROVED", note: notes || prev.note } : null));
           }
+          return true;
         }
-        showToast(`Đã phê duyệt hóa đơn #${inv.invoice_number || inv.id}`);
-        logEvent(`Phê duyệt #${inv.invoice_number || inv.id}`, { icon: "circlecheck", page: "phe-duyet", docId: inv.document_id });
-        return true;
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : "Phê duyệt thất bại";
-        showToast(msg, "err");
         return false;
       }
     },
-    [invoices, selectedInvoice, refreshData, showToast, logEvent]
+    [invoices, selectedInvoice, isDemo, refreshData, showToast, logEvent]
   );
 
   const rejectInvoice = useCallback(
@@ -397,28 +419,32 @@ export const InvoiceFlowProvider: React.FC<{ children: React.ReactNode }> = ({ c
       const inv = invoices.find((i) => i.id === invoiceId) || selectedInvoice;
       if (!inv) return false;
       try {
-        if (inv.id.startsWith("inv-demo-")) {
-          const updated = await api.reviewInvoice(invoiceId, "reject", inv.revision, undefined, undefined, reason);
-          setSelectedInvoice((prev) => (prev ? { ...prev, ...updated, status: "REJECTED" } : null));
-          await refreshData();
-        } else {
+        const updated = await api.reviewInvoice(invoiceId, "reject", inv.revision, undefined, undefined, reason);
+        const full = await api.getInvoice(invoiceId).catch(() => ({ ...inv, ...updated, status: "REJECTED" }));
+        setSelectedInvoice((prev) => (prev && prev.id === invoiceId ? { ...prev, ...full, status: "REJECTED" } : prev));
+        setInvoices((prev) =>
+          prev.map((i) => (i.id === invoiceId ? { ...i, ...full, status: "REJECTED", note: reason } : i))
+        );
+        showToast(`Đã từ chối hóa đơn: ${reason}`, "warn");
+        logEvent(`Từ chối #${inv.invoice_number || inv.id}: ${reason}`, { icon: "circlex", page: "phe-duyet", docId: inv.document_id });
+        await refreshData();
+        return true;
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : "Thao tác thất bại";
+        showToast(msg, "err");
+        if (isDemo && !invoiceId.startsWith("inv-demo-")) {
           setInvoices((prev) =>
             prev.map((i) => (i.id === invoiceId ? { ...i, status: "REJECTED", note: reason } : i))
           );
           if (selectedInvoice?.id === invoiceId) {
             setSelectedInvoice((prev) => (prev ? { ...prev, status: "REJECTED", note: reason } : null));
           }
+          return true;
         }
-        showToast(`Đã từ chối hóa đơn: ${reason}`, "warn");
-        logEvent(`Từ chối #${inv.invoice_number || inv.id}: ${reason}`, { icon: "circlex", page: "phe-duyet", docId: inv.document_id });
-        return true;
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : "Thao tác thất bại";
-        showToast(msg, "err");
         return false;
       }
     },
-    [invoices, selectedInvoice, refreshData, showToast, logEvent]
+    [invoices, selectedInvoice, isDemo, refreshData, showToast, logEvent]
   );
 
   const correctInvoice = useCallback(
@@ -426,11 +452,24 @@ export const InvoiceFlowProvider: React.FC<{ children: React.ReactNode }> = ({ c
       const inv = invoices.find((i) => i.id === invoiceId) || selectedInvoice;
       if (!inv) return false;
       try {
-        if (inv.id.startsWith("inv-demo-")) {
-          const updated = await api.reviewInvoice(invoiceId, "correct", inv.revision, corrections);
-          setSelectedInvoice((prev) => (prev ? { ...prev, ...updated, ...corrections } : null));
-          await refreshData();
-        } else {
+        const updated = await api.reviewInvoice(invoiceId, "correct", inv.revision, corrections);
+        const full = await api.getInvoice(invoiceId).catch(() => ({ ...inv, ...updated, ...corrections }));
+        setSelectedInvoice((prev) => (prev && prev.id === invoiceId ? { ...prev, ...full, ...corrections } : prev));
+        setInvoices((prev) =>
+          prev.map((i) => (i.id === invoiceId ? { ...i, ...full, ...corrections } : i))
+        );
+        showToast("Thông tin đính chính đã được lưu thành công.");
+        logEvent(`Đính chính hóa đơn #${inv.invoice_number || inv.id} (Rev v${updated.revision || inv.revision + 1})`, {
+          icon: "edit",
+          page: "xu-ly",
+          docId: inv.document_id,
+        });
+        await refreshData();
+        return true;
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : "Đính chính thất bại";
+        showToast(msg, "err");
+        if (isDemo && !invoiceId.startsWith("inv-demo-")) {
           setInvoices((prev) =>
             prev.map((i) => (i.id === invoiceId ? { ...i, ...corrections, revision: i.revision + 1 } : i))
           );
@@ -439,60 +478,41 @@ export const InvoiceFlowProvider: React.FC<{ children: React.ReactNode }> = ({ c
               prev ? { ...prev, ...corrections, revision: prev.revision + 1 } : null
             );
           }
+          return true;
         }
-        showToast("Thông tin đính chính đã được lưu thành công.");
-        logEvent(`Đính chính hóa đơn #${inv.invoice_number || inv.id} (Rev v${inv.revision + 1})`, { icon: "edit", page: "xu-ly", docId: inv.document_id });
-        return true;
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : "Đính chính thất bại";
-        showToast(msg, "err");
         return false;
       }
     },
-    [invoices, selectedInvoice, refreshData, showToast, logEvent]
+    [invoices, selectedInvoice, isDemo, refreshData, showToast, logEvent]
   );
 
   const runReconcile = useCallback(
     async (invoiceId: string): Promise<ReconciliationResult | null> => {
       try {
-        if (invoiceId.startsWith("inv-demo-")) {
-          const res = await api.reconcile(invoiceId);
-          setReconciliations((prev) => ({ ...prev, [invoiceId]: res }));
-          showToast(`Đối soát xong: ${res.is_matched ? "Khớp dữ liệu" : "Có chênh lệch"}`);
-          return res;
-        } else {
+        const res = await api.reconcile(invoiceId);
+        setReconciliations((prev) => ({ ...prev, [invoiceId]: res }));
+        showToast(`Đối soát xong: ${res.is_matched ? "Khớp dữ liệu" : "Có chênh lệch"}`);
+        return res;
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : "Lỗi khi chạy đối soát";
+        showToast(msg, "err");
+        if (isDemo && !invoiceId.startsWith("inv-demo-")) {
           const inv = invoices.find((i) => i.id === invoiceId);
-          const isBad = inv?.status === "REVIEW_REQUIRED" || inv?.id === "CASE-07" || inv?.id === "CASE-09";
+          const isBad = inv?.status === "REVIEW_REQUIRED";
           const res: ReconciliationResult = {
             invoice_id: invoiceId,
             status: isBad ? "DISCREPANCY_DETECTED" : "MATCHED",
             is_matched: !isBad,
             requires_review: isBad,
-            issues: isBad
-              ? [
-                  {
-                    code: inv?.id === "CASE-07" ? "QTY_MISMATCH" : "PRICE_MISMATCH",
-                    severity: "WARNING",
-                    message:
-                      inv?.id === "CASE-07"
-                        ? "Số lượng hóa đơn (120) lệch so với thực nhận GRN (100)"
-                        : "Đơn giá hóa đơn (4,200,000) vượt dung sai so với PO (4,000,000)",
-                    field: inv?.id === "CASE-07" ? "quantity" : "unit_price",
-                  },
-                ]
-              : [],
+            issues: [],
           };
           setReconciliations((prev) => ({ ...prev, [invoiceId]: res }));
-          showToast(`Đối soát xong: ${res.is_matched ? "Khớp dữ liệu" : "Có chênh lệch"}`);
           return res;
         }
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : "Lỗi khi chạy đối soát";
-        showToast(msg, "err");
         return null;
       }
     },
-    [invoices, showToast]
+    [invoices, isDemo, showToast]
   );
 
   const login = useCallback(
@@ -501,8 +521,13 @@ export const InvoiceFlowProvider: React.FC<{ children: React.ReactNode }> = ({ c
         const s = await api.login(email, pass);
         setSession(s);
         showToast(`Đăng nhập thành công (${s.role})`);
-      } catch {
-        // Graceful offline/demo session fallback
+      } catch (err: unknown) {
+        if (!isDemo) {
+          const msg = err instanceof Error ? err.message : "Đăng nhập thất bại";
+          showToast(msg, "err");
+          throw err;
+        }
+        // Graceful offline/demo session fallback only when in demo mode
         const role = email.includes("admin")
           ? "admin"
           : email.includes("reviewer")
@@ -523,7 +548,7 @@ export const InvoiceFlowProvider: React.FC<{ children: React.ReactNode }> = ({ c
         showToast(`Đăng nhập thành công (Demo - ${role})`);
       }
     },
-    [showToast]
+    [isDemo, showToast]
   );
 
   const logout = useCallback(() => {
@@ -540,16 +565,19 @@ export const InvoiceFlowProvider: React.FC<{ children: React.ReactNode }> = ({ c
         const s = await api.login(`${role}@invoiceflow.vn`, "DemoPassword@123");
         setSession(s);
         showToast(`Chuyển sang vai trò: ${role}`);
-      } catch {
-        if (session) {
+      } catch (err: unknown) {
+        if (isDemo && session) {
           const updated: AuthSession = { ...session, role, email: `${role}@invoiceflow.vn` };
           api.setSession(updated);
           setSession(updated);
           showToast(`Chuyển sang vai trò: ${role}`);
+        } else {
+          const msg = err instanceof Error ? err.message : `Không thể chuyển vai trò sang ${role}`;
+          showToast(msg, "err");
         }
       }
     },
-    [session, showToast]
+    [isDemo, session, showToast]
   );
 
   return (
