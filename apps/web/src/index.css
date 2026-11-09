@@ -1,11 +1,8 @@
+@import "./theme.css";
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
-}
-
-code, kbd, samp, pre {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: 'Inter', system-ui, -apple-system, Roboto, Arial, sans-serif;
 }

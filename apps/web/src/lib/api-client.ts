@@ -202,7 +202,9 @@ class ApiClient {
     invoiceId: string,
     action: "approve" | "reject" | "correct",
     revision: number,
-    corrections?: Partial<InvoiceItem>
+    corrections?: Partial<InvoiceItem>,
+    notes?: string,
+    reason?: string
   ): Promise<InvoiceItem> {
     const headers = this.headers({
       "Content-Type": "application/json",
@@ -214,6 +216,8 @@ class ApiClient {
       body: JSON.stringify({
         action,
         corrections: corrections || {},
+        notes: notes || undefined,
+        reason: reason || undefined,
       }),
     });
     if (res.status === 409) {
