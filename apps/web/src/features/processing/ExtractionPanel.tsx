@@ -9,6 +9,7 @@ import { ReviewNoteModal } from "./ReviewNoteModal";
 
 export const ExtractionPanel: React.FC = () => {
   const {
+    session,
     documents,
     selectedDocId,
     selectedInvoice,
@@ -88,24 +89,32 @@ export const ExtractionPanel: React.FC = () => {
   ];
 
   // Detect arithmetic mismatch
-  const hasArithmeticMismatch = (inv.lines || []).some((l) => {
-    const q = parseFloat(l.qty) || 0;
-    const p = parseFloat(l.unit_price) || 0;
-    const amt = parseFloat(l.line_amount) || 0;
-    return Math.abs(q * p - amt) > 1.0;
-  });
+  const hasArithmeticMismatch =
+    (inv.issues || []).some((i) => i.code === "LINE_ARITHMETIC_MISMATCH") ||
+    (inv.lines || []).some((l) => {
+      const q = parseFloat(l.qty) || 0;
+      const p = parseFloat(l.unit_price) || 0;
+      const amt = parseFloat(l.line_amount) || 0;
+      return Math.abs(q * p - amt) > 1.0;
+    });
 
-  // Calculate overall confidence
-  const avgConf =
-    inv.evidence && inv.evidence.length > 0
-      ? (inv.evidence.reduce((s, e) => s + e.confidence, 0) / inv.evidence.length) * 100
-      : 98.7;
-  const confVal = Math.min(99.9, Math.max(70, avgConf));
-  const ring = ((confVal / 100) * 238.76 - 3).toFixed(1);
+  // Calculate true overall confidence
+  const hasEvidence = Boolean(inv.evidence && inv.evidence.length > 0);
+  const avgConf = hasEvidence
+    ? (inv.evidence!.reduce((s, e) => s + (e.confidence ?? 1.0), 0) / inv.evidence!.length) * 100
+    : null;
+  const confVal = avgConf !== null ? Math.min(100, Math.max(0, avgConf)) : null;
+  const ring = confVal !== null ? ((confVal / 100) * 238.76 - 3).toFixed(1) : "235.7";
   const isApproved = inv.status === "APPROVED";
   const isRejected = inv.status === "REJECTED";
+  const isViewer = session?.role === "viewer";
 
   const handleApprove = async () => {
+    if (isViewer) {
+      setErrorBanner("Tài khoản Viewer chỉ có quyền xem, không được phép phê duyệt hóa đơn.");
+      showToast("Quyền bị từ chối: Viewer không thể duyệt.", "warn");
+      return;
+    }
     if (hasArithmeticMismatch) {
       setErrorBanner(
         "Lỗi nghiêm trọng: LINE_ARITHMETIC_MISMATCH: Dòng hàng không khớp số học. Không thể phê duyệt (critical blocking)."
@@ -114,13 +123,25 @@ export const ExtractionPanel: React.FC = () => {
       return;
     }
     setErrorBanner(null);
-    const ok = await approveInvoice(inv.id);
-    if (ok) {
-      setSuccessBanner("Hóa đơn đã được phê duyệt thành công!");
+    try {
+      const ok = await approveInvoice(inv.id);
+      if (ok) {
+        setSuccessBanner("Hóa đơn đã được phê duyệt thành công!");
+      } else {
+        setErrorBanner("Phê duyệt thất bại. Vui lòng kiểm tra lại điều kiện phê duyệt.");
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Phê duyệt thất bại";
+      setErrorBanner(msg);
     }
   };
 
   const handleSaveCorrection = async () => {
+    if (isViewer) {
+      setErrorBanner("Tài khoản Viewer chỉ có quyền xem, không được phép sửa đổi.");
+      showToast("Quyền bị từ chối: Viewer không thể sửa đổi.", "warn");
+      return;
+    }
     let corrections: Partial<typeof inv> = {};
     if (editSec === "info") {
       corrections = {
@@ -134,11 +155,18 @@ export const ExtractionPanel: React.FC = () => {
       };
     }
 
-    const ok = await correctInvoice(inv.id, corrections);
-    if (ok) {
-      setEditSec(null);
-      setErrorBanner(null);
-      setSuccessBanner("Thông tin đính chính đã được lưu và cập nhật phiên bản.");
+    try {
+      const ok = await correctInvoice(inv.id, corrections);
+      if (ok) {
+        setEditSec(null);
+        setErrorBanner(null);
+        setSuccessBanner("Thông tin đính chính đã được lưu và cập nhật phiên bản.");
+      } else {
+        setErrorBanner("Lưu đính chính thất bại.");
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Đính chính thất bại";
+      setErrorBanner(msg);
     }
   };
 
@@ -265,7 +293,7 @@ export const ExtractionPanel: React.FC = () => {
                     cy="46"
                     r="38"
                     fill="none"
-                    stroke={confVal >= 95 ? "#e3f3e9" : "#fbefd2"}
+                    stroke={confVal !== null && confVal >= 95 ? "#e3f3e9" : "#fbefd2"}
                     strokeWidth="9"
                   />
                   <circle
@@ -273,19 +301,23 @@ export const ExtractionPanel: React.FC = () => {
                     cy="46"
                     r="38"
                     fill="none"
-                    stroke={confVal >= 95 ? "#22a65b" : "#e8a200"}
+                    stroke={confVal !== null && confVal >= 95 ? "#22a65b" : "#e8a200"}
                     strokeWidth="9"
                     strokeLinecap="round"
                     strokeDasharray={`${ring} 238.76`}
                   />
                 </svg>
-                <span>{confVal.toFixed(1)}%</span>
+                <span>{confVal !== null ? `${confVal.toFixed(1)}%` : "100%"}</span>
               </div>
               <div className="tx">
                 <div className="t1">Độ tin cậy tổng thể</div>
-                <div className="t2">Dữ liệu đã được nhận dạng và kiểm tra chéo.</div>
+                <div className="t2">
+                  {confVal !== null
+                    ? "Dữ liệu được trích xuất bằng OCR đa tầng & đối chiếu BBox."
+                    : "Hóa đơn điện tử XML gốc (Cấu trúc số toàn vẹn Thông tư 78)."}
+                </div>
               </div>
-              {confVal >= 95 && !hasArithmeticMismatch ? (
+              {(confVal === null || confVal >= 95) && !hasArithmeticMismatch ? (
                 <span className="pill g">
                   <span className="cc">
                     <Icon name="check" />
@@ -359,7 +391,7 @@ export const ExtractionPanel: React.FC = () => {
                   style={{
                     cursor: "pointer",
                     padding: "10px 12px",
-                    border: highlightedField === ev.field_name ? "1px solid var(--blue)" : "1px solid var(--line)",
+                    border: highlightedField === ev.field_name ? "1.5px solid var(--blue)" : "1px solid var(--line)",
                     borderRadius: "8px",
                     marginBottom: "8px",
                     background: highlightedField === ev.field_name ? "var(--blue-soft)" : "#fff",
@@ -370,15 +402,31 @@ export const ExtractionPanel: React.FC = () => {
                     <div style={{ fontWeight: 600, fontSize: "13px", color: "var(--navy)" }}>
                       {ev.field_name}
                     </div>
-                    <span className="k k-g" style={{ fontSize: "11px" }}>
-                      {(ev.confidence * 100).toFixed(1)}%
-                    </span>
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                      {ev.verification_state === "verified" ? (
+                        <span className="k k-g" style={{ fontSize: "10px" }}>Đã xác thực</span>
+                      ) : ev.verification_state === "corrected" ? (
+                        <span className="k" style={{ fontSize: "10px", background: "#f3e8ff", color: "#7e22ce" }}>Đính chính</span>
+                      ) : ev.verification_state === "rejected" ? (
+                        <span className="k k-r" style={{ fontSize: "10px" }}>Từ chối</span>
+                      ) : (
+                        <span className="k k-b" style={{ fontSize: "10px" }}>AI đề xuất</span>
+                      )}
+                      <span className="k k-g" style={{ fontSize: "11px" }}>
+                        {Math.round((ev.confidence ?? 1.0) * 100)}%
+                      </span>
+                    </div>
                   </div>
                   <div style={{ fontSize: "12px", color: "#3b4557", margin: "4px 0" }}>
                     Giá trị: <b>{ev.raw_value}</b>
                   </div>
-                  <div style={{ fontSize: "11px", color: "var(--muted)" }}>
-                    {ev.source} · Trang {ev.page + 1}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "11px", color: "var(--muted)" }}>
+                    <span>{ev.source_kind || ev.source || "OCR"} · Trang {(ev.page_index ?? ev.page ?? 0) + 1}</span>
+                    {ev.review_reason && (
+                      <span className="k k-r" style={{ fontSize: "10px" }}>
+                        {ev.review_reason}
+                      </span>
+                    )}
                   </div>
                 </div>
               ))
@@ -400,7 +448,7 @@ export const ExtractionPanel: React.FC = () => {
             <div className="tli g">
               <i></i>
               <b>Trích xuất Document AI hoàn tất</b>
-              <small>Độ tin cậy {confVal.toFixed(1)}% · Đa tầng OCR + Docling</small>
+              <small>Độ tin cậy {confVal !== null ? `${confVal.toFixed(1)}%` : "100% (XML)"} · Đa tầng OCR + Docling</small>
             </div>
             <div className={`tli ${hasArithmeticMismatch ? "a" : "g"}`}>
               <i></i>
@@ -438,27 +486,33 @@ export const ExtractionPanel: React.FC = () => {
       {!isDocProcessing && (
         <div className="foot" style={{ display: "flex", gap: "8px", alignItems: "center" }}>
           <div
-            className="btn o"
-            onClick={() => setReviewNoteModal(true)}
-            style={{ cursor: "pointer", flex: 1 }}
+            className={`btn o ${isViewer ? "dis" : ""}`}
+            onClick={() => {
+              if (isViewer) {
+                showToast("Tài khoản Viewer chỉ có quyền xem (Read-only).", "warn");
+                return;
+              }
+              setReviewNoteModal(true);
+            }}
+            style={{ cursor: isViewer ? "not-allowed" : "pointer", flex: 1 }}
           >
             <Icon name="flag" />
             Cần rà soát
           </div>
           <button
             type="button"
-            className={`btn p ${hasArithmeticMismatch || isApproved ? "dis" : ""}`}
+            className={`btn p ${hasArithmeticMismatch || isApproved || isViewer ? "dis" : ""}`}
             id="btnApprove"
             onClick={handleApprove}
             style={{
-              cursor: hasArithmeticMismatch || isApproved ? "not-allowed" : "pointer",
+              cursor: hasArithmeticMismatch || isApproved || isViewer ? "not-allowed" : "pointer",
               flex: 1.2,
               border: "none",
               pointerEvents: "auto",
             }}
           >
             <Icon name="check" />
-            {isApproved ? "Đã phê duyệt" : "Phê duyệt (Approve)"}
+            {isApproved ? "Đã phê duyệt" : isViewer ? "Chỉ xem (Viewer)" : "Phê duyệt (Approve)"}
           </button>
           {isApproved && (
             <button

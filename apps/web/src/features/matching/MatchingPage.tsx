@@ -39,13 +39,9 @@ export const MatchingPage: React.FC = () => {
       return;
     }
     const local = invoices.find((i) => i.id === selectedInvId);
-    if (selectedInvId.startsWith("inv-demo-")) {
-      api.getInvoice(selectedInvId)
-        .then((full) => setCurInvDetails({ ...local, ...full }))
-        .catch(() => setCurInvDetails(local || null));
-    } else {
-      setCurInvDetails(local || null);
-    }
+    api.getInvoice(selectedInvId)
+      .then((full) => setCurInvDetails({ ...local, ...full }))
+      .catch(() => setCurInvDetails(local || null));
   }, [selectedInvId, invoices]);
 
   useEffect(() => {
@@ -118,20 +114,24 @@ export const MatchingPage: React.FC = () => {
   const isDocDone = (invItem: ExtendedInvoiceItem) =>
     invItem.status === "APPROVED" || invItem.status === "REJECTED";
 
+  const isInvoiceDiscrepant = (invItem: ExtendedInvoiceItem) => {
+    const dec = getDecision(invItem.id);
+    if (dec === "accepted") return false;
+    if (reconciliations[invItem.id]) {
+      return !reconciliations[invItem.id].is_matched;
+    }
+    return (
+      invItem.status === "REVIEW_REQUIRED" ||
+      invItem.status === "REQUIRES_REVIEW" ||
+      invItem.status === "DISCREPANCY_DETECTED" ||
+      Boolean(invItem.issues && invItem.issues.length > 0)
+    );
+  };
+
   const counts = {
     all: invoices.length,
-    ok: invoices.filter((i) => {
-      const dec = getDecision(i.id);
-      if (dec === "accepted") return true;
-      if (i.id === "CASE-07" || i.id === "CASE-09" || i.status === "REVIEW_REQUIRED") return false;
-      return reconciliations[i.id]?.is_matched ?? true;
-    }).length,
-    bad: invoices.filter((i) => {
-      const dec = getDecision(i.id);
-      if (dec === "accepted") return false;
-      if (i.id === "CASE-07" || i.id === "CASE-09" || i.status === "REVIEW_REQUIRED") return true;
-      return reconciliations[i.id] ? !reconciliations[i.id].is_matched : false;
-    }).length,
+    ok: invoices.filter((i) => !isInvoiceDiscrepant(i)).length,
+    bad: invoices.filter((i) => isInvoiceDiscrepant(i)).length,
     miss: 0,
   };
 
@@ -144,13 +144,7 @@ export const MatchingPage: React.FC = () => {
       (inv.id || "").toLowerCase().includes(q);
     if (!matchQ) return false;
 
-    const dec = getDecision(inv.id);
-    const isBad =
-      dec !== "accepted" &&
-      (inv.id === "CASE-07" ||
-        inv.id === "CASE-09" ||
-        inv.status === "REVIEW_REQUIRED" ||
-        (reconciliations[inv.id] && !reconciliations[inv.id].is_matched));
+    const isBad = isInvoiceDiscrepant(inv);
     const isOk = !isBad;
 
     if (filterKind === "all") return true;

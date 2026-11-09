@@ -40,7 +40,20 @@ export const InvoiceInfoSection: React.FC<InvoiceInfoSectionProps> = ({
   setEditDate,
   onHoverField,
 }) => {
-  const isBadMst = inv.id === "CASE-05" || inv.tax_authority_status === "INACTIVE";
+  const isBadMst =
+    inv.tax_authority_status === "INACTIVE" ||
+    inv.tax_authority_status === "inactive" ||
+    inv.tax_authority_status === "invalid";
+
+  const getFieldEvidence = (name: string) => {
+    return (inv.evidence || []).find(
+      (e) => e.field_name === name || e.field_name.toLowerCase().includes(name.toLowerCase())
+    );
+  };
+
+  const mstEv = getFieldEvidence("supplier_tax_id") || getFieldEvidence("tax_id");
+  const noEv = getFieldEvidence("invoice_number");
+  const dateEv = getFieldEvidence("issue_date") || getFieldEvidence("date");
 
   return (
     <div className={`sec s1 ${isOpen ? "" : "cl"}`}>
@@ -101,7 +114,7 @@ export const InvoiceInfoSection: React.FC<InvoiceInfoSectionProps> = ({
               </span>
             ) : (
               <span className="pill g">
-                <Icon name="check" /> 99.8%
+                <Icon name="check" /> {mstEv ? `${Math.round((mstEv.confidence ?? 1.0) * 100)}%` : "100%"}
               </span>
             )}
           </div>
@@ -124,7 +137,7 @@ export const InvoiceInfoSection: React.FC<InvoiceInfoSectionProps> = ({
               <span className="v">{inv.invoice_number || "—"}</span>
             )}
             <span className="pill g">
-              <Icon name="check" /> 99.4%
+              <Icon name="check" /> {noEv ? `${Math.round((noEv.confidence ?? 1.0) * 100)}%` : "100%"}
             </span>
           </div>
 
@@ -146,7 +159,7 @@ export const InvoiceInfoSection: React.FC<InvoiceInfoSectionProps> = ({
               <span className="v">{inv.issue_date || "—"}</span>
             )}
             <span className="pill g">
-              <Icon name="check" /> 98.9%
+              <Icon name="check" /> {dateEv ? `${Math.round((dateEv.confidence ?? 1.0) * 100)}%` : "100%"}
             </span>
           </div>
 

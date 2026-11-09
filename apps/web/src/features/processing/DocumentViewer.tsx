@@ -8,6 +8,101 @@ const fmt = (n: number | string) => {
   return Math.round(num).toLocaleString("en-US");
 };
 
+interface ComputedBBox {
+  leftPct: number;
+  topPct: number;
+  widthPct: number;
+  heightPct: number;
+  pageIndex: number;
+}
+
+const parseAndComputeBBox = (
+  ev: any,
+  docW: number,
+  docH: number
+): ComputedBBox | null => {
+  let raw: any = ev.bbox;
+  if (!raw && ev.bbox_json) {
+    try {
+      raw = typeof ev.bbox_json === "string" ? JSON.parse(ev.bbox_json) : ev.bbox_json;
+    } catch {
+      return null;
+    }
+  }
+  if (!raw) return null;
+
+  let pageIdx = ev.page_index ?? ev.page ?? 0;
+  let x0 = 0, y0 = 0, x1 = 0, y1 = 0;
+  let coordSys = "pdf_points";
+  let pWidth = docW || 595.0;
+  let pHeight = docH || 842.0;
+
+  if (Array.isArray(raw)) {
+    if (raw.length >= 4) {
+      x0 = Number(raw[0]);
+      y0 = Number(raw[1]);
+      x1 = Number(raw[2]);
+      y1 = Number(raw[3]);
+    } else {
+      return null;
+    }
+  } else if (typeof raw === "object") {
+    if ("page_index" in raw && typeof raw.page_index === "number") {
+      pageIdx = raw.page_index;
+    }
+    if ("coordinate_system" in raw && raw.coordinate_system) {
+      coordSys = raw.coordinate_system;
+    }
+    if ("page_width" in raw && raw.page_width) {
+      pWidth = Number(raw.page_width);
+    }
+    if ("page_height" in raw && raw.page_height) {
+      pHeight = Number(raw.page_height);
+    }
+    if ("x0" in raw && "y0" in raw && "x1" in raw && "y1" in raw) {
+      x0 = Number(raw.x0);
+      y0 = Number(raw.y0);
+      x1 = Number(raw.x1);
+      y1 = Number(raw.y1);
+    } else if ("x" in raw && "y" in raw && "w" in raw && "h" in raw) {
+      x0 = Number(raw.x);
+      y0 = Number(raw.y);
+      x1 = x0 + Number(raw.w);
+      y1 = y0 + Number(raw.h);
+    } else {
+      return null;
+    }
+  } else {
+    return null;
+  }
+
+  const minX = Math.min(x0, x1);
+  const maxX = Math.max(x0, x1);
+  const minY = Math.min(y0, y1);
+  const maxY = Math.max(y0, y1);
+
+  let left = 0, top = 0, width = 0, height = 0;
+  if (coordSys === "normalized_0_1000") {
+    left = (minX / 1000) * 100;
+    top = (minY / 1000) * 100;
+    width = ((maxX - minX) / 1000) * 100;
+    height = ((maxY - minY) / 1000) * 100;
+  } else {
+    left = (minX / pWidth) * 100;
+    top = (minY / pHeight) * 100;
+    width = ((maxX - minX) / pWidth) * 100;
+    height = ((maxY - minY) / pHeight) * 100;
+  }
+
+  return {
+    leftPct: Math.max(0, Math.min(100, left)),
+    topPct: Math.max(0, Math.min(100, top)),
+    widthPct: Math.max(0.5, Math.min(100 - left, width)),
+    heightPct: Math.max(0.5, Math.min(100 - top, height)),
+    pageIndex: pageIdx,
+  };
+};
+
 export const DocumentViewer: React.FC = () => {
   const {
     documents,
@@ -24,12 +119,22 @@ export const DocumentViewer: React.FC = () => {
   const [scale, setScale] = useState(1);
   const [leftOffset, setLeftOffset] = useState(0);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [currentPage, setCurrentPage] = useState(0);
+  const [pageCount, setPageCount] = useState(1);
+  const [pageWidth, setPageWidth] = useState(595);
+  const [pageHeight, setPageHeight] = useState(842);
+  const [pageRotation, setPageRotation] = useState(0);
   const [pageImageUrl, setPageImageUrl] = useState<string | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
   const curDoc = documents.find((d) => d.id === selectedDocId);
   const inv = selectedInvoice;
+
+  // Reset page index on doc change
+  useEffect(() => {
+    setCurrentPage(0);
+  }, [selectedDocId]);
 
   // Zoom steps
   const Z = [0.5, 0.75, 1, 1.25, 1.5, 2];
@@ -46,10 +151,12 @@ export const DocumentViewer: React.FC = () => {
   const fitPage = useCallback(() => {
     const wrap = wrapRef.current;
     if (!wrap || !wrap.clientWidth) return;
-    const k = Math.max(0.5, Math.min(wrap.clientWidth / 566, wrap.clientHeight / 678)) * zoom;
+    const targetW = pageWidth || 566;
+    const targetH = pageHeight || 678;
+    const k = Math.max(0.5, Math.min(wrap.clientWidth / targetW, wrap.clientHeight / targetH)) * zoom;
     setScale(k);
-    setLeftOffset(Math.max(0, (wrap.clientWidth - 562 * k) / 2));
-  }, [zoom]);
+    setLeftOffset(Math.max(0, (wrap.clientWidth - targetW * k) / 2));
+  }, [zoom, pageWidth, pageHeight]);
 
   useEffect(() => {
     fitPage();
@@ -62,24 +169,32 @@ export const DocumentViewer: React.FC = () => {
     };
   }, [fitPage]);
 
-  // Attempt real page rendering for uploaded documents
+  // Real document page rendering from backend
   useEffect(() => {
     let active = true;
     if (!curDoc) {
       setPageImageUrl(null);
       return;
     }
-    api.renderDocumentPage(curDoc.id, 0)
+    api.renderDocumentPage(curDoc.id, currentPage)
       .then((res) => {
-        if (active) setPageImageUrl(res.blobUrl);
+        if (active) {
+          setPageImageUrl(res.blobUrl);
+          setPageWidth(res.width || 595);
+          setPageHeight(res.height || 842);
+          setPageCount(res.pageCount || 1);
+          setPageRotation(res.rotation || 0);
+        }
       })
       .catch(() => {
-        if (active) setPageImageUrl(null);
+        if (active) {
+          setPageImageUrl(null);
+        }
       });
     return () => {
       active = false;
     };
-  }, [curDoc?.id]);
+  }, [curDoc?.id, currentPage]);
 
   // Close popup menu on click outside
   useEffect(() => {
@@ -131,8 +246,30 @@ export const DocumentViewer: React.FC = () => {
         <span className="badge" id="docType">
           Hóa đơn GTGT
         </span>
-        <span className="pg" id="docPg">
-          1 / 1 trang
+        <span className="pg" id="docPg" style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+          {pageCount > 1 && (
+            <button
+              type="button"
+              disabled={currentPage <= 0}
+              onClick={() => setCurrentPage((p) => Math.max(0, p - 1))}
+              style={{ background: "none", border: "none", cursor: currentPage > 0 ? "pointer" : "not-allowed", padding: "0 4px", color: "inherit" }}
+              title="Trang trước"
+            >
+              ◀
+            </button>
+          )}
+          <span>{currentPage + 1} / {pageCount} trang</span>
+          {pageCount > 1 && (
+            <button
+              type="button"
+              disabled={currentPage >= pageCount - 1}
+              onClick={() => setCurrentPage((p) => Math.min(pageCount - 1, p + 1))}
+              style={{ background: "none", border: "none", cursor: currentPage < pageCount - 1 ? "pointer" : "not-allowed", padding: "0 4px", color: "inherit" }}
+              title="Trang sau"
+            >
+              ▶
+            </button>
+          )}
         </span>
 
         <div className="tools" style={{ position: "relative" }}>
@@ -247,7 +384,7 @@ export const DocumentViewer: React.FC = () => {
             className="page"
             id="docPage"
             style={{
-              transform: `scale(${scale})`,
+              transform: pageRotation ? `scale(${scale}) rotate(${pageRotation}deg)` : `scale(${scale})`,
               transformOrigin: "0 0",
               left: `${leftOffset}px`,
               position: "relative",
@@ -279,30 +416,59 @@ export const DocumentViewer: React.FC = () => {
                 />
                 {/* Overlay Evidence BBoxes if available */}
                 {inv?.evidence?.map((ev, idx) => {
-                  try {
-                    const bb = JSON.parse(ev.bbox_json);
-                    const isHi = highlightedField === ev.field_name;
-                    return (
-                      <div
-                        key={idx}
-                        title={`${ev.field_name}: ${(ev.confidence * 100).toFixed(1)}%`}
-                        onClick={() => setHighlightedField(ev.field_name)}
-                        style={{
-                          position: "absolute",
-                          left: `${bb.x}px`,
-                          top: `${bb.y}px`,
-                          width: `${bb.w}px`,
-                          height: `${bb.h}px`,
-                          border: isHi ? "2px solid #ff4d4f" : "1.5px dashed rgba(26,102,242,.7)",
-                          background: isHi ? "rgba(255,77,79,.15)" : "rgba(26,102,242,.08)",
-                          cursor: "pointer",
-                          transition: "all .2s ease",
-                        }}
-                      />
-                    );
-                  } catch {
-                    return null;
-                  }
+                  const computed = parseAndComputeBBox(ev, pageWidth, pageHeight);
+                  if (!computed) return null;
+                  if (computed.pageIndex !== currentPage) return null;
+
+                  const isHi = highlightedField === ev.field_name || highlightedField === ev.field_path;
+                  const confPercent = Math.round((ev.confidence ?? 1.0) * 100);
+
+                  return (
+                    <div
+                      key={idx}
+                      data-testid={`bbox-${ev.field_name}`}
+                      title={`${ev.field_name}: ${confPercent}%`}
+                      onClick={() => setHighlightedField(ev.field_name)}
+                      onMouseEnter={() => setHighlightedField(ev.field_name)}
+                      style={{
+                        position: "absolute",
+                        left: `${computed.leftPct}%`,
+                        top: `${computed.topPct}%`,
+                        width: `${computed.widthPct}%`,
+                        height: `${computed.heightPct}%`,
+                        border: isHi ? "2.5px solid #ef4444" : "1.5px dashed rgba(26,102,242,.75)",
+                        background: isHi ? "rgba(239,68,68,.2)" : "rgba(26,102,242,.08)",
+                        boxShadow: isHi ? "0 0 0 3px rgba(239,68,68,.35)" : "none",
+                        borderRadius: "2px",
+                        cursor: "pointer",
+                        transition: "all .15s ease",
+                        zIndex: isHi ? 30 : 10,
+                      }}
+                    >
+                      {isHi && (
+                        <div
+                          style={{
+                            position: "absolute",
+                            bottom: "100%",
+                            left: "0",
+                            transform: "translateY(-4px)",
+                            background: "#0f172a",
+                            color: "#fff",
+                            padding: "3px 7px",
+                            borderRadius: "4px",
+                            fontSize: "11px",
+                            fontWeight: 600,
+                            whiteSpace: "nowrap",
+                            pointerEvents: "none",
+                            zIndex: 40,
+                            boxShadow: "0 2px 8px rgba(0,0,0,.25)",
+                          }}
+                        >
+                          {ev.field_name}: {confPercent}%
+                        </div>
+                      )}
+                    </div>
+                  );
                 })}
               </div>
             ) : inv ? (

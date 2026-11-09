@@ -31,21 +31,19 @@ export const DashboardPage: React.FC = () => {
   const man = genSeries(days, 23, 12, 4, 3);
   const tot = sum(auto) + sum(man) + (totalDocs || 6);
   const stp = ((sum(auto) / (sum(auto) + sum(man) || 1)) * 100).toFixed(1);
+  const allEvidences = ex.flatMap((d) => d.evidence || []);
   const conf =
-    ex.length > 0
-      ? (
-          ex.reduce((s, d) => {
-            const evs = d.evidence || [];
-            const c = evs.length ? evs.reduce((a, b) => a + b.confidence, 0) / evs.length : 0.992;
-            return s + c;
-          }, 0) / ex.length
-        ) * 100
-      : 99.2;
+    allEvidences.length > 0
+      ? (allEvidences.reduce((s, e) => s + (e.confidence ?? 1.0), 0) / allEvidences.length) * 100
+      : ex.length > 0
+      ? 100.0
+      : 0;
 
   const attn = ex.filter(
     (d) =>
       d.status === "REVIEW_REQUIRED" ||
       d.status === "REJECTED" ||
+      Boolean(d.issues && d.issues.some((i) => i.severity === "ERROR" || i.severity === "critical")) ||
       (d.lines || []).some(
         (l) =>
           Math.abs(
@@ -57,10 +55,10 @@ export const DashboardPage: React.FC = () => {
 
   const sp = (s: number, n: number) => genSeries(12, s, n, n * 0.12, 1);
   const labels = lastDays(days);
-  const pmax = Math.max(1, totalDocs || 6);
+  const pmax = Math.max(1, totalDocs);
 
   const pipe = [
-    { name: "Đã tải lên", val: Math.max(totalDocs, 6), color: CC.s1, page: "xu-ly" as const },
+    { name: "Đã tải lên", val: totalDocs, color: CC.s1, page: "xu-ly" as const },
     { name: "Đang trích xuất", val: st.proc, color: "#6da7ec", page: "xu-ly" as const },
     { name: "Cần rà soát / lệch", val: attn.length, color: CC.s4, page: "doi-soat" as const },
     { name: "Chờ phê duyệt", val: st.pend + st.rev, color: "#256abf", page: "phe-duyet" as const },

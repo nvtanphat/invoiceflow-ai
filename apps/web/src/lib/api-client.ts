@@ -44,8 +44,12 @@ export interface InvoiceLineItem {
 
 export interface FieldEvidenceItem {
   field_name: string;
+  field_path?: string;
   source: string;
+  source_kind?: string;
   page: number;
+  page_index?: number;
+  bbox?: any;
   bbox_json: string;
   table_id?: string | null;
   cell_id?: string | null;
@@ -53,6 +57,7 @@ export interface FieldEvidenceItem {
   verification_state?: string | null;
   review_reason?: string | null;
   raw_value: string;
+  normalized_value?: string;
 }
 
 export interface InvoiceItem {
@@ -77,11 +82,12 @@ export interface InvoiceItem {
   tax_authority_status: string;
   lines: InvoiceLineItem[];
   evidence?: FieldEvidenceItem[];
+  issues?: MatchingIssue[];
 }
 
 export interface MatchingIssue {
   code: string;
-  severity: "ERROR" | "WARNING" | "INFO";
+  severity: "ERROR" | "WARNING" | "INFO" | "critical" | "warning" | string;
   message: string;
   field?: string | null;
   invoice_value?: string | null;
@@ -250,7 +256,7 @@ class ApiClient {
   public async renderDocumentPage(
     documentId: string,
     pageIndex: number = 0
-  ): Promise<{ blobUrl: string; width: number; height: number; pageCount: number }> {
+  ): Promise<{ blobUrl: string; width: number; height: number; pageCount: number; rotation: number }> {
     const res = await fetch(`${this.baseUrl}/documents/${documentId}/pages/${pageIndex}/render`, {
       headers: this.headers(),
     });
@@ -261,9 +267,10 @@ class ApiClient {
     const width = parseFloat(res.headers.get("X-Page-Width") || "595");
     const height = parseFloat(res.headers.get("X-Page-Height") || "842");
     const pageCount = parseInt(res.headers.get("X-Page-Count") || "1", 10);
+    const rotation = parseInt(res.headers.get("X-Page-Rotation") || "0", 10);
     const blob = await res.blob();
     const blobUrl = URL.createObjectURL(blob);
-    return { blobUrl, width, height, pageCount };
+    return { blobUrl, width, height, pageCount, rotation };
   }
 }
 
