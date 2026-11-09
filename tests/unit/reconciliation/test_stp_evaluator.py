@@ -63,6 +63,7 @@ def test_stp_evaluator_approves_clean_exact_match_below_threshold():
     policy = TolerancePolicy(
         tenant_id=tenant_id,
         auto_approve_threshold=Decimal("10000000.0000"),
+        separation_of_duties_required=False,
     )
 
     res = evaluator.evaluate(invoice=inv, match_report=match_report, policy=policy)
@@ -244,9 +245,138 @@ def test_stp_evaluator_approves_within_tolerance_match():
         issues=[],
     )
 
-    policy = TolerancePolicy(tenant_id=tenant_id)
+    inv.evidence = [FieldEvidence(field_path="supplier_tax_id", source_kind="xml", verification_state=FieldVerificationState.VALID)]
+    policy = TolerancePolicy(tenant_id=tenant_id, separation_of_duties_required=False)
     res = evaluator.evaluate(invoice=inv, match_report=match_report, policy=policy)
 
     assert res.is_stp_eligible is True
     assert res.target_status == InvoiceStatus.APPROVED
     assert "3_WAY_MATCH_WITHIN_TOLERANCE" in res.stp_reasons
+
+
+def _eligible_invoice_and_match():
+    tenant_id = uuid.uuid4()
+    invoice = InvoiceAggregate(
+        id=uuid.uuid4(),
+        tenant_id=tenant_id,
+        document_id=uuid.uuid4(),
+        supplier_tax_id="0101234567",
+        supplier_name="Verified supplier",
+        invoice_number="INV-SECURE",
+        subtotal=Decimal("2000000.0000"),
+        amount_payable=Decimal("2000000.0000"),
+        lines=[InvoiceLine(
+            line_no=1,
+            description="Equipment",
+            qty=Decimal("2.0000"),
+            unit_price=Decimal("1000000.0000"),
+            line_amount=Decimal("2000000.0000"),
+        )],
+        evidence=[FieldEvidence(
+            field_path="supplier_tax_id",
+            source_kind="xml",
+            verification_state=FieldVerificationState.VALID,
+        )],
+    )
+    matched = MatchReport(
+        invoice_id=invoice.id,
+        status=MatchStatus.MATCHED_EXACT,
+        is_matched=True,
+        requires_review=False,
+        issues=[],
+    )
+    policy = TolerancePolicy(
+        tenant_id=tenant_id,
+        separation_of_duties_required=False,
+    )
+    return invoice, matched, policy
+
+
+def test_stp_respects_separation_of_duties_policy():
+    invoice, matched, policy = _eligible_invoice_and_match()
+    policy.separation_of_duties_required = True
+
+    result = STPEvaluator().evaluate(invoice, matched, policy)
+
+    assert not result.is_stp_eligible
+    assert "ACCOUNTING_APPROVAL_REQUIRED_BY_POLICY" in result.review_reasons
+
+
+def test_stp_requires_a_completed_matching_report():
+    invoice, _, policy = _eligible_invoice_and_match()
+
+    result = STPEvaluator().evaluate(invoice, match_report=None, policy=policy)
+
+    assert not result.is_stp_eligible
+    assert "MATCH_REPORT_REQUIRED" in result.review_reasons
+
+
+def test_stp_blocks_matching_flagged_for_review():
+    invoice, matched, policy = _eligible_invoice_and_match()
+    matched.requires_review = True
+
+    result = STPEvaluator().evaluate(invoice, matched, policy)
+
+    assert not result.is_stp_eligible
+    assert "MATCH_REPORT_NOT_CLEARED" in result.review_reasons
+
+
+def test_stp_blocks_unverified_critical_fields():
+    invoice, matched, policy = _eligible_invoice_and_match()
+    for state in (
+        FieldVerificationState.MISSING,
+        FieldVerificationState.UNCERTAIN,
+        FieldVerificationState.MODEL_PROPOSED,
+    ):
+        invoice.evidence = [FieldEvidence(
+            field_path="amount_payable",
+            source_kind="vision_llm",
+            verification_state=state,
+        )]
+        result = STPEvaluator().evaluate(invoice, matched, policy)
+        assert not result.is_stp_eligible
+        assert any("UNVERIFIED_CRITICAL_FIELD" in reason for reason in result.review_reasons)
+
+
+def test_stp_blocks_vision_only_arithmetic_and_candidate_evidence():
+    invoice, matched, policy = _eligible_invoice_and_match()
+    invoice.evidence = [
+        FieldEvidence(
+            field_path="lines[0].qty",
+            source_kind="vision_llm",
+            verification_state=FieldVerificationState.ARITHMETICALLY_CONSISTENT,
+        ),
+        FieldEvidence(
+            field_path="lines[0].qty.candidate_vision",
+            source_kind="vision_llm",
+            verification_state=FieldVerificationState.MODEL_PROPOSED,
+        ),
+    ]
+
+    result = STPEvaluator().evaluate(invoice, matched, policy)
+
+    assert not result.is_stp_eligible
+    assert any("VISION_ONLY_ARITHMETIC_EVIDENCE" in r for r in result.review_reasons)
+    assert any("UNRESOLVED_VISION_CANDIDATE" in r for r in result.review_reasons)
+
+
+def test_stp_blocks_unresolved_parser_issues():
+    invoice, matched, policy = _eligible_invoice_and_match()
+    invoice.parser_issues = ["QTY_UNRECOVERED"]
+
+    result = STPEvaluator().evaluate(invoice, matched, policy)
+
+    assert not result.is_stp_eligible
+    assert "UNRESOLVED_PARSER_ISSUES" in result.review_reasons
+
+
+def test_stp_blocks_missing_evidence_and_line_items():
+    invoice, matched, policy = _eligible_invoice_and_match()
+    invoice.evidence = []
+    invoice.lines = []
+
+    result = STPEvaluator().evaluate(invoice, matched, policy)
+
+    assert not result.is_stp_eligible
+    assert "NO_FIELD_EVIDENCE" in result.review_reasons
+    assert "MISSING_LINE_ITEMS" in result.review_reasons

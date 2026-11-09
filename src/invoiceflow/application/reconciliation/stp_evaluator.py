@@ -7,7 +7,6 @@ from invoiceflow.domain.invoices.models import (
     FieldVerificationState,
     InvoiceAggregate,
     InvoiceStatus,
-    VerificationStatus,
 )
 from invoiceflow.domain.policies.models import TolerancePolicy
 from invoiceflow.domain.purchasing.models import IssueSeverity, MatchReport, MatchStatus
@@ -51,8 +50,16 @@ class STPEvaluator:
         else:
             stp_reasons.append("BELOW_AUTO_APPROVE_THRESHOLD")
 
-        # 2. Critical Validation & Matching Issues Check
-        if match_report is not None:
+        # Accounting auto-approval requires an explicit separation-of-duties opt-out.
+        if policy.separation_of_duties_required:
+            review_reasons.append("ACCOUNTING_APPROVAL_REQUIRED_BY_POLICY")
+
+        # An absent or unresolved reconciliation report cannot authorize approval.
+        if match_report is None:
+            review_reasons.append("MATCH_REPORT_REQUIRED")
+        else:
+            if match_report.requires_review or not match_report.is_matched:
+                review_reasons.append("MATCH_REPORT_NOT_CLEARED")
             critical_issues = [
                 iss for iss in match_report.issues if iss.severity == IssueSeverity.CRITICAL
             ]
@@ -66,32 +73,57 @@ class STPEvaluator:
             elif match_report.status == MatchStatus.MATCHED_WITHIN_TOLERANCE:
                 stp_reasons.append("3_WAY_MATCH_WITHIN_TOLERANCE")
             elif match_report.status == MatchStatus.MISSING_PO:
-                # Allowed for non-PO invoices if verified electronic invoice or zero critical issues
-                if invoice.signature_status == VerificationStatus.VERIFIED:
-                    stp_reasons.append("NON_PO_VERIFIED_ELECTRONIC_INVOICE")
-                elif not critical_issues and not match_report.issues:
-                    stp_reasons.append("NON_PO_VALID_DIRECT_INVOICE")
-                else:
-                    review_reasons.append("MISSING_PURCHASE_ORDER")
+                review_reasons.append("MISSING_PURCHASE_ORDER")
             else:
                 review_reasons.append(f"3_WAY_MATCH_FAILED: Status={match_report.status.value}")
+
+        # A successful OCR result is not proof of approval when evidence is absent.
+        if not invoice.evidence:
+            review_reasons.append("NO_FIELD_EVIDENCE")
+        if invoice.parser_issues:
+            review_reasons.append("UNRESOLVED_PARSER_ISSUES")
 
         # 3. Field Verification States and Evidence Conflicts Check
         has_conflict = False
         has_invalid = False
 
+        critical_fields = {
+            "supplier_tax_id", "supplier_name", "invoice_number",
+            "issue_date", "subtotal", "amount_payable",
+        }
         for ev in invoice.evidence:
-            if ev.verification_state == FieldVerificationState.CONFLICT:
+            critical_field = ev.field_path in critical_fields or (
+                ev.field_path.startswith("lines[")
+                and ev.field_path.endswith((".qty", ".unit_price", ".line_amount"))
+            )
+            try:
+                state = FieldVerificationState(ev.verification_state)
+            except ValueError:
+                review_reasons.append(f"UNKNOWN_VERIFICATION_STATE: {ev.field_path}")
+                continue
+            if ev.field_path.endswith(".candidate_vision"):
+                review_reasons.append(f"UNRESOLVED_VISION_CANDIDATE: {ev.field_path}")
+            if critical_field and ev.source_kind == "multi_signal_verifier":
+                review_reasons.append(f"DERIVED_EVIDENCE_ONLY: {ev.field_path}")
+            if critical_field and state in (
+                FieldVerificationState.MISSING,
+                FieldVerificationState.UNCERTAIN,
+                FieldVerificationState.MODEL_PROPOSED,
+            ):
+                review_reasons.append(f"UNVERIFIED_CRITICAL_FIELD: {ev.field_path} ({state.value})")
+            if critical_field and state == FieldVerificationState.ARITHMETICALLY_CONSISTENT and ev.source_kind == "vision_llm":
+                review_reasons.append(f"VISION_ONLY_ARITHMETIC_EVIDENCE: {ev.field_path}")
+            if state == FieldVerificationState.CONFLICT:
                 has_conflict = True
                 review_reasons.append(
                     f"FIELD_CONFLICT: {ev.field_path} ({ev.review_reason or 'candidate discrepancy'})"
                 )
-            elif ev.verification_state == FieldVerificationState.INVALID:
+            elif state == FieldVerificationState.INVALID:
                 has_invalid = True
                 review_reasons.append(
                     f"FIELD_INVALID: {ev.field_path} ({ev.review_reason or 'format violation'})"
                 )
-            elif ev.verification_state == FieldVerificationState.ZERO and ev.field_path in (
+            elif state == FieldVerificationState.ZERO and ev.field_path in (
                 "amount_payable",
                 "subtotal",
             ):
@@ -111,7 +143,13 @@ class STPEvaluator:
             stp_reasons.append("ARITHMETIC_BALANCED")
 
         # Line-by-line arithmetic check
+        if not invoice.lines:
+            review_reasons.append("MISSING_LINE_ITEMS")
         for line in invoice.lines:
+            if line.issues:
+                review_reasons.append(f"UNRESOLVED_LINE_ISSUES: Line {line.line_no}")
+            if line.qty <= Decimal("0.0000") or line.unit_price <= Decimal("0.0000"):
+                review_reasons.append(f"INVALID_LINE_QUANTITY_OR_PRICE: Line {line.line_no}")
             expected_amt = (line.qty * line.unit_price) - line.discount
             if abs(line.line_amount - expected_amt) >= Decimal("0.0100"):
                 review_reasons.append(
