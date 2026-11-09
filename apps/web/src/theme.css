@@ -531,7 +531,7 @@ textarea.inp{height:auto;padding:10px 12px;resize:none;line-height:1.45;width:10
 .s1.cl{padding-bottom:10px}
 .sh{cursor:pointer}
 .sh .edit,.sh .editbar{cursor:pointer}
-.btn.dis{opacity:.5;cursor:not-allowed;box-shadow:none;pointer-events:none}
+.btn.dis{opacity:.5;cursor:not-allowed;box-shadow:none}
 
 /* charts */
 .hit{fill:transparent}.hit:hover{fill:rgba(42,120,214,.07)}

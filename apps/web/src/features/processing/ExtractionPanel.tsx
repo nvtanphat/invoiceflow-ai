@@ -454,6 +454,7 @@ export const ExtractionPanel: React.FC = () => {
               cursor: hasArithmeticMismatch || isApproved ? "not-allowed" : "pointer",
               flex: 1.2,
               border: "none",
+              pointerEvents: "auto",
             }}
           >
             <Icon name="check" />

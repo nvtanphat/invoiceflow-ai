@@ -125,7 +125,7 @@ export const TopNav: React.FC = () => {
               style={{ height: "28px", padding: "0 10px", fontSize: "12px" }}
               title={`Chuyển vai trò sang ${roleLabels[r]}`}
             >
-              {roleLabels[r]}
+              {r}
             </button>
           ))}
         </div>
@@ -137,7 +137,7 @@ export const TopNav: React.FC = () => {
           className="bt s"
           style={{ marginRight: "14px", height: "32px" }}
         >
-          <Icon name="export" /> Xuất dữ liệu
+          <Icon name="export" /> Xuất dữ liệu kế toán
         </button>
 
         {/* Bell notifications */}
