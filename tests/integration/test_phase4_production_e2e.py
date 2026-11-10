@@ -46,7 +46,9 @@ from invoiceflow.infrastructure.storage.service import LocalStorageService
 
 pytestmark = pytest.mark.asyncio
 
-FIXTURES_DIR = Path(__file__).resolve().parent.parent.parent / "benchmarks" / "fixtures" / "documents"
+FIXTURES_DIR = (
+    Path(__file__).resolve().parent.parent.parent / "benchmarks" / "fixtures" / "documents"
+)
 
 
 def _create_synthetic_invoice_image_bytes() -> bytes:
@@ -85,7 +87,15 @@ def _create_synthetic_invoice_image_bytes() -> bytes:
     cv2.rectangle(img, (50, y_table), (800, y_table + 35), (220, 220, 220), -1)
     cv2.rectangle(img, (50, y_table), (800, y_table + 35), (0, 0, 0), 1)
     cv2.putText(img, "STT", (60, y_table + 24), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1)
-    cv2.putText(img, "Ten hang hoa, dich vu", (130, y_table + 24), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1)
+    cv2.putText(
+        img,
+        "Ten hang hoa, dich vu",
+        (130, y_table + 24),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.5,
+        (0, 0, 0),
+        1,
+    )
     cv2.putText(img, "So luong", (480, y_table + 24), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1)
     cv2.putText(img, "Don gia", (580, y_table + 24), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1)
     cv2.putText(img, "Thanh tien", (690, y_table + 24), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1)
@@ -93,14 +103,34 @@ def _create_synthetic_invoice_image_bytes() -> bytes:
     y_r1 = y_table + 35
     cv2.rectangle(img, (50, y_r1), (800, y_r1 + 45), (0, 0, 0), 1)
     cv2.putText(img, "1", (65, y_r1 + 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1)
-    cv2.putText(img, "Giay in A4 Double A 70gsm", (130, y_r1 + 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1)
+    cv2.putText(
+        img,
+        "Giay in A4 Double A 70gsm",
+        (130, y_r1 + 30),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.5,
+        (0, 0, 0),
+        1,
+    )
     cv2.putText(img, "10", (500, y_r1 + 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1)
     cv2.putText(img, "85,000", (580, y_r1 + 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1)
     cv2.putText(img, "850,000", (690, y_r1 + 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1)
 
-    cv2.putText(img, "Cong tien hang: 850,000", (480, 530), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 0, 0), 1)
-    cv2.putText(img, "Tien thue GTGT (8%): 68,000", (480, 560), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 0, 0), 1)
-    cv2.putText(img, "Tong cong tien thanh toan: 918,000 VND", (420, 600), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 2)
+    cv2.putText(
+        img, "Cong tien hang: 850,000", (480, 530), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 0, 0), 1
+    )
+    cv2.putText(
+        img, "Tien thue GTGT (8%): 68,000", (480, 560), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 0, 0), 1
+    )
+    cv2.putText(
+        img,
+        "Tong cong tien thanh toan: 918,000 VND",
+        (420, 600),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.6,
+        (0, 0, 0),
+        2,
+    )
 
     _, enc = cv2.imencode(".png", img)
     return enc.tobytes()
@@ -559,9 +589,9 @@ async def test_scenario_06_duplicate_invoice_reconciliation_block(prod_env):
 
     # Ingest original invoice
     async with db_manager.session() as session:
-        _, job_orig, _ = await IngestionService(session, storage, IngestionPreflight()).ingest_document(
-            tenant_id=tenant_id, filename="orig.xml", content=xml_orig
-        )
+        _, job_orig, _ = await IngestionService(
+            session, storage, IngestionPreflight()
+        ).ingest_document(tenant_id=tenant_id, filename="orig.xml", content=xml_orig)
         job_id_orig = job_orig.id
 
     coordinator = JobCoordinator(db_manager=db_manager, storage=storage)
@@ -571,9 +601,9 @@ async def test_scenario_06_duplicate_invoice_reconciliation_block(prod_env):
     xml_dup = xml_orig.replace(b"</HDon>", b"<!-- duplicate copy --></HDon>")
 
     async with db_manager.session() as session:
-        _, job_dup, _ = await IngestionService(session, storage, IngestionPreflight()).ingest_document(
-            tenant_id=tenant_id, filename="dup.xml", content=xml_dup
-        )
+        _, job_dup, _ = await IngestionService(
+            session, storage, IngestionPreflight()
+        ).ingest_document(tenant_id=tenant_id, filename="dup.xml", content=xml_dup)
         job_id_dup = job_dup.id
 
     assert await coordinator.process_job(job_id_dup) is True
@@ -593,9 +623,7 @@ async def test_scenario_06_duplicate_invoice_reconciliation_block(prod_env):
         ).scalar_one()
 
         mr = (
-            await session.execute(
-                select(MatchResultORM).where(MatchResultORM.invoice_id == inv.id)
-            )
+            await session.execute(select(MatchResultORM).where(MatchResultORM.invoice_id == inv.id))
         ).scalar_one()
         issues = json.loads(mr.issues_json)
         assert any(i.get("code") == "DUPLICATE_INVOICE" for i in issues)
@@ -639,7 +667,9 @@ async def test_scenario_07_missing_po_exception(prod_env):
             status="EXCEPTION",
             is_matched=False,
             requires_review=True,
-            issues_json=json.dumps([{"code": "MISSING_PURCHASE_ORDER", "severity": "warning", "message": "No PO"}]),
+            issues_json=json.dumps(
+                [{"code": "MISSING_PURCHASE_ORDER", "severity": "warning", "message": "No PO"}]
+            ),
         )
         session.add_all([inv, mr])
         await session.flush()
@@ -736,7 +766,9 @@ async def test_scenario_08_missing_grn_exception(prod_env):
     async with db_manager.session() as session:
         report = await ReconciliationService(session).reconcile_invoice(inv_agg)
         assert report.status.value == "MISSING_GRN"
-        assert any("RECEIPT" in i.code or "GRN" in i.code or "QUANTITY" in i.code for i in report.issues)
+        assert any(
+            "RECEIPT" in i.code or "GRN" in i.code or "QUANTITY" in i.code for i in report.issues
+        )
 
 
 async def test_scenario_09_price_quantity_variance(prod_env):
@@ -876,9 +908,7 @@ async def test_scenario_11_vision_fallback_timeout_resilience(prod_env):
             )
         ).scalar_one()
         mr = (
-            await session.execute(
-                select(MatchResultORM).where(MatchResultORM.invoice_id == inv.id)
-            )
+            await session.execute(select(MatchResultORM).where(MatchResultORM.invoice_id == inv.id))
         ).scalar_one()
         issues = json.loads(mr.issues_json)
         assert any("VISION_FALLBACK" in i.get("code", "") for i in issues)

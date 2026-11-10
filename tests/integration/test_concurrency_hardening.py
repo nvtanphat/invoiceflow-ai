@@ -498,9 +498,9 @@ async def test_3_4_concurrent_duplicate_invoices_database_level_uniqueness(pg_en
             .scalars()
             .all()
         )
-        assert (
-            len(approved_invoices) == 1
-        ), f"Invariant violated: {len(approved_invoices)} duplicate invoices were approved!"
+        assert len(approved_invoices) == 1, (
+            f"Invariant violated: {len(approved_invoices)} duplicate invoices were approved!"
+        )
 
 
 async def test_3_1_redis_broker_connectivity():

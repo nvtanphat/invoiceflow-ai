@@ -55,6 +55,7 @@ yarn-error.log*
 pnpm-debug.log*
 apps/web/dist/
 apps/web/.turbo/
+*.tsbuildinfo
 
 # Superpowers temporary workspace
 .superpowers/

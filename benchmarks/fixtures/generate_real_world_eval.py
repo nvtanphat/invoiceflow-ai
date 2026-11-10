@@ -46,7 +46,14 @@ def _setup_page(doc: fitz.Document, width: int = 595, height: int = 842) -> tupl
     return page, "helv"
 
 
-def _draw(page: fitz.Page, pt: tuple[float, float], text: str, font: str, size: float = 10, bold: bool = False):
+def _draw(
+    page: fitz.Page,
+    pt: tuple[float, float],
+    text: str,
+    font: str,
+    size: float = 10,
+    bold: bool = False,
+):
     page.insert_text(pt, text, fontsize=size, fontname=font)
 
 
@@ -137,8 +144,20 @@ def generate_pub_02_vnpt():
     _draw(page, (460, y + 17), "Thanh tien", f, size=9)
 
     items = [
-        ("1", "Cuoc Internet Cap quang FiberVNN 500Mbps [FIBER-500M]", "1.0000", "800000.0000", "800000.0000"),
-        ("2", "Cuoc dia chi IP tinh co dinh IPv4 [IP-STATIC-01]", "1.0000", "500000.0000", "500000.0000"),
+        (
+            "1",
+            "Cuoc Internet Cap quang FiberVNN 500Mbps [FIBER-500M]",
+            "1.0000",
+            "800000.0000",
+            "800000.0000",
+        ),
+        (
+            "2",
+            "Cuoc dia chi IP tinh co dinh IPv4 [IP-STATIC-01]",
+            "1.0000",
+            "500000.0000",
+            "500000.0000",
+        ),
     ]
     curr_y = y + 25
     for stt, name, qty, price, amt in items:
@@ -236,19 +255,37 @@ def _render_base_invoice_cv2(
     img = np.full((1200, 900, 3), 255, dtype=np.uint8)
 
     cv2.putText(img, title, (200, 80), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 0), 2)
-    cv2.putText(img, f"Ky hieu: {series}  So: {no}  Ngay: {date_s}", (80, 130), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 0, 0), 1)
+    cv2.putText(
+        img,
+        f"Ky hieu: {series}  So: {no}  Ngay: {date_s}",
+        (80, 130),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.55,
+        (0, 0, 0),
+        1,
+    )
 
-    cv2.putText(img, f"Don vi ban: {sup_name}", (80, 180), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 0, 0), 1)
-    cv2.putText(img, f"Ma so thue: {sup_tax}", (80, 210), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 0, 0), 1)
+    cv2.putText(
+        img, f"Don vi ban: {sup_name}", (80, 180), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 0, 0), 1
+    )
+    cv2.putText(
+        img, f"Ma so thue: {sup_tax}", (80, 210), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 0, 0), 1
+    )
 
-    cv2.putText(img, f"Don vi mua: {buy_name}", (80, 260), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 0, 0), 1)
-    cv2.putText(img, f"Ma so thue: {buy_tax}", (80, 290), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 0, 0), 1)
+    cv2.putText(
+        img, f"Don vi mua: {buy_name}", (80, 260), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 0, 0), 1
+    )
+    cv2.putText(
+        img, f"Ma so thue: {buy_tax}", (80, 290), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 0, 0), 1
+    )
 
     y = 350
     cv2.rectangle(img, (70, y), (830, y + 40), (220, 220, 220), -1)
     cv2.rectangle(img, (70, y), (830, y + 40), (0, 0, 0), 1)
     cv2.putText(img, "STT", (80, y + 26), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1)
-    cv2.putText(img, "Ten hang hoa / SKU", (140, y + 26), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1)
+    cv2.putText(
+        img, "Ten hang hoa / SKU", (140, y + 26), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1
+    )
     cv2.putText(img, "So luong", (460, y + 26), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1)
     cv2.putText(img, "Don gia", (560, y + 26), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1)
     cv2.putText(img, "Thanh tien", (690, y + 26), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1)
@@ -264,9 +301,33 @@ def _render_base_invoice_cv2(
         curr_y += 45
 
     curr_y += 40
-    cv2.putText(img, f"Cong tien hang: {subtotal}", (500, curr_y), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 0, 0), 1)
-    cv2.putText(img, f"Tien thue GTGT: {tax}", (500, curr_y + 35), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 0, 0), 1)
-    cv2.putText(img, f"Tong cong thanh toan: {total} VND", (440, curr_y + 75), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 2)
+    cv2.putText(
+        img,
+        f"Cong tien hang: {subtotal}",
+        (500, curr_y),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.55,
+        (0, 0, 0),
+        1,
+    )
+    cv2.putText(
+        img,
+        f"Tien thue GTGT: {tax}",
+        (500, curr_y + 35),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.55,
+        (0, 0, 0),
+        1,
+    )
+    cv2.putText(
+        img,
+        f"Tong cong thanh toan: {total} VND",
+        (440, curr_y + 75),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.6,
+        (0, 0, 0),
+        2,
+    )
     return img
 
 
@@ -284,7 +345,13 @@ def generate_aug_01_perspective():
         buy_name="Cong ty TNHH Giai phap Phan mem Tien Phong",
         buy_tax="0109998888",
         lines=[
-            ("1", "Man hinh may tinh Dell 24 inch [DELL-24P]", "2.0000", "3500000.0000", "7000000.0000"),
+            (
+                "1",
+                "Man hinh may tinh Dell 24 inch [DELL-24P]",
+                "2.0000",
+                "3500000.0000",
+                "7000000.0000",
+            ),
             ("2", "Ban phim co khong day [KB-MECH-01]", "3.0000", "1200000.0000", "3600000.0000"),
         ],
         subtotal="10600000.0000",
@@ -299,12 +366,14 @@ def generate_aug_01_perspective():
     h, w = base_inv.shape[:2]
     src_pts = np.float32([[0, 0], [w, 0], [w, h], [0, h]])
     # Tilted 3D perspective trapezoid on table
-    dst_pts = np.float32([
-        [220, 120],  # top-left
-        [980, 160],  # top-right
-        [1060, 1380],  # bottom-right
-        [140, 1340],  # bottom-left
-    ])
+    dst_pts = np.float32(
+        [
+            [220, 120],  # top-left
+            [980, 160],  # top-right
+            [1060, 1380],  # bottom-right
+            [140, 1340],  # bottom-left
+        ]
+    )
     matrix = cv2.getPerspectiveTransform(src_pts, dst_pts)
     warped = cv2.warpPerspective(base_inv, matrix, (1200, 1500), borderMode=cv2.BORDER_TRANSPARENT)
 
@@ -332,7 +401,13 @@ def generate_aug_02_shadow():
         buy_name="Cong ty TNHH Giai phap Phan mem Tien Phong",
         buy_tax="0109998888",
         lines=[
-            ("1", "Cuoc van chuyen hang hoa lien tinh [LOGI-INTER-01]", "1.0000", "4200000.0000", "4200000.0000"),
+            (
+                "1",
+                "Cuoc van chuyen hang hoa lien tinh [LOGI-INTER-01]",
+                "1.0000",
+                "4200000.0000",
+                "4200000.0000",
+            ),
         ],
         subtotal="4200000.0000",
         tax="420000.0000",
@@ -364,8 +439,20 @@ def generate_aug_03_wrinkled():
         buy_name="Cong ty TNHH Giai phap Phan mem Tien Phong",
         buy_tax="0109998888",
         lines=[
-            ("1", "Set an tiep khach doanh nghiep [SET-VIP-04]", "5.0000", "550000.0000", "2750000.0000"),
-            ("2", "Nuoc uong khoang thien nhien [WATER-01]", "10.0000", "25000.0000", "250000.0000"),
+            (
+                "1",
+                "Set an tiep khach doanh nghiep [SET-VIP-04]",
+                "5.0000",
+                "550000.0000",
+                "2750000.0000",
+            ),
+            (
+                "2",
+                "Nuoc uong khoang thien nhien [WATER-01]",
+                "10.0000",
+                "25000.0000",
+                "250000.0000",
+            ),
         ],
         subtotal="3000000.0000",
         tax="240000.0000",
@@ -448,14 +535,62 @@ def generate_aug_05_multi_line():
     _draw(page, (460, y + 14), "Thanh tien", f, size=8)
 
     lines = [
-        ("1", "CPU Intel Core i7 14700K [CPU-I7-14700K]", "2.0000", "9500000.0000", "19000000.0000"),
-        ("2", "Mainboard Asus ROG Strix Z790 [MB-Z790-STRIX]", "2.0000", "8200000.0000", "16400000.0000"),
-        ("3", "RAM Corsair Vengeance 32GB DDR5 [RAM-32GB-D5]", "4.0000", "2800000.0000", "11200000.0000"),
-        ("4", "SSD Samsung 990 Pro 2TB NVMe [SSD-2TB-990P]", "3.0000", "4200000.0000", "12600000.0000"),
-        ("5", "VGA Gigabyte RTX 4070 Super [VGA-RTX4070S]", "1.0000", "17500000.0000", "17500000.0000"),
-        ("6", "Nguon Seasonic Focus 850W Gold [PSU-850W-GOLD]", "2.0000", "3100000.0000", "6200000.0000"),
-        ("7", "Vo case Fractal Design North [CASE-FRACTAL-N]", "2.0000", "3600000.0000", "7200000.0000"),
-        ("8", "Tan nhiet nuoc AIO DeepCool LT720 [COOL-LT720]", "2.0000", "2900000.0000", "5800000.0000"),
+        (
+            "1",
+            "CPU Intel Core i7 14700K [CPU-I7-14700K]",
+            "2.0000",
+            "9500000.0000",
+            "19000000.0000",
+        ),
+        (
+            "2",
+            "Mainboard Asus ROG Strix Z790 [MB-Z790-STRIX]",
+            "2.0000",
+            "8200000.0000",
+            "16400000.0000",
+        ),
+        (
+            "3",
+            "RAM Corsair Vengeance 32GB DDR5 [RAM-32GB-D5]",
+            "4.0000",
+            "2800000.0000",
+            "11200000.0000",
+        ),
+        (
+            "4",
+            "SSD Samsung 990 Pro 2TB NVMe [SSD-2TB-990P]",
+            "3.0000",
+            "4200000.0000",
+            "12600000.0000",
+        ),
+        (
+            "5",
+            "VGA Gigabyte RTX 4070 Super [VGA-RTX4070S]",
+            "1.0000",
+            "17500000.0000",
+            "17500000.0000",
+        ),
+        (
+            "6",
+            "Nguon Seasonic Focus 850W Gold [PSU-850W-GOLD]",
+            "2.0000",
+            "3100000.0000",
+            "6200000.0000",
+        ),
+        (
+            "7",
+            "Vo case Fractal Design North [CASE-FRACTAL-N]",
+            "2.0000",
+            "3600000.0000",
+            "7200000.0000",
+        ),
+        (
+            "8",
+            "Tan nhiet nuoc AIO DeepCool LT720 [COOL-LT720]",
+            "2.0000",
+            "2900000.0000",
+            "5800000.0000",
+        ),
     ]
     curr_y = y + 20
     for stt, name, qty, price, amt in lines:
@@ -519,8 +654,20 @@ def generate_aug_06_multi_page():
     _draw(page2, (470, y + 17), "Thanh tien", f2, size=9)
 
     items = [
-        ("1", "Dich vu Cloud Server vCPU 8 Ram 16GB [FPT-CLOUD-S8]", "1.0000", "15000000.0000", "15000000.0000"),
-        ("2", "Dich vu Object Storage 5TB S3 compatible [FPT-S3-5TB]", "1.0000", "10000000.0000", "10000000.0000"),
+        (
+            "1",
+            "Dich vu Cloud Server vCPU 8 Ram 16GB [FPT-CLOUD-S8]",
+            "1.0000",
+            "15000000.0000",
+            "15000000.0000",
+        ),
+        (
+            "2",
+            "Dich vu Object Storage 5TB S3 compatible [FPT-S3-5TB]",
+            "1.0000",
+            "10000000.0000",
+            "10000000.0000",
+        ),
     ]
     curr_y = y + 25
     for stt, name, qty, price, amt in items:
@@ -552,7 +699,13 @@ def generate_aug_07_skew_lowlight():
         buy_name="Cong ty TNHH Giai phap Phan mem Tien Phong",
         buy_tax="0109998888",
         lines=[
-            ("1", "Dich vu phong nghi hoi nghi khach hang [ROOM-VIP-01]", "2.0000", "2200000.0000", "4400000.0000"),
+            (
+                "1",
+                "Dich vu phong nghi hoi nghi khach hang [ROOM-VIP-01]",
+                "2.0000",
+                "2200000.0000",
+                "4400000.0000",
+            ),
         ],
         subtotal="4400000.0000",
         tax="352000.0000",
@@ -962,14 +1115,70 @@ def main():
                 "amount_payable": "105490000.0000",
             },
             "lines": [
-                {"sku": "CPU-I7-14700K", "description": "CPU Intel Core i7 14700K [CPU-I7-14700K]", "qty": "2.0000", "unit_price": "9500000.0000", "tax_rate": "10.00", "line_amount": "19000000.0000"},
-                {"sku": "MB-Z790-STRIX", "description": "Mainboard Asus ROG Strix Z790 [MB-Z790-STRIX]", "qty": "2.0000", "unit_price": "8200000.0000", "tax_rate": "10.00", "line_amount": "16400000.0000"},
-                {"sku": "RAM-32GB-D5", "description": "RAM Corsair Vengeance 32GB DDR5 [RAM-32GB-D5]", "qty": "4.0000", "unit_price": "2800000.0000", "tax_rate": "10.00", "line_amount": "11200000.0000"},
-                {"sku": "SSD-2TB-990P", "description": "SSD Samsung 990 Pro 2TB NVMe [SSD-2TB-990P]", "qty": "3.0000", "unit_price": "4200000.0000", "tax_rate": "10.00", "line_amount": "12600000.0000"},
-                {"sku": "VGA-RTX4070S", "description": "VGA Gigabyte RTX 4070 Super [VGA-RTX4070S]", "qty": "1.0000", "unit_price": "17500000.0000", "tax_rate": "10.00", "line_amount": "17500000.0000"},
-                {"sku": "PSU-850W-GOLD", "description": "Nguon Seasonic Focus 850W Gold [PSU-850W-GOLD]", "qty": "2.0000", "unit_price": "3100000.0000", "tax_rate": "10.00", "line_amount": "6200000.0000"},
-                {"sku": "CASE-FRACTAL-N", "description": "Vo case Fractal Design North [CASE-FRACTAL-N]", "qty": "2.0000", "unit_price": "3600000.0000", "tax_rate": "10.00", "line_amount": "7200000.0000"},
-                {"sku": "COOL-LT720", "description": "Tan nhiet nuoc AIO DeepCool LT720 [COOL-LT720]", "qty": "2.0000", "unit_price": "2900000.0000", "tax_rate": "10.00", "line_amount": "5800000.0000"},
+                {
+                    "sku": "CPU-I7-14700K",
+                    "description": "CPU Intel Core i7 14700K [CPU-I7-14700K]",
+                    "qty": "2.0000",
+                    "unit_price": "9500000.0000",
+                    "tax_rate": "10.00",
+                    "line_amount": "19000000.0000",
+                },
+                {
+                    "sku": "MB-Z790-STRIX",
+                    "description": "Mainboard Asus ROG Strix Z790 [MB-Z790-STRIX]",
+                    "qty": "2.0000",
+                    "unit_price": "8200000.0000",
+                    "tax_rate": "10.00",
+                    "line_amount": "16400000.0000",
+                },
+                {
+                    "sku": "RAM-32GB-D5",
+                    "description": "RAM Corsair Vengeance 32GB DDR5 [RAM-32GB-D5]",
+                    "qty": "4.0000",
+                    "unit_price": "2800000.0000",
+                    "tax_rate": "10.00",
+                    "line_amount": "11200000.0000",
+                },
+                {
+                    "sku": "SSD-2TB-990P",
+                    "description": "SSD Samsung 990 Pro 2TB NVMe [SSD-2TB-990P]",
+                    "qty": "3.0000",
+                    "unit_price": "4200000.0000",
+                    "tax_rate": "10.00",
+                    "line_amount": "12600000.0000",
+                },
+                {
+                    "sku": "VGA-RTX4070S",
+                    "description": "VGA Gigabyte RTX 4070 Super [VGA-RTX4070S]",
+                    "qty": "1.0000",
+                    "unit_price": "17500000.0000",
+                    "tax_rate": "10.00",
+                    "line_amount": "17500000.0000",
+                },
+                {
+                    "sku": "PSU-850W-GOLD",
+                    "description": "Nguon Seasonic Focus 850W Gold [PSU-850W-GOLD]",
+                    "qty": "2.0000",
+                    "unit_price": "3100000.0000",
+                    "tax_rate": "10.00",
+                    "line_amount": "6200000.0000",
+                },
+                {
+                    "sku": "CASE-FRACTAL-N",
+                    "description": "Vo case Fractal Design North [CASE-FRACTAL-N]",
+                    "qty": "2.0000",
+                    "unit_price": "3600000.0000",
+                    "tax_rate": "10.00",
+                    "line_amount": "7200000.0000",
+                },
+                {
+                    "sku": "COOL-LT720",
+                    "description": "Tan nhiet nuoc AIO DeepCool LT720 [COOL-LT720]",
+                    "qty": "2.0000",
+                    "unit_price": "2900000.0000",
+                    "tax_rate": "10.00",
+                    "line_amount": "5800000.0000",
+                },
             ],
             "unreadable_fields": {},
             "reference_text": (

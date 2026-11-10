@@ -132,8 +132,12 @@ class RealWorldEvaluator:
                 "sku": line_item.sku_ref or "",
                 "description": line_item.description or "",
                 "qty": str(line_item.qty) if line_item.qty is not None else None,
-                "unit_price": str(line_item.unit_price) if line_item.unit_price is not None else None,
-                "line_amount": str(line_item.line_amount) if line_item.line_amount is not None else None,
+                "unit_price": str(line_item.unit_price)
+                if line_item.unit_price is not None
+                else None,
+                "line_amount": str(line_item.line_amount)
+                if line_item.line_amount is not None
+                else None,
             }
             for line_item in agg.lines
         ]
@@ -148,12 +152,16 @@ class RealWorldEvaluator:
                     bbox_valid_count += 1
 
         # Image Preprocessing & Orientation signals
-        doc_detection_success = any(
-            ev.field_path == "image_preprocessing.quality" for ev in agg.evidence
-        ) or ext == ".pdf"
-        perspective_success = any(
-            ev.field_path == "image_preprocessing.perspective_correction" for ev in agg.evidence
-        ) or ext == ".pdf"
+        doc_detection_success = (
+            any(ev.field_path == "image_preprocessing.quality" for ev in agg.evidence)
+            or ext == ".pdf"
+        )
+        perspective_success = (
+            any(
+                ev.field_path == "image_preprocessing.perspective_correction" for ev in agg.evidence
+            )
+            or ext == ".pdf"
+        )
         deskew_angle = 0.0
         for ev in agg.evidence:
             if ev.field_path == "image_preprocessing.deskew":
@@ -186,7 +194,16 @@ class RealWorldEvaluator:
 
         # Exact Match on Header & Financials
         header_em_score, header_mismatches = compute_field_exact_match(
-            {k: gt_header.get(k) for k in ["supplier_tax_id", "buyer_tax_id", "invoice_number", "invoice_series", "issue_date"]},
+            {
+                k: gt_header.get(k)
+                for k in [
+                    "supplier_tax_id",
+                    "buyer_tax_id",
+                    "invoice_number",
+                    "invoice_series",
+                    "issue_date",
+                ]
+            },
             extracted_header,
         )
         fin_em_score, fin_mismatches = compute_field_exact_match(
@@ -200,17 +217,18 @@ class RealWorldEvaluator:
 
         # CER & WER (aligned line-by-line per ICDAR evaluation standards)
         ref_text = case.get("reference_text", "")
-        cer_wer = _align_lines_and_score(ref_text, recognized_text) if ref_text else {"cer": 0.0, "wer": 0.0}
+        cer_wer = (
+            _align_lines_and_score(ref_text, recognized_text)
+            if ref_text
+            else {"cer": 0.0, "wer": 0.0}
+        )
 
         # BBox Alignment ratio
         bbox_alignment_rate = (bbox_valid_count / bbox_total_count) if bbox_total_count > 0 else 1.0
 
         # Review & Safety checks
         requires_review = (
-            header_em_score < 1.0
-            or fin_em_score < 1.0
-            or f1 < 1.0
-            or bool(case.get("distortions"))
+            header_em_score < 1.0 or fin_em_score < 1.0 or f1 < 1.0 or bool(case.get("distortions"))
         )
         # False auto accept: if document has errors or distortions but was erroneously cleared
         false_auto_accept = False  # Production pipeline always sets requires_review on exceptions
@@ -260,30 +278,46 @@ class RealWorldEvaluator:
     def _extract_header_from_text(text: str) -> Dict[str, Optional[str]]:
         header = {}
         # Supplier Tax ID (first MST)
-        taxes = re.findall(r"M[aã]\s*s[oố]\s*thu[eế]\s*[:.]?\s*(\d{10}(?:-\d{3})?)", text, re.IGNORECASE)
+        taxes = re.findall(
+            r"M[aã]\s*s[oố]\s*thu[eế]\s*[:.]?\s*(\d{10}(?:-\d{3})?)", text, re.IGNORECASE
+        )
         header["supplier_tax_id"] = taxes[0].strip() if len(taxes) > 0 else None
         header["buyer_tax_id"] = taxes[1].strip() if len(taxes) > 1 else None
 
         # Invoice Number
-        m_no = re.search(r"S[oố]\s*(?:h[oó]a\s*\u0111\u01a1n)?\s*[:.]?\s*(\d{7})", text, re.IGNORECASE)
+        m_no = re.search(
+            r"S[oố]\s*(?:h[oó]a\s*\u0111\u01a1n)?\s*[:.]?\s*(\d{7})", text, re.IGNORECASE
+        )
         header["invoice_number"] = m_no.group(1).strip() if m_no else None
 
         # Invoice Series
-        m_ser = re.search(r"K[yý]\s*hi[eệ]u\s*[:.]?\s*([12][A-Z]\d{2}[A-Z]{3})", text, re.IGNORECASE)
+        m_ser = re.search(
+            r"K[yý]\s*hi[eệ]u\s*[:.]?\s*([12][A-Z]\d{2}[A-Z]{3})", text, re.IGNORECASE
+        )
         header["invoice_series"] = m_ser.group(1).strip() if m_ser else None
 
         # Issue Date
-        m_date = re.search(r"(?:Ng[aà]y\s*(?:l[aậ]p)?\s*[:.]?\s*)(\d{4}-\d{2}-\d{2})", text, re.IGNORECASE)
+        m_date = re.search(
+            r"(?:Ng[aà]y\s*(?:l[aậ]p)?\s*[:.]?\s*)(\d{4}-\d{2}-\d{2})", text, re.IGNORECASE
+        )
         header["issue_date"] = m_date.group(1).strip() if m_date else None
 
         # Financial totals
-        m_sub = re.search(r"(?:Cong\s*tien\s*(?:hang|dien|dich\s*vu)?|Subtotal)\s*[:.]?\s*([\d,.]+)", text, re.IGNORECASE)
+        m_sub = re.search(
+            r"(?:Cong\s*tien\s*(?:hang|dien|dich\s*vu)?|Subtotal)\s*[:.]?\s*([\d,.]+)",
+            text,
+            re.IGNORECASE,
+        )
         header["subtotal"] = m_sub.group(1).replace(",", "").strip() if m_sub else None
 
         m_vat = re.search(r"(?:Tien\s*thue\s*GTGT|Tax)\s*[:.]?\s*([\d,.]+)", text, re.IGNORECASE)
         header["tax_total"] = m_vat.group(1).replace(",", "").strip() if m_vat else None
 
-        m_tot = re.search(r"(?:Tong\s*cong(?:\s*tien\s*thanh\s*toan)?|Total)\s*[:.]?\s*([\d,.]+)", text, re.IGNORECASE)
+        m_tot = re.search(
+            r"(?:Tong\s*cong(?:\s*tien\s*thanh\s*toan)?|Total)\s*[:.]?\s*([\d,.]+)",
+            text,
+            re.IGNORECASE,
+        )
         header["amount_payable"] = m_tot.group(1).replace(",", "").strip() if m_tot else None
         return header
 
@@ -329,15 +363,19 @@ def main():
     evaluator = RealWorldEvaluator()
     results = []
 
-    print(f"\nEvaluating {len(cases)} test cases across public samples & augmented mobile photos...\n")
+    print(
+        f"\nEvaluating {len(cases)} test cases across public samples & augmented mobile photos...\n"
+    )
     for idx, case in enumerate(cases, start=1):
-        print(f"[{idx}/{len(cases)}] Running {case['case_id']} ({case['dataset_category']} - {case['difficulty']})...")
+        print(
+            f"[{idx}/{len(cases)}] Running {case['case_id']} ({case['dataset_category']} - {case['difficulty']})..."
+        )
         res = evaluator.evaluate_case(case)
         results.append(res)
         print(
             f"       -> Latency: {res['latency_ms']} ms | Peak RAM: {res['peak_ram_mb']} MB | "
-            f"CER: {res['cer']*100:.2f}% | Header EM: {res['header_exact_match']*100:.1f}% | "
-            f"Line F1: {res['line_items_f1']*100:.1f}%"
+            f"CER: {res['cer'] * 100:.2f}% | Header EM: {res['header_exact_match'] * 100:.1f}% | "
+            f"Line F1: {res['line_items_f1'] * 100:.1f}%"
         )
 
     # Segregated aggregation by Dataset Category
@@ -348,15 +386,25 @@ def main():
         category_summary[cat] = {
             "count": len(cat_cases),
             "avg_latency_ms": round(sum(r["latency_ms"] for r in cat_cases) / len(cat_cases), 1),
-            "p95_latency_ms": round(float(np.percentile([r["latency_ms"] for r in cat_cases], 95)), 1),
+            "p95_latency_ms": round(
+                float(np.percentile([r["latency_ms"] for r in cat_cases], 95)), 1
+            ),
             "peak_ram_mb": max(r["peak_ram_mb"] for r in cat_cases),
             "avg_cer": round(sum(r["cer"] for r in cat_cases) / len(cat_cases), 4),
             "avg_wer": round(sum(r["wer"] for r in cat_cases) / len(cat_cases), 4),
-            "header_exact_match": round(sum(r["header_exact_match"] for r in cat_cases) / len(cat_cases), 4),
-            "financial_field_accuracy": round(sum(r["financial_field_accuracy"] for r in cat_cases) / len(cat_cases), 4),
+            "header_exact_match": round(
+                sum(r["header_exact_match"] for r in cat_cases) / len(cat_cases), 4
+            ),
+            "financial_field_accuracy": round(
+                sum(r["financial_field_accuracy"] for r in cat_cases) / len(cat_cases), 4
+            ),
             "line_items_f1": round(sum(r["line_items_f1"] for r in cat_cases) / len(cat_cases), 4),
-            "table_extraction_f1": round(sum(r["table_extraction_f1"] for r in cat_cases) / len(cat_cases), 4),
-            "human_review_rate": round(sum(1 for r in cat_cases if r["requires_human_review"]) / len(cat_cases), 4),
+            "table_extraction_f1": round(
+                sum(r["table_extraction_f1"] for r in cat_cases) / len(cat_cases), 4
+            ),
+            "human_review_rate": round(
+                sum(1 for r in cat_cases if r["requires_human_review"]) / len(cat_cases), 4
+            ),
             "false_auto_accept_rate": 0.0,
         }
 
@@ -369,9 +417,15 @@ def main():
             difficulty_summary[diff] = {
                 "count": len(diff_cases),
                 "avg_cer": round(sum(r["cer"] for r in diff_cases) / len(diff_cases), 4),
-                "header_exact_match": round(sum(r["header_exact_match"] for r in diff_cases) / len(diff_cases), 4),
-                "line_items_f1": round(sum(r["line_items_f1"] for r in diff_cases) / len(diff_cases), 4),
-                "human_review_rate": round(sum(1 for r in diff_cases if r["requires_human_review"]) / len(diff_cases), 4),
+                "header_exact_match": round(
+                    sum(r["header_exact_match"] for r in diff_cases) / len(diff_cases), 4
+                ),
+                "line_items_f1": round(
+                    sum(r["line_items_f1"] for r in diff_cases) / len(diff_cases), 4
+                ),
+                "human_review_rate": round(
+                    sum(1 for r in diff_cases if r["requires_human_review"]) / len(diff_cases), 4
+                ),
             }
 
     # Aggregate Failure Analysis across the 12 categories
@@ -387,15 +441,23 @@ def main():
         "case_count": len(results),
         "overall_summary": {
             "avg_latency_ms": round(sum(r["latency_ms"] for r in results) / len(results), 1),
-            "p95_latency_ms": round(float(np.percentile([r["latency_ms"] for r in results], 95)), 1),
+            "p95_latency_ms": round(
+                float(np.percentile([r["latency_ms"] for r in results], 95)), 1
+            ),
             "max_peak_ram_mb": max(r["peak_ram_mb"] for r in results),
             "overall_cer": round(sum(r["cer"] for r in results) / len(results), 4),
             "overall_wer": round(sum(r["wer"] for r in results) / len(results), 4),
-            "header_exact_match": round(sum(r["header_exact_match"] for r in results) / len(results), 4),
-            "financial_field_accuracy": round(sum(r["financial_field_accuracy"] for r in results) / len(results), 4),
+            "header_exact_match": round(
+                sum(r["header_exact_match"] for r in results) / len(results), 4
+            ),
+            "financial_field_accuracy": round(
+                sum(r["financial_field_accuracy"] for r in results) / len(results), 4
+            ),
             "line_items_f1": round(sum(r["line_items_f1"] for r in results) / len(results), 4),
             "false_auto_accept_rate": 0.0,
-            "human_review_rate": round(sum(1 for r in results if r["requires_human_review"]) / len(results), 4),
+            "human_review_rate": round(
+                sum(1 for r in results if r["requires_human_review"]) / len(results), 4
+            ),
         },
         "by_dataset_category": category_summary,
         "by_difficulty": difficulty_summary,
@@ -410,13 +472,15 @@ def main():
     print("\n" + "=" * 80)
     print(" SUMMARY BY DATASET CATEGORY (TRANSPARENT SEGREGATION)")
     print("=" * 80)
-    print(f"{'Category':<22} | {'Count':<5} | {'CER':<7} | {'Header EM':<10} | {'Line F1':<8} | {'Review Rate':<11} | {'False Auto-Acc'}")
+    print(
+        f"{'Category':<22} | {'Count':<5} | {'CER':<7} | {'Header EM':<10} | {'Line F1':<8} | {'Review Rate':<11} | {'False Auto-Acc'}"
+    )
     print("-" * 80)
     for cat, s in category_summary.items():
         print(
-            f"{cat:<22} | {s['count']:<5} | {s['avg_cer']*100:>5.2f}% | "
-            f"{s['header_exact_match']*100:>8.1f}% | {s['line_items_f1']*100:>6.1f}% | "
-            f"{s['human_review_rate']*100:>9.1f}% | {s['false_auto_accept_rate']*100:>13.1f}%"
+            f"{cat:<22} | {s['count']:<5} | {s['avg_cer'] * 100:>5.2f}% | "
+            f"{s['header_exact_match'] * 100:>8.1f}% | {s['line_items_f1'] * 100:>6.1f}% | "
+            f"{s['human_review_rate'] * 100:>9.1f}% | {s['false_auto_accept_rate'] * 100:>13.1f}%"
         )
 
     print("\n" + "=" * 80)
