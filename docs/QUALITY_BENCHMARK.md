@@ -174,7 +174,80 @@ Arithmetic Validity 100% và Anomaly Detection F1 100% ở cả hai run. Caseboo
 
 ---
 
-## 5. Quy trình Kiểm thử Tự động trong CI/CD
+## 5. Đánh giá Thực nghiệm Hóa đơn Đa điều kiện & Layout Thực tế (Phase 5 — Real-World Document Evaluation)
+
+> **Mục tiêu:** Đo lường năng lực nhận dạng quang học (OCR) và bóc tách thực tế trên các hóa đơn có đa dạng bố cục nhà cung cấp và điều kiện chụp thực tế (chụp góc nghiêng 3D, bóng đổ, nếp gấp, nền phức tạp, bảng 8 dòng, xoay lệch và thiếu sáng).
+> **Nguyên tắc minh bạch dữ liệu:** Tách biệt hoàn toàn giữa hóa đơn công khai (`public_sample`) và ảnh chụp biến dạng (`augmented_image`). Tuyệt đối không gộp chung với dữ liệu tổng hợp (`synthetic`) để tuyên bố độ chính xác ảo.
+> **Lệnh kiểm chứng:** `python benchmarks/scripts/evaluate_real_world.py`
+> **Artifact kết quả:** `benchmarks/results/real_world_evaluation_report.json`
+> **Ground Truth Manifest:** `benchmarks/fixtures/real_world_manifest.json`
+
+### 5.1. Danh mục 10 Chứng từ Đánh giá Đa điều kiện
+
+| Mã Case | Phân loại | Định dạng | Độ khó | Đặc tính & Tình huống biến dạng thực tế |
+|---|---|---|:---:|---|
+| **PUB-01-EVN** | `public_sample` | PDF Digital | Dễ | Hóa đơn tiền điện EVN Hà Nội dạng PDF text layer với bảng biểu phí bậc thang |
+| **PUB-02-VNPT** | `public_sample` | PDF Digital | Dễ | Hóa đơn cước viễn thông VNPT dạng PDF text layer với bảng dịch vụ cáp quang và IP tĩnh |
+| **PUB-03-PETROLIMEX** | `public_sample` | PDF Scan | Trung bình | Hóa đơn xăng dầu Petrolimex dạng Scanned PDF (ảnh quét raster) |
+| **AUG-01-PERSPECTIVE** | `augmented_image` | PNG | Khó | Ảnh chụp điện thoại góc nghiêng 15° với biến dạng phối cảnh 3D trên bàn làm việc |
+| **AUG-02-SHADOW** | `augmented_image` | JPEG | Khó | Ảnh chụp điện thoại có bóng đổ che khuất và ánh sáng không đồng đều |
+| **AUG-03-WRINKLED** | `augmented_image` | PNG | Khó | Ảnh hóa đơn nhà hàng bị nhăn nheo, gập nếp gấp ngang (creases and folds) |
+| **AUG-04-COMPLEX-BG** | `augmented_image` | JPEG | Trung bình | Hóa đơn đặt trên bàn làm việc có vật thể xung quanh và viền nền phức tạp |
+| **AUG-05-MULTI-LINE** | `augmented_image` | PDF Scan | Trung bình | Hóa đơn linh kiện máy tính 8 dòng hàng dạng scan ảnh raster |
+| **AUG-06-MULTI-PAGE** | `augmented_image` | PDF Digital | Trung bình | Hóa đơn dịch vụ điện toán đám mây FPT Telecom 2 trang kèm bảng kê chi tiết |
+| **AUG-07-SKEW-LOWLIGHT** | `augmented_image` | PNG | Khó | Hóa đơn dịch vụ nghỉ dưỡng bị xoay 7° và chụp trong điều kiện thiếu sáng (low contrast) |
+
+---
+
+### 5.2. Kết quả Đánh giá Chất lượng OCR & Trích xuất Dữ liệu
+
+#### Phân định Minh bạch theo Loại Dữ liệu (Dataset Category)
+
+| Phân loại | Số lượng | CER | WER | Header EM | Financial Acc | Line Items F1 | False Auto-Accept | Human Review Rate | Peak RAM |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| **public_sample** | 3 | **39.45%** | **29.98%** | **80.0%** | **66.67%** | **33.33%** | **0.0%** | **100.0%** | 291.7 MB |
+| **augmented_image** | 7 | **47.18%** | **46.86%** | **62.86%** | **28.57%** | **19.64%** | **0.0%** | **100.0%** | 172.8 MB |
+| **Toàn bộ bộ đánh giá** | 10 | **44.86%** | **41.79%** | **68.0%** | **40.00%** | **23.75%** | **0.0%** | **100.0%** | 291.7 MB |
+
+#### Phân định theo Mức độ Khó (Difficulty)
+
+| Mức độ khó | Số lượng | CER | Header Exact Match | Line Items F1 | Human Review Rate |
+|---|:---:|:---:|:---:|:---:|:---:|
+| **Dễ (Easy)** | 2 | 38.71% | 80.0% | 50.0% | 100.0% |
+| **Trung bình (Medium)** | 4 | 40.22% | 75.0% | 34.38% | 100.0% |
+| **Khó (Hard - Perspective/Shadow/Wrinkle/Skew)** | 4 | 52.59% | 55.0% | 0.0% | 100.0% |
+
+#### Độ trễ, Tài nguyên và Chi phí Vận hành
+- **Độ trễ trung bình:** 23,419.5 ms (~23.4s) trên CPU.
+- **Độ trễ P95:** 49,331.8 ms (~49.3s).
+- **Bộ nhớ RAM tiêu thụ đỉnh (Peak RSS/RAM):** 291.66 MB (trong giới hạn an toàn tài nguyên container 2GB).
+- **Chi phí gọi API (API Cost):** $0.00 (toàn bộ pipeline xử lý offline bằng Docling OCR + thuật toán tiền xử lý hình ảnh hình học).
+- **An toàn duyệt tự động (False Auto-Accept Rate):** **0.0%** (100% tài liệu có trường suy giảm/chưa xác minh được chuyển thẳng sang Human Review).
+
+---
+
+### 5.3. Bảng Phân loại Lỗi Chi tiết (12-Class Failure Analysis Taxonomy)
+
+Hệ thống ghi nhận và phân loại lỗi truy vết theo 12 nhóm nguyên nhân:
+
+| Nhóm Lỗi (Taxonomy Class) | Số lần phát hiện | Phân tích Nguyên nhân Gốc (Root Cause) & Biện pháp khắc phục |
+|---|:---:|---|
+| **document_boundary_detection** | 0 | Thuật toán `detect_document_boundary` với phát hiện góc Contours + Convex Hull định vị đúng 100% biên hóa đơn trên nền phức tạp. |
+| **cropping** | 0 | Không có lỗi cắt xén biên hoặc mất vùng thông tin sau khi crop văn bản. |
+| **perspective_correction** | 0 | Bắn phép biến đổi 4 điểm Homography (`cv2.getPerspectiveTransform`) nắn thẳng phối cảnh thành công trên các góc nghiêng tới 15°. |
+| **skew_rotation** | 1 | Phát hiện ở case **AUG-07-SKEW-LOWLIGHT** (xoay 7° kèm thiếu sáng). Thuật toán Hough Transform bị suy giảm độ tương phản cạnh do ánh sáng yếu. Cần nâng ngưỡng adaptive CLAHE trước khi dò đường thẳng Hough. |
+| **vietnamese_diacritics** | 10 | EasyOCR khi nhận dạng ký tự tiếng Việt có dấu (`ắ`, `ặ`, `ồ`, `ể`, `đ`) trên ảnh scan raster và ảnh chụp điện thoại thường bị mất dấu hoặc nhầm dấu thanh (`o` thay cho `ơ`, `a` thay cho `á`). Thuật toán `normalize_extracted_text` đã khôi phục một phần nhưng vẫn cần từ điển âm tiết tiếng Việt chuyên ngành hóa đơn. |
+| **reading_order** | 0 | Bố cục đọc đoạn thẳng và khối bảng được bóc tách đúng trật tự luồng từ trên xuống dưới theo tọa độ BBox. |
+| **table_structure** | 0 | Cấu trúc bảng đa dòng được bảo toàn lưới cell, không bị đứt dòng bảng giữa các trang. |
+| **merged_cells** | 0 | Bộ tách gộp ô (`split_merged_cells`) ngăn ngừa hoàn toàn tình trạng dính cột mô tả và cột số lượng. |
+| **field_association** | 8 | Các mẫu hóa đơn công khai (EVN, Petrolimex) và ảnh biến dạng có nhãn định danh nằm ở vị trí không chuẩn mực (ví dụ: nhãn "Mã số thuế" nằm tách biệt hoặc cách xa giá trị 3 ô trống). Cần tăng cường cơ chế liên kết nhãn-giá trị dựa trên khoảng cách không gian BBox (Spatial Nearest Neighbor). |
+| **quantity_price_amount** | 10 | Định dạng tiền tệ VND với dấu chấm phân cách hàng nghìn (`1.500.000`) trên ảnh nếp gấp hoặc scan mờ đôi khi bị OCR nhầm thành dấu phẩy, khoảng trắng, hoặc ký tự số `0` bị nhầm thành `o` (`6ooo0000`). Bounded recovery đã ngăn việc suy đoán số tiền sai, chuyển về Human Review. |
+| **vision_hallucination** | 0 | Hoàn toàn không phát sinh hiện tượng sinh ảo số tiền hoặc dòng hàng (Zero Hallucination) do không sử dụng LLM ungrounded. |
+| **missing_provenance_wrong_bbox** | 0 | 100% bằng chứng trích xuất (`FieldEvidence`) đều có Bounding Box hợp lệ (`bbox_alignment_rate` = 100.0%), đảm bảo khả năng kiểm toán truy vết nguồn. |
+
+---
+
+## 6. Quy trình Kiểm thử Tự động trong CI/CD
 
 Quy trình kiểm chuẩn chất lượng ứng dụng được tích hợp tự động trong workflow CI GitHub Actions (`.github/workflows/ci.yml`):
 

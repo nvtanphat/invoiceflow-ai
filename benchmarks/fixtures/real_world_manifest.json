@@ -1,0 +1,487 @@
+[
+  {
+    "case_id": "PUB-01-EVN",
+    "dataset_category": "public_sample",
+    "difficulty": "easy",
+    "format": "pdf",
+    "filename": "pub_01_evn.pdf",
+    "description": "Hóa đơn tiền điện EVN Hà Nội dạng Digital PDF với bảng điện năng bậc thang",
+    "distortions": [],
+    "vendor_domain": "energy",
+    "header": {
+      "supplier_tax_id": "0100100079",
+      "supplier_name": "Tong cong ty Dien luc TP Ha Noi",
+      "buyer_tax_id": "0109998888",
+      "buyer_name": "Cong ty TNHH Giai phap Phan mem Tien Phong",
+      "invoice_number": "0045231",
+      "invoice_series": "1C26TEE",
+      "issue_date": "2026-03-01",
+      "currency": "VND",
+      "subtotal": "1051450.0000",
+      "tax_total": "84116.0000",
+      "amount_payable": "1135566.0000"
+    },
+    "lines": [
+      {
+        "sku": "ELEC-TIER-1",
+        "description": "Dien nang kinh doanh Bac 1 [ELEC-TIER-1]",
+        "qty": "100.0000",
+        "unit_price": "1806.0000",
+        "tax_rate": "8.00",
+        "line_amount": "180600.0000"
+      },
+      {
+        "sku": "ELEC-TIER-2",
+        "description": "Dien nang kinh doanh Bac 2 [ELEC-TIER-2]",
+        "qty": "150.0000",
+        "unit_price": "2167.0000",
+        "tax_rate": "8.00",
+        "line_amount": "325050.0000"
+      },
+      {
+        "sku": "ELEC-TIER-3",
+        "description": "Dien nang kinh doanh Bac 3 [ELEC-TIER-3]",
+        "qty": "200.0000",
+        "unit_price": "2729.0000",
+        "tax_rate": "8.00",
+        "line_amount": "545800.0000"
+      }
+    ],
+    "unreadable_fields": {},
+    "reference_text": "HOA DON GIA TRI GIA TANG (TIEN DIEN)\nKy hieu: 1C26TEE  So hoa don: 0045231  Ngay lap: 2026-03-01\nDon vi ban: Tong cong ty Dien luc TP Ha Noi  Ma so thue: 0100100079\nDon vi mua: Cong ty TNHH Giai phap Phan mem Tien Phong  Ma so thue: 0109998888\nDien nang kinh doanh Bac 1 [ELEC-TIER-1]  100.0000  1806.0000  180600.0000\nDien nang kinh doanh Bac 2 [ELEC-TIER-2]  150.0000  2167.0000  325050.0000\nDien nang kinh doanh Bac 3 [ELEC-TIER-3]  200.0000  2729.0000  545800.0000\nCong tien dien: 1051450.0000  Tien thue GTGT: 84116.0000  Tong cong tien thanh toan: 1135566.0000"
+  },
+  {
+    "case_id": "PUB-02-VNPT",
+    "dataset_category": "public_sample",
+    "difficulty": "easy",
+    "format": "pdf",
+    "filename": "pub_02_vnpt.pdf",
+    "description": "Hóa đơn cước viễn thông VNPT dạng Digital PDF với bảng dịch vụ cáp quang và IP tĩnh",
+    "distortions": [],
+    "vendor_domain": "telecom",
+    "header": {
+      "supplier_tax_id": "0100684378",
+      "supplier_name": "Tap doan Buu chinh Vien thong Viet Nam",
+      "buyer_tax_id": "0109998888",
+      "buyer_name": "Cong ty TNHH Giai phap Phan mem Tien Phong",
+      "invoice_number": "0089201",
+      "invoice_series": "1C26TVV",
+      "issue_date": "2026-03-05",
+      "currency": "VND",
+      "subtotal": "1300000.0000",
+      "tax_total": "130000.0000",
+      "amount_payable": "1430000.0000"
+    },
+    "lines": [
+      {
+        "sku": "FIBER-500M",
+        "description": "Cuoc Internet Cap quang FiberVNN 500Mbps [FIBER-500M]",
+        "qty": "1.0000",
+        "unit_price": "800000.0000",
+        "tax_rate": "10.00",
+        "line_amount": "800000.0000"
+      },
+      {
+        "sku": "IP-STATIC-01",
+        "description": "Cuoc dia chi IP tinh co dinh IPv4 [IP-STATIC-01]",
+        "qty": "1.0000",
+        "unit_price": "500000.0000",
+        "tax_rate": "10.00",
+        "line_amount": "500000.0000"
+      }
+    ],
+    "unreadable_fields": {},
+    "reference_text": "HOA DON GIA TRI GIA TANG DICH VU VIEN THONG\nKy hieu: 1C26TVV  So hoa don: 0089201  Ngay lap: 2026-03-05\nDon vi ban: Tap doan Buu chinh Vien thong Viet Nam  Ma so thue: 0100684378\nDon vi mua: Cong ty TNHH Giai phap Phan mem Tien Phong  Ma so thue: 0109998888\nCuoc Internet Cap quang FiberVNN 500Mbps [FIBER-500M]  1.0000  800000.0000  800000.0000\nCuoc dia chi IP tinh co dinh IPv4 [IP-STATIC-01]  1.0000  500000.0000  500000.0000\nCong tien dich vu: 1300000.0000  Tien thue GTGT: 130000.0000  Tong cong tien thanh toan: 1430000.0000"
+  },
+  {
+    "case_id": "PUB-03-PETROLIMEX",
+    "dataset_category": "public_sample",
+    "difficulty": "medium",
+    "format": "pdf",
+    "filename": "pub_03_petrolimex.pdf",
+    "description": "Hóa đơn xăng dầu Petrolimex dạng Scanned PDF (ảnh quét raster)",
+    "distortions": [
+      "scanned_raster"
+    ],
+    "vendor_domain": "fuel",
+    "header": {
+      "supplier_tax_id": "0100107624",
+      "supplier_name": "Tap doan Xang dau Viet Nam",
+      "buyer_tax_id": "0109998888",
+      "buyer_name": "Cong ty TNHH Giai phap Phan mem Tien Phong",
+      "invoice_number": "0077312",
+      "invoice_series": "1C26TPP",
+      "issue_date": "2026-03-08",
+      "currency": "VND",
+      "subtotal": "1175000.0000",
+      "tax_total": "117500.0000",
+      "amount_payable": "1292500.0000"
+    },
+    "lines": [
+      {
+        "sku": "RON95-V",
+        "description": "Xang khong chi RON 95-V [RON95-V]",
+        "qty": "50.0000",
+        "unit_price": "23500.0000",
+        "tax_rate": "10.00",
+        "line_amount": "1175000.0000"
+      }
+    ],
+    "unreadable_fields": {},
+    "reference_text": "HOA DON GIA TRI GIA TANG XANG DAU\nKy hieu: 1C26TPP  So hoa don: 0077312  Ngay lap: 2026-03-08\nDon vi ban: Tap doan Xang dau Viet Nam  Ma so thue: 0100107624\nDon vi mua: Cong ty TNHH Giai phap Phan mem Tien Phong  Ma so thue: 0109998888\nXang khong chi RON 95-V [RON95-V]  50.0000  23500.0000  1175000.0000\nCong tien hang: 1175000.0000  Tien thue GTGT: 117500.0000  Tong cong tien thanh toan: 1292500.0000"
+  },
+  {
+    "case_id": "AUG-01-PERSPECTIVE",
+    "dataset_category": "augmented_image",
+    "difficulty": "hard",
+    "format": "png",
+    "filename": "aug_01_perspective.png",
+    "description": "Ảnh chụp điện thoại góc nghiêng 15 độ với biến dạng phối cảnh 3D trên nền bàn làm việc",
+    "distortions": [
+      "perspective_distortion",
+      "background_texture"
+    ],
+    "vendor_domain": "hardware",
+    "header": {
+      "supplier_tax_id": "0102223333",
+      "supplier_name": "Cong ty TNHH Thiet bi Tin hoc A Chau",
+      "buyer_tax_id": "0109998888",
+      "buyer_name": "Cong ty TNHH Giai phap Phan mem Tien Phong",
+      "invoice_number": "0001055",
+      "invoice_series": "1C26TAA",
+      "issue_date": "2026-03-02",
+      "currency": "VND",
+      "subtotal": "10600000.0000",
+      "tax_total": "1060000.0000",
+      "amount_payable": "11660000.0000"
+    },
+    "lines": [
+      {
+        "sku": "DELL-24P",
+        "description": "Man hinh may tinh Dell 24 inch [DELL-24P]",
+        "qty": "2.0000",
+        "unit_price": "3500000.0000",
+        "tax_rate": "10.00",
+        "line_amount": "7000000.0000"
+      },
+      {
+        "sku": "KB-MECH-01",
+        "description": "Ban phim co khong day [KB-MECH-01]",
+        "qty": "3.0000",
+        "unit_price": "1200000.0000",
+        "tax_rate": "10.00",
+        "line_amount": "3600000.0000"
+      }
+    ],
+    "unreadable_fields": {},
+    "reference_text": "HOA DON BAN HANG (MOBILE PHOTO)\nKy hieu: 1C26TAA  So: 0001055  Ngay: 2026-03-02\nDon vi ban: Cong ty TNHH Thiet bi Tin hoc A Chau  Ma so thue: 0102223333\nDon vi mua: Cong ty TNHH Giai phap Phan mem Tien Phong  Ma so thue: 0109998888\nMan hinh may tinh Dell 24 inch [DELL-24P]  2.0000  3500000.0000  7000000.0000\nBan phim co khong day [KB-MECH-01]  3.0000  1200000.0000  3600000.0000\nCong tien hang: 10600000.0000  Tien thue GTGT: 1060000.0000  Tong cong thanh toan: 11660000.0000"
+  },
+  {
+    "case_id": "AUG-02-SHADOW",
+    "dataset_category": "augmented_image",
+    "difficulty": "hard",
+    "format": "jpeg",
+    "filename": "aug_02_shadow.jpg",
+    "description": "Ảnh chụp điện thoại có bóng đổ che khuất và ánh sáng không đều (shadow occlusion)",
+    "distortions": [
+      "shadow_occlusion",
+      "uneven_illumination"
+    ],
+    "vendor_domain": "logistics",
+    "header": {
+      "supplier_tax_id": "0301112233",
+      "supplier_name": "Cong ty CP Dich vu Hau can LogiTrans",
+      "buyer_tax_id": "0109998888",
+      "buyer_name": "Cong ty TNHH Giai phap Phan mem Tien Phong",
+      "invoice_number": "0002199",
+      "invoice_series": "1C26TLG",
+      "issue_date": "2026-03-04",
+      "currency": "VND",
+      "subtotal": "4200000.0000",
+      "tax_total": "420000.0000",
+      "amount_payable": "4620000.0000"
+    },
+    "lines": [
+      {
+        "sku": "LOGI-INTER-01",
+        "description": "Cuoc van chuyen hang hoa lien tinh [LOGI-INTER-01]",
+        "qty": "1.0000",
+        "unit_price": "4200000.0000",
+        "tax_rate": "10.00",
+        "line_amount": "4200000.0000"
+      }
+    ],
+    "unreadable_fields": {},
+    "reference_text": "HOA DON DICH VU VAN TAI\nKy hieu: 1C26TLG  So: 0002199  Ngay: 2026-03-04\nDon vi ban: Cong ty CP Dich vu Hau can LogiTrans  Ma so thue: 0301112233\nDon vi mua: Cong ty TNHH Giai phap Phan mem Tien Phong  Ma so thue: 0109998888\nCuoc van chuyen hang hoa lien tinh [LOGI-INTER-01]  1.0000  4200000.0000  4200000.0000\nCong tien hang: 4200000.0000  Tien thue GTGT: 420000.0000  Tong cong thanh toan: 4620000.0000"
+  },
+  {
+    "case_id": "AUG-03-WRINKLED",
+    "dataset_category": "augmented_image",
+    "difficulty": "hard",
+    "format": "png",
+    "filename": "aug_03_wrinkled.png",
+    "description": "Ảnh hóa đơn nhà hàng bị nhăn nheo, gập nếp ngang (folds and wrinkles)",
+    "distortions": [
+      "wrinkles",
+      "creases",
+      "line_distortion"
+    ],
+    "vendor_domain": "restaurant",
+    "header": {
+      "supplier_tax_id": "0103334455",
+      "supplier_name": "Nha hang Am thuc Pho Co",
+      "buyer_tax_id": "0109998888",
+      "buyer_name": "Cong ty TNHH Giai phap Phan mem Tien Phong",
+      "invoice_number": "0005511",
+      "invoice_series": "1C26TRH",
+      "issue_date": "2026-03-06",
+      "currency": "VND",
+      "subtotal": "3000000.0000",
+      "tax_total": "240000.0000",
+      "amount_payable": "3240000.0000"
+    },
+    "lines": [
+      {
+        "sku": "SET-VIP-04",
+        "description": "Set an tiep khach doanh nghiep [SET-VIP-04]",
+        "qty": "5.0000",
+        "unit_price": "550000.0000",
+        "tax_rate": "8.00",
+        "line_amount": "2750000.0000"
+      },
+      {
+        "sku": "WATER-01",
+        "description": "Nuoc uong khoang thien nhien [WATER-01]",
+        "qty": "10.0000",
+        "unit_price": "25000.0000",
+        "tax_rate": "8.00",
+        "line_amount": "250000.0000"
+      }
+    ],
+    "unreadable_fields": {},
+    "reference_text": "HOA DON AN UONG TIEP KHACH\nKy hieu: 1C26TRH  So: 0005511  Ngay: 2026-03-06\nDon vi ban: Nha hang Am thuc Pho Co  Ma so thue: 0103334455\nDon vi mua: Cong ty TNHH Giai phap Phan mem Tien Phong  Ma so thue: 0109998888\nSet an tiep khach doanh nghiep [SET-VIP-04]  5.0000  550000.0000  2750000.0000\nNuoc uong khoang thien nhien [WATER-01]  10.0000  25000.0000  250000.0000\nCong tien hang: 3000000.0000  Tien thue GTGT: 240000.0000  Tong cong thanh toan: 3240000.0000"
+  },
+  {
+    "case_id": "AUG-04-COMPLEX-BG",
+    "dataset_category": "augmented_image",
+    "difficulty": "medium",
+    "format": "jpeg",
+    "filename": "aug_04_complex_bg.jpg",
+    "description": "Hóa đơn đặt trên bàn làm việc có vật thể xung quanh và viền nền phức tạp",
+    "distortions": [
+      "complex_background",
+      "edge_noise"
+    ],
+    "vendor_domain": "office_supplies",
+    "header": {
+      "supplier_tax_id": "0100100147",
+      "supplier_name": "Cong ty TNHH Van phong pham Hong Ha",
+      "buyer_tax_id": "0109998888",
+      "buyer_name": "Cong ty TNHH Giai phap Phan mem Tien Phong",
+      "invoice_number": "0003322",
+      "invoice_series": "1C26TVP",
+      "issue_date": "2026-03-07",
+      "currency": "VND",
+      "subtotal": "700000.0000",
+      "tax_total": "56000.0000",
+      "amount_payable": "756000.0000"
+    },
+    "lines": [
+      {
+        "sku": "PEN-TL-01",
+        "description": "But bi thien long xanh [PEN-TL-01]",
+        "qty": "50.0000",
+        "unit_price": "5000.0000",
+        "tax_rate": "8.00",
+        "line_amount": "250000.0000"
+      },
+      {
+        "sku": "FILE-7CM",
+        "description": "Tap bia ho so co cong 7cm [FILE-7CM]",
+        "qty": "10.0000",
+        "unit_price": "45000.0000",
+        "tax_rate": "8.00",
+        "line_amount": "450000.0000"
+      }
+    ],
+    "unreadable_fields": {},
+    "reference_text": "HOA DON VAN PHONG PHAM\nKy hieu: 1C26TVP  So: 0003322  Ngay: 2026-03-07\nDon vi ban: Cong ty TNHH Van phong pham Hong Ha  Ma so thue: 0100100147\nDon vi mua: Cong ty TNHH Giai phap Phan mem Tien Phong  Ma so thue: 0109998888\nBut bi thien long xanh [PEN-TL-01]  50.0000  5000.0000  250000.0000\nTap bia ho so co cong 7cm [FILE-7CM]  10.0000  45000.0000  450000.0000\nCong tien hang: 700000.0000  Tien thue GTGT: 56000.0000  Tong cong thanh toan: 756000.0000"
+  },
+  {
+    "case_id": "AUG-05-MULTI-LINE",
+    "dataset_category": "augmented_image",
+    "difficulty": "medium",
+    "format": "pdf",
+    "filename": "aug_05_multi_line.pdf",
+    "description": "Hóa đơn linh kiện máy tính 8 dòng hàng dạng scan ảnh",
+    "distortions": [
+      "multi_line_table",
+      "scanned_raster"
+    ],
+    "vendor_domain": "hardware",
+    "header": {
+      "supplier_tax_id": "0304998368",
+      "supplier_name": "Cong ty Co phan Cong nghe Phong Vu",
+      "buyer_tax_id": "0109998888",
+      "buyer_name": "Cong ty TNHH Giai phap Phan mem Tien Phong",
+      "invoice_number": "0009841",
+      "invoice_series": "1C26TPV",
+      "issue_date": "2026-03-09",
+      "currency": "VND",
+      "subtotal": "95900000.0000",
+      "tax_total": "9590000.0000",
+      "amount_payable": "105490000.0000"
+    },
+    "lines": [
+      {
+        "sku": "CPU-I7-14700K",
+        "description": "CPU Intel Core i7 14700K [CPU-I7-14700K]",
+        "qty": "2.0000",
+        "unit_price": "9500000.0000",
+        "tax_rate": "10.00",
+        "line_amount": "19000000.0000"
+      },
+      {
+        "sku": "MB-Z790-STRIX",
+        "description": "Mainboard Asus ROG Strix Z790 [MB-Z790-STRIX]",
+        "qty": "2.0000",
+        "unit_price": "8200000.0000",
+        "tax_rate": "10.00",
+        "line_amount": "16400000.0000"
+      },
+      {
+        "sku": "RAM-32GB-D5",
+        "description": "RAM Corsair Vengeance 32GB DDR5 [RAM-32GB-D5]",
+        "qty": "4.0000",
+        "unit_price": "2800000.0000",
+        "tax_rate": "10.00",
+        "line_amount": "11200000.0000"
+      },
+      {
+        "sku": "SSD-2TB-990P",
+        "description": "SSD Samsung 990 Pro 2TB NVMe [SSD-2TB-990P]",
+        "qty": "3.0000",
+        "unit_price": "4200000.0000",
+        "tax_rate": "10.00",
+        "line_amount": "12600000.0000"
+      },
+      {
+        "sku": "VGA-RTX4070S",
+        "description": "VGA Gigabyte RTX 4070 Super [VGA-RTX4070S]",
+        "qty": "1.0000",
+        "unit_price": "17500000.0000",
+        "tax_rate": "10.00",
+        "line_amount": "17500000.0000"
+      },
+      {
+        "sku": "PSU-850W-GOLD",
+        "description": "Nguon Seasonic Focus 850W Gold [PSU-850W-GOLD]",
+        "qty": "2.0000",
+        "unit_price": "3100000.0000",
+        "tax_rate": "10.00",
+        "line_amount": "6200000.0000"
+      },
+      {
+        "sku": "CASE-FRACTAL-N",
+        "description": "Vo case Fractal Design North [CASE-FRACTAL-N]",
+        "qty": "2.0000",
+        "unit_price": "3600000.0000",
+        "tax_rate": "10.00",
+        "line_amount": "7200000.0000"
+      },
+      {
+        "sku": "COOL-LT720",
+        "description": "Tan nhiet nuoc AIO DeepCool LT720 [COOL-LT720]",
+        "qty": "2.0000",
+        "unit_price": "2900000.0000",
+        "tax_rate": "10.00",
+        "line_amount": "5800000.0000"
+      }
+    ],
+    "unreadable_fields": {},
+    "reference_text": "HOA DON GIA TRI GIA TANG (LINH KIEN MAY TINH)\nKy hieu: 1C26TPV  So: 0009841  Ngay: 2026-03-09\nDon vi ban: Cong ty Co phan Cong nghe Phong Vu  Ma so thue: 0304998368\nDon vi mua: Cong ty TNHH Giai phap Phan mem Tien Phong  Ma so thue: 0109998888\nCong tien hang: 95900000.0000  Tien thue GTGT: 9590000.0000  Tong cong thanh toan: 105490000.0000"
+  },
+  {
+    "case_id": "AUG-06-MULTI-PAGE",
+    "dataset_category": "augmented_image",
+    "difficulty": "medium",
+    "format": "pdf",
+    "filename": "aug_06_multi_page.pdf",
+    "description": "Hóa đơn dịch vụ điện toán đám mây FPT Telecom 2 trang kèm bảng kê chi tiết",
+    "distortions": [
+      "multi_page"
+    ],
+    "vendor_domain": "cloud",
+    "header": {
+      "supplier_tax_id": "0101778163",
+      "supplier_name": "Cong ty Co phan Vien thong FPT",
+      "buyer_tax_id": "0109998888",
+      "buyer_name": "Cong ty TNHH Giai phap Phan mem Tien Phong",
+      "invoice_number": "0008821",
+      "invoice_series": "1C26TFPT",
+      "issue_date": "2026-03-10",
+      "currency": "VND",
+      "subtotal": "25000000.0000",
+      "tax_total": "2500000.0000",
+      "amount_payable": "27500000.0000"
+    },
+    "lines": [
+      {
+        "sku": "FPT-CLOUD-S8",
+        "description": "Dich vu Cloud Server vCPU 8 Ram 16GB [FPT-CLOUD-S8]",
+        "qty": "1.0000",
+        "unit_price": "15000000.0000",
+        "tax_rate": "10.00",
+        "line_amount": "15000000.0000"
+      },
+      {
+        "sku": "FPT-S3-5TB",
+        "description": "Dich vu Object Storage 5TB S3 compatible [FPT-S3-5TB]",
+        "qty": "1.0000",
+        "unit_price": "10000000.0000",
+        "tax_rate": "10.00",
+        "line_amount": "10000000.0000"
+      }
+    ],
+    "unreadable_fields": {},
+    "reference_text": "HOA DON GIA TRI GIA TANG (TRANG 1/2)\nKy hieu: 1C26TFPT  So: 0008821  Ngay: 2026-03-10\nDon vi ban: Cong ty Co phan Vien thong FPT  Ma so thue: 0101778163\nDon vi mua: Cong ty TNHH Giai phap Phan mem Tien Phong  Ma so thue: 0109998888\nDich vu Cloud Server vCPU 8 Ram 16GB [FPT-CLOUD-S8]  1.0000  15000000.0000  15000000.0000\nDich vu Object Storage 5TB S3 compatible [FPT-S3-5TB]  1.0000  10000000.0000  10000000.0000\nCong tien hang: 25000000.0000  Tien thue GTGT: 2500000.0000  Tong thanh toan: 27500000.0000"
+  },
+  {
+    "case_id": "AUG-07-SKEW-LOWLIGHT",
+    "dataset_category": "augmented_image",
+    "difficulty": "hard",
+    "format": "png",
+    "filename": "aug_07_skew_lowlight.png",
+    "description": "Hóa đơn dịch vụ nghỉ dưỡng bị xoay 7 độ và chụp trong điều kiện thiếu sáng (low contrast)",
+    "distortions": [
+      "skew_7deg",
+      "low_light"
+    ],
+    "vendor_domain": "hospitality",
+    "header": {
+      "supplier_tax_id": "0309995544",
+      "supplier_name": "Cong ty TNHH Thuong mai Dich vu Tan Hung",
+      "buyer_tax_id": "0109998888",
+      "buyer_name": "Cong ty TNHH Giai phap Phan mem Tien Phong",
+      "invoice_number": "0004456",
+      "invoice_series": "1C26TTH",
+      "issue_date": "2026-03-11",
+      "currency": "VND",
+      "subtotal": "4400000.0000",
+      "tax_total": "352000.0000",
+      "amount_payable": "4752000.0000"
+    },
+    "lines": [
+      {
+        "sku": "ROOM-VIP-01",
+        "description": "Dich vu phong nghi hoi nghi khach hang [ROOM-VIP-01]",
+        "qty": "2.0000",
+        "unit_price": "2200000.0000",
+        "tax_rate": "8.00",
+        "line_amount": "4400000.0000"
+      }
+    ],
+    "unreadable_fields": {},
+    "reference_text": "HOA DON TIEP KHACH VA DU LICH\nKy hieu: 1C26TTH  So: 0004456  Ngay: 2026-03-11\nDon vi ban: Cong ty TNHH Thuong mai Dich vu Tan Hung  Ma so thue: 0309995544\nDon vi mua: Cong ty TNHH Giai phap Phan mem Tien Phong  Ma so thue: 0109998888\nDich vu phong nghi hoi nghi khach hang [ROOM-VIP-01]  2.0000  2200000.0000  4400000.0000\nCong tien hang: 4400000.0000  Tien thue GTGT: 352000.0000  Tong cong thanh toan: 4752000.0000"
+  }
+]
