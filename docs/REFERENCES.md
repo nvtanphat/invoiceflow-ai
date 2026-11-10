@@ -12,6 +12,7 @@
 | [MinerU](https://github.com/opendatalab/MinerU) | layout/table PDF alternate | chỉ prototype comparator; kiểm tra requirements & license riêng ở tag dùng |
 | [Marker](https://github.com/datalab-to/marker) | alternative PDF-to-Markdown/JSON | đọc hạn chế output/trade-offs, không dùng làm thước đo invoice field accuracy |
 | [olmOCR](https://github.com/allenai/olmocr) | VLM document OCR research | hardware/pipeline phù hợp benchmark khi có GPU; không là P0 CPU-only |
+| [invoice2data](https://github.com/invoice-x/invoice2data) | deterministic field extraction bằng keyword/regex template theo field | học cách tổ chức nhãn theo field (`domain/invoices/field_labels.py`); **không** copy code, không dùng template YAML. License MIT — kiểm tra lại tại commit nếu reuse code |
 | [Google LangExtract](https://github.com/google/langextract) | evidence-grounded structured extraction | học extraction/citation contract; không thay business rules |
 | [Invoice OCR & Extraction System](https://github.com/GabrielHuertasdl/invoice-ocr-system) | full-stack FastAPI/React, OCR, validation | tham khảo UX/API, baseline deterministic, không giữ SQLite/regex như kiến trúc production cuối |
 | [Document Processing Platform](https://github.com/SyedAliZafar/document-processing-platform) | review panel + structured extraction | nghiên cứu review and validation; **chưa xác nhận license** trong audit này, không reuse code khi chưa có phép |

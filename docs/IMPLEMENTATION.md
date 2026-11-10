@@ -73,7 +73,8 @@ Decimal đi qua HTTP là **string** để tránh JavaScript float rounding; date
 | `POST` | `/api/v1/documents/{id}/process` | tạo job nếu chưa có | 409/422/503 |
 | `GET` | `/api/v1/jobs/{id}` | status, stage, attempts, progress | 403/404 |
 | `GET` | `/api/v1/invoices` | filter, pagination, sort | 400/403 |
-| `GET` | `/api/v1/invoices/{id}` | header + lines + evidence | 403/404 |
+| `GET` | `/api/v1/invoices/{id}` | header + lines + evidence + `review_items` (chỉ các trường cần người quyết định, kèm lý do, nguồn, giá trị candidate Vision) | 403/404 |
+| `POST` | `/api/v1/invoices/{id}/review` | `action`: `approve` / `reject` / `correct` / `resolve_field` (`field_path`, `decision` = `accept_extracted` / `accept_candidate` / `correct`, `value`); bắt buộc `If-Match`; chỉ khi `READY_FOR_REVIEW` | 400/403/409/428 |
 | `PATCH` | `/api/v1/invoices/{id}/revisions` | reviewer sửa có `If-Match` | 409/422 |
 | `POST` | `/api/v1/invoices/{id}/validate` | validation trên snapshot | 409/422 |
 | `POST` | `/api/v1/invoices/{id}/match` | đối soát PO/GRN | 409/422 |
@@ -82,9 +83,11 @@ Decimal đi qua HTTP là **string** để tránh JavaScript float rounding; date
 | `GET` | `/api/v1/invoices/{id}/issues` | issue list + evidence | 403/404 |
 | `POST` | `/api/v1/purchase-orders/import` | seed/import PO | 400/409/422 |
 | `POST` | `/api/v1/goods-receipts/import` | seed/import GRN | 400/409/422 |
-| `POST` | `/api/v1/exports` | tạo export job approved snapshot | 403/409/422 |
+| `POST` | `/api/v1/exports` | chỉ hóa đơn `APPROVED`, sắp xếp `issue_date, invoice_number, id`, header `X-Export-SHA256`; không có tùy chọn xuất hóa đơn chờ duyệt | 403/422 |
 | `GET` | `/api/v1/exports/{id}` | metadata + download link | 403/404 |
 | `GET` | `/api/v1/audit-events` | audit filtered by auth scope | 403 |
+| `GET` | `/api/v1/reports/processing-summary?days=1..90` | số liệu theo ngày UTC từ audit (nhận, auto-approve, chuyển review, duyệt, từ chối) + kỳ trước; tỷ lệ `null` khi chưa có quyết định — nguồn duy nhất cho Dashboard/Reports | 401/422 |
+| `GET` | `/api/v1/documents/{id}/pages/{n}/render?dpi=36..300` | ảnh trang **đã chuẩn hóa góc xoay** đúng như trang OCR đã xử lý; `X-Page-Rotation` luôn `0` | 400/404/422 |
 | `GET` | `/health/live`, `/health/ready` | liveness/readiness | 503 cho dependency fail |
 
 **Response mẫu sau upload — async, không đợi OCR trong HTTP:**
