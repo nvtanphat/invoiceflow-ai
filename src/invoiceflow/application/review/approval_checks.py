@@ -36,9 +36,35 @@ class ApprovalPreconditions:
     async def verify(self, invoice: InvoiceORM, actor_id: str, notes: Optional[str]) -> None:
         # Authorization first, then the most specific data defect, so the caller sees the cause.
         await self._assert_separation_of_duties(invoice, actor_id)
+        await self._assert_no_duplicate_approved(invoice)
         await self._assert_line_arithmetic(invoice.id)
         await self._assert_evidence_resolved(invoice.id)
         await self._assert_match_allows_approval(invoice.tenant_id, invoice.id, notes)
+
+    async def _assert_no_duplicate_approved(self, invoice: InvoiceORM) -> None:
+        if not invoice.supplier_tax_id or not invoice.invoice_number:
+            return
+        inv_tax = invoice.supplier_tax_id.strip()
+        inv_num = invoice.invoice_number.strip().lstrip("0") or "0"
+        series = (invoice.invoice_series or "").strip()
+
+        stmt = select(InvoiceORM).where(
+            InvoiceORM.tenant_id == invoice.tenant_id,
+            InvoiceORM.id != invoice.id,
+            InvoiceORM.supplier_tax_id == inv_tax,
+            InvoiceORM.status.in_(["APPROVED", "EXPORTED"]),
+        )
+        others = (await self._session.execute(stmt)).scalars().all()
+        for other in others:
+            other_num = (other.invoice_number or "").strip().lstrip("0") or "0"
+            other_series = (other.invoice_series or "").strip()
+            if other_num == inv_num and (
+                not series or not other_series or series.lower() == other_series.lower()
+            ):
+                raise ValueError(
+                    f"DUPLICATE_INVOICE: Hóa đơn đã tồn tại bản ghi đã được phê duyệt hoặc xuất kế toán "
+                    f"(Hóa đơn {other.id}, số {other.invoice_number}, ký hiệu {other.invoice_series})."
+                )
 
     async def _assert_evidence_resolved(self, invoice_id: str) -> None:
         evidence = (

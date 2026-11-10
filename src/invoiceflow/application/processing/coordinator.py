@@ -4,6 +4,7 @@ from typing import Optional
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import and_, or_, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from invoiceflow.application.processing.document_router import DocumentRouter, ProcessingRoute
@@ -96,14 +97,32 @@ class JobCoordinator:
             "review_reasons": stp_eval.review_reasons,
         }
         action = "AUTO_APPROVED_STP" if stp_eval.accounting_approved else "ROUTED_TO_HUMAN_REVIEW"
-        await session.execute(
-            update(InvoiceORM)
-            .where(
-                InvoiceORM.tenant_id == str(invoice.tenant_id),
-                InvoiceORM.id == str(invoice.id),
+        target_status = stp_eval.target_status.value
+        try:
+            await session.execute(
+                update(InvoiceORM)
+                .where(
+                    InvoiceORM.tenant_id == str(invoice.tenant_id),
+                    InvoiceORM.id == str(invoice.id),
+                )
+                .values(status=target_status)
             )
-            .values(status=stp_eval.target_status.value)
-        )
+            await session.flush()
+        except IntegrityError:
+            # Race condition: duplicate invoice approved concurrently by another process
+            target_status = "READY_FOR_REVIEW"
+            action = "ROUTED_TO_HUMAN_REVIEW_CONCURRENT_DUPLICATE"
+            details["review_reasons"].append(
+                "CONCURRENT_DUPLICATE_DETECTED: A duplicate invoice was approved concurrently."
+            )
+            await session.execute(
+                update(InvoiceORM)
+                .where(
+                    InvoiceORM.tenant_id == str(invoice.tenant_id),
+                    InvoiceORM.id == str(invoice.id),
+                )
+                .values(status=target_status)
+            )
         session.add(
             AuditLogORM(
                 tenant_id=str(invoice.tenant_id),
@@ -117,7 +136,7 @@ class JobCoordinator:
         await session.execute(
             update(ProcessingJobORM)
             .where(ProcessingJobORM.id == job_id)
-            .values(status=stp_eval.target_status.value, stage="COMPLETED")
+            .values(status=target_status, stage="COMPLETED")
         )
 
     @staticmethod

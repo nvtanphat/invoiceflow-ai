@@ -5,13 +5,16 @@ so a later export cannot include it again (the posted-entry lock used by AP syst
 Odoo to prevent double booking and double payment).
 """
 
+import base64
+from decimal import Decimal
 import json
+import uuid
 
-from sqlalchemy import select, update
+from sqlalchemy import or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from invoiceflow.domain.invoices.models import InvoiceStatus
-from invoiceflow.infrastructure.database.models import AuditLogORM, InvoiceORM
+from invoiceflow.infrastructure.database.models import AuditLogORM, ExportBatchORM, InvoiceORM
 
 _APPROVED = InvoiceStatus.APPROVED.value
 _EXPORTED = InvoiceStatus.EXPORTED.value
@@ -79,3 +82,55 @@ def record_export(
             ),
         )
     )
+
+
+async def save_export_batch(
+    session: AsyncSession,
+    tenant_id: str,
+    actor_id: str,
+    invoices: list[InvoiceORM],
+    sha256: str,
+    format_kind: str,
+    file_bytes: bytes,
+) -> ExportBatchORM:
+    total_amount = sum((inv.amount_payable for inv in invoices), Decimal("0.0000"))
+    batch_num = f"EXP-{uuid.uuid4().hex[:8].upper()}"
+    batch = ExportBatchORM(
+        id=str(uuid.uuid4()),
+        tenant_id=tenant_id,
+        batch_number=batch_num,
+        format=format_kind,
+        sha256=sha256,
+        invoice_count=len(invoices),
+        total_amount=total_amount,
+        invoice_ids_json=json.dumps([inv.id for inv in invoices]),
+        content_base64=base64.b64encode(file_bytes).decode("ascii"),
+        created_by=actor_id,
+    )
+    session.add(batch)
+    await session.flush()
+    return batch
+
+
+async def get_export_batch(
+    session: AsyncSession, tenant_id: str, batch_id: str
+) -> ExportBatchORM | None:
+    stmt = select(ExportBatchORM).where(
+        ExportBatchORM.tenant_id == tenant_id,
+        or_(ExportBatchORM.id == batch_id, ExportBatchORM.sha256 == batch_id),
+    )
+    res = await session.execute(stmt)
+    return res.scalars().first()
+
+
+async def list_export_batches(
+    session: AsyncSession, tenant_id: str, limit: int = 50
+) -> list[ExportBatchORM]:
+    stmt = (
+        select(ExportBatchORM)
+        .where(ExportBatchORM.tenant_id == tenant_id)
+        .order_by(ExportBatchORM.created_at.desc())
+        .limit(limit)
+    )
+    res = await session.execute(stmt)
+    return list(res.scalars().all())

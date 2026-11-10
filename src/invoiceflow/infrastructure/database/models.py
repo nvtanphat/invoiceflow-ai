@@ -13,6 +13,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from invoiceflow.infrastructure.database.base import Base, TimestampMixin
@@ -155,6 +156,17 @@ class InvoiceORM(Base, TimestampMixin):
         ),
         Index("ix_invoices_tenant_status", "tenant_id", "status"),
         Index("ix_invoices_tenant_created_at", "tenant_id", "created_at"),
+        Index(
+            "uq_invoices_approved_exported",
+            "tenant_id",
+            "supplier_tax_id",
+            text("COALESCE(invoice_series, '')"),
+            "invoice_number",
+            unique=True,
+            postgresql_where=text(
+                "status IN ('APPROVED', 'EXPORTED') AND supplier_tax_id IS NOT NULL AND invoice_number IS NOT NULL"
+            ),
+        ),
     )
 
 
@@ -393,6 +405,28 @@ class OutboxEventORM(Base):
     aggregate_id: Mapped[str] = mapped_column(String(36), nullable=False)
     payload_json: Mapped[str] = mapped_column(Text, nullable=False)
     is_published: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+
+
+class ExportBatchORM(Base):
+    __tablename__ = "export_batches"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    tenant_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    batch_number: Mapped[str] = mapped_column(String(50), nullable=False)
+    format: Mapped[str] = mapped_column(String(10), nullable=False)
+    sha256: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    invoice_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    total_amount: Mapped[Decimal] = mapped_column(
+        Numeric(20, 4), default=Decimal("0.0000"), nullable=False
+    )
+    invoice_ids_json: Mapped[str] = mapped_column(Text, nullable=False)
+    content_base64: Mapped[str] = mapped_column(Text, nullable=False)
+    created_by: Mapped[str] = mapped_column(String(36), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
     )

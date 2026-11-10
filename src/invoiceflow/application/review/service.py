@@ -5,6 +5,7 @@ import re
 from typing import Any, Optional
 
 from sqlalchemy import select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from invoiceflow.application.reconciliation.service import ReconciliationService
@@ -238,27 +239,32 @@ class ReviewService:
             )
             .values(status=InvoiceStatus.APPROVED.value, revision=expected_revision + 1)
         )
-        res = await self._session.execute(stmt)
-        if res.rowcount == 0:
-            raise ConcurrencyConflictError(
-                f"Stale revision: atomic approve failed for invoice {invoice_id} at revision {expected_revision}."
-            )
+        try:
+            res = await self._session.execute(stmt)
+            if res.rowcount == 0:
+                raise ConcurrencyConflictError(
+                    f"Stale revision: atomic approve failed for invoice {invoice_id} at revision {expected_revision}."
+                )
 
-        self._session.add(
-            AuditLogORM(
-                tenant_id=tenant_id,
-                actor_id=actor_id,
-                action="INVOICE_APPROVE",
-                aggregate_type="invoice",
-                aggregate_id=invoice_id,
-                details_json=json.dumps(
-                    {"notes": notes, "approved_revision": expected_revision + 1}
-                ),
+            self._session.add(
+                AuditLogORM(
+                    tenant_id=tenant_id,
+                    actor_id=actor_id,
+                    action="INVOICE_APPROVE",
+                    aggregate_type="invoice",
+                    aggregate_id=invoice_id,
+                    details_json=json.dumps(
+                        {"notes": notes, "approved_revision": expected_revision + 1}
+                    ),
+                )
             )
-        )
-        await self._session.flush()
-        await self._session.refresh(invoice)
-        return invoice
+            await self._session.flush()
+            await self._session.refresh(invoice)
+            return invoice
+        except IntegrityError as exc:
+            raise ConcurrencyConflictError(
+                f"Concurrent duplicate conflict: Hóa đơn trùng với nhà cung cấp {invoice.supplier_tax_id} và số {invoice.invoice_number} đã được phê duyệt đồng thời bởi tiến trình khác."
+            ) from exc
 
     async def reject_invoice(
         self,
