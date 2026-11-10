@@ -198,3 +198,45 @@ def test_end_to_end_preprocess_generates_valid_pdf():
     assert page.rect.width > 200
     assert page.rect.height > 200
     doc.close()
+
+
+def test_processed_page_bbox_maps_back_through_deskew_perspective_and_pdf_scale():
+    """Regression: image evidence bboxes stayed in processed-PDF points while the viewer
+    shows the original photo, so boxes drifted after crop/perspective/deskew."""
+    from invoiceflow.domain.documents.models import BoundingBox, CoordinateSystem
+
+    crop = np.array([[1, 0, -120], [0, 1, -80], [0, 0, 1]], dtype=np.float64)
+    rotation = cv2.getRotationMatrix2D((300, 400), 7.0, 1.0)
+    points_per_pixel = 72.0 / 150.0
+    geom = GeometryTransform(
+        applied_perspective=True,
+        applied_deskew=True,
+        deskew_angle=7.0,
+        original_width=900,
+        original_height=1200,
+        perspective_matrix=crop.flatten().tolist(),
+        inverse_perspective_matrix=np.linalg.inv(crop).flatten().tolist(),
+        deskew_matrix=rotation.flatten().tolist(),
+        pdf_points_per_pixel=points_per_pixel,
+    )
+
+    original_corners = np.array([[[300.0, 500.0]], [[420.0, 540.0]]])
+    warped = cv2.perspectiveTransform(original_corners, crop)
+    deskewed = cv2.transform(warped, rotation)
+    page = deskewed[:, 0, :] * points_per_pixel
+    processed_bbox = BoundingBox(
+        page_index=0,
+        x0=float(page[:, 0].min()),
+        y0=float(page[:, 1].min()),
+        x1=float(page[:, 0].max()),
+        y1=float(page[:, 1].max()),
+    )
+
+    mapped = geom.map_page_bbox_to_original(processed_bbox)
+
+    assert mapped.coordinate_system == CoordinateSystem.PIXELS
+    assert (mapped.page_width, mapped.page_height) == (900, 1200)
+    # The axis-aligned hull of the rotated box must still contain both original corners.
+    assert mapped.x0 <= 300.0 + 1e-6 and mapped.y0 <= 500.0 + 1e-6
+    assert mapped.x1 >= 420.0 - 1e-6 and mapped.y1 >= 540.0 - 1e-6
+    assert mapped.x1 - mapped.x0 < 200 and mapped.y1 - mapped.y0 < 120

@@ -1,3 +1,4 @@
+import hashlib
 from decimal import Decimal
 from typing import Any, Literal
 from fastapi import APIRouter, Depends, Query, Response
@@ -13,7 +14,6 @@ router = APIRouter(prefix="/exports", tags=["Exports"])
 
 class ExportRequest(BaseModel):
     format: Literal["csv", "json", "xlsx"] = "csv"
-    only_approved: bool = True
 
 
 def _build_export_payload(invoices_orm: list[InvoiceORM]) -> list[dict[str, Any]]:
@@ -65,27 +65,28 @@ async def create_export(
     ctx: AuthenticatedContext = Depends(require_role(["admin", "accountant"])),
     session: AsyncSession = Depends(get_db),
 ):
-    stmt = select(InvoiceORM).where(InvoiceORM.tenant_id == ctx.tenant_id)
-    if req.only_approved:
-        stmt = stmt.where(InvoiceORM.status == "APPROVED")
-
-    res = await session.execute(stmt)
-    invoices_data = _build_export_payload(res.scalars().all())
-    return _format_export_response(req.format, invoices_data)
+    return await _export(session, ctx.tenant_id, req.format)
 
 
 @router.get("/invoices")
 @router.get("")
 async def get_export_invoices(
     format: Literal["csv", "json", "xlsx"] = Query("csv"),
-    only_approved: bool = Query(True),
     ctx: AuthenticatedContext = Depends(require_role(["admin", "accountant"])),
     session: AsyncSession = Depends(get_db),
 ):
-    stmt = select(InvoiceORM).where(InvoiceORM.tenant_id == ctx.tenant_id)
-    if only_approved:
-        stmt = stmt.where(InvoiceORM.status == "APPROVED")
+    return await _export(session, ctx.tenant_id, format)
 
+
+async def _export(session: AsyncSession, tenant_id: str, format_kind: str) -> Response:
+    # Only approved invoices, in a stable order, so an export is reproducible and checkable.
+    stmt = (
+        select(InvoiceORM)
+        .where(InvoiceORM.tenant_id == tenant_id, InvoiceORM.status == "APPROVED")
+        .order_by(InvoiceORM.issue_date, InvoiceORM.invoice_number, InvoiceORM.id)
+    )
     res = await session.execute(stmt)
-    invoices_data = _build_export_payload(res.scalars().all())
-    return _format_export_response(format, invoices_data)
+    response = _format_export_response(format_kind, _build_export_payload(res.scalars().all()))
+    response.headers["X-Export-SHA256"] = hashlib.sha256(response.body).hexdigest()
+    response.headers["Access-Control-Expose-Headers"] = "X-Export-SHA256"
+    return response

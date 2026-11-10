@@ -1,8 +1,10 @@
+import argparse
 import asyncio
 from datetime import date
 from decimal import Decimal
 import json
 from pathlib import Path
+import subprocess
 import sys
 import time
 from typing import Any, Dict, List, Optional
@@ -13,9 +15,14 @@ sys.path.insert(0, str(ROOT_DIR / "src"))
 sys.path.insert(0, str(ROOT_DIR))
 
 from benchmarks.scripts.evaluator import evaluate_prediction  # noqa: E402
+from benchmarks.scripts.run_artifact import build_run_artifact  # noqa: E402
 from invoiceflow.application.processing.service import DocumentAIService  # noqa: E402
 from invoiceflow.application.reconciliation.matching_engine import MatchingEngine  # noqa: E402
+from invoiceflow.application.reconciliation.service import merge_validation  # noqa: E402
+from invoiceflow.application.reconciliation.stp_evaluator import STPEvaluator  # noqa: E402
+from invoiceflow.application.reconciliation.validator import InvoiceValidator  # noqa: E402
 from invoiceflow.config import get_settings  # noqa: E402
+from invoiceflow.domain.invoices.evidence_gate import automation_blockers  # noqa: E402
 from invoiceflow.domain.policies.models import TolerancePolicy  # noqa: E402
 from invoiceflow.domain.purchasing.models import GoodsReceipt, GRNLine, POLine, PurchaseOrder  # noqa: E402
 
@@ -322,15 +329,19 @@ async def run_document_ai_pipeline(
     # 3-Way Reconciliation with Tolerance Policy
     detected_discrepancies: List[str] = []
     po, receipts = get_demo_po_and_grn(header.get("supplier_tax_id"), case["case_id"])
+    # Measurement policy: system approval allowed, every other threshold at its safe default.
     policy = TolerancePolicy(
         tenant_id=uuid.uuid4(),
         price_tolerance_pct=Decimal("0.02"),
         qty_tolerance_pct=Decimal("0.00"),
+        auto_approval_enabled=True,
     )
 
+    match_report = None
     if inv_agg.lines:
         engine = MatchingEngine()
         report = engine.match_3_way(inv_agg, po=po, receipts=receipts, policy=policy)
+        match_report = merge_validation(report, InvoiceValidator().validate(inv_agg))
         for issue in report.issues:
             if "PRICE" in issue.code:
                 detected_discrepancies.append("PRICE_MISMATCH")
@@ -347,10 +358,31 @@ async def run_document_ai_pipeline(
         "cost_usd": cost,
         "provider_failure": result.provider_failure,
         "fallback_reason": result.fallback_reason,
+        "used_vision": result.used_vision,
+        "route": str(result.route.value if hasattr(result.route, "value") else result.route),
+        "extraction_blockers": automation_blockers(inv_agg),
+        "gates": STPEvaluator().evaluate(inv_agg, match_report, policy).gates(),
     }
 
 
-async def main() -> int:
+def _git_state() -> tuple[str, bool]:
+    def git(*args: str) -> str:
+        return subprocess.run(
+            ["git", *args], cwd=ROOT_DIR, capture_output=True, text=True, check=False
+        ).stdout.strip()
+
+    return git("rev-parse", "HEAD"), bool(git("status", "--porcelain"))
+
+
+def _peak_rss_mb() -> float:
+    import psutil
+
+    info = psutil.Process().memory_info()
+    peak = getattr(info, "peak_wset", None) or info.rss
+    return round(peak / (1024 * 1024), 1)
+
+
+async def main(output: Optional[Path] = None) -> int:
     print("=" * 88)
     print(" INVOICEFLOW AI - APPLICATION QUALITY ASSURANCE & VERIFICATION")
     print(" Tier B: Final Document AI Quality (Docling OCR + Vision AI Reconciliation)")
@@ -379,6 +411,7 @@ async def main() -> int:
     print("-" * 88)
 
     all_scores = []
+    artifact_cases: List[Dict[str, Any]] = []
     failed_cases = []
     skipped_cases = []
 
@@ -387,6 +420,22 @@ async def main() -> int:
         file_path = get_fixture_file(case_id)
         pred = await run_document_ai_pipeline(case, file_path, service)
         score = evaluate_prediction(case, pred)
+        artifact_cases.append(
+            {
+                "case_id": case_id,
+                "route": pred["route"],
+                "used_vision": pred["used_vision"],
+                "fallback_reason": pred["fallback_reason"],
+                "cost_usd": pred["cost_usd"],
+                "latency_ms": pred["latency_ms"],
+                "peak_rss_mb": _peak_rss_mb(),
+                "header_exact_match": score["header_exact_match"],
+                "header_mismatches": score["header_mismatches"],
+                "lines_f1": score["lines_f1"],
+                "extraction_blockers": pred["extraction_blockers"],
+                "gates": pred["gates"],
+            }
+        )
 
         header_pct = f"{score['header_exact_match'] * 100:.1f}%"
         lines_pct = f"{score['lines_f1'] * 100:.1f}%"
@@ -455,6 +504,19 @@ async def main() -> int:
     print(f"Average Pipeline Latency   : {avg_latency:.1f}ms")
     print("=" * 88)
 
+    if output is not None:
+        sha, dirty = _git_state()
+        artifact = build_run_artifact(
+            cases=artifact_cases,
+            manifest_path=FIXTURES_DIR / "casebook_manifest.json",
+            git_sha=sha,
+            git_dirty=dirty,
+            provider={"model_id": settings.OPENAI_MODEL_ID, "base_url": settings.OPENAI_BASE_URL},
+        )
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(json.dumps(artifact, ensure_ascii=False, indent=2), encoding="utf-8")
+        print(f"[*] Run artifact {artifact['run_id']} written to {output}")
+
     if failed_cases:
         print(
             f"[FAIL] {len(failed_cases)} case(s) failed application criteria: {failed_cases}",
@@ -472,5 +534,8 @@ async def main() -> int:
 
 
 if __name__ == "__main__":
-    exit_code = asyncio.run(main())
-    sys.exit(exit_code)
+    parser = argparse.ArgumentParser(description="InvoiceFlow application QA on the casebook")
+    parser.add_argument(
+        "--output", type=Path, help="Write an immutable run artifact (keep outside source control)"
+    )
+    sys.exit(asyncio.run(main(parser.parse_args().output)))

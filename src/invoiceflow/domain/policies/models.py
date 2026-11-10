@@ -25,7 +25,19 @@ class TolerancePolicy(BaseModel):
     auto_approve_threshold: Decimal = Field(
         default=Decimal("10000000.0000"), description="Max invoice amount allowed for auto-approve"
     )
-    separation_of_duties_required: bool = True
+    separation_of_duties_required: bool = Field(
+        default=True, description="A document uploader may not approve the same invoice"
+    )
+    auto_approval_enabled: bool = Field(
+        default=False,
+        description="Allow the system to grant accounting approval when every STP gate passes",
+    )
+    po_required: bool = Field(
+        default=True, description="Invoices must match a purchase order before clearance"
+    )
+    goods_receipt_required: bool = Field(
+        default=True, description="Three-way match: invoiced quantities must be received"
+    )
     effective_from: date = Field(default_factory=lambda: datetime.now(timezone.utc).date())
 
     @field_validator(

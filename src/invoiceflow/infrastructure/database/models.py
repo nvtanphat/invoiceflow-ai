@@ -310,6 +310,9 @@ class TolerancePolicyORM(Base, TimestampMixin):
     separation_of_duties_required: Mapped[bool] = mapped_column(
         Boolean, default=True, nullable=False
     )
+    auto_approval_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    po_required: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    goods_receipt_required: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     effective_from: Mapped[date] = mapped_column(Date, nullable=False)
 
 

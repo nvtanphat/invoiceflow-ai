@@ -7,6 +7,7 @@ import time
 from typing import Any, List, Optional
 from uuid import UUID
 
+from invoiceflow.infrastructure.document.page_orientation import normalize_page_rotation
 from invoiceflow.domain.documents.models import (
     BoundingBox,
     CanonicalDocument,
@@ -197,42 +198,7 @@ class DoclingAdapter:
         pdf_bytes: bytes,
         page_classifications: Optional[dict[int, str]] = None,
     ) -> bytes:
-        """Bakes each scanned page's /Rotate metadata into its raster content while preserving
-        native vector text layers on digital pages.
-        """
-        import fitz
-
-        src = fitz.open(stream=pdf_bytes, filetype="pdf")
-        try:
-            if not any(page.rotation != 0 for page in src):
-                return pdf_bytes
-
-            normalized = fitz.open()
-            for page_index in range(src.page_count):
-                page = src.load_page(page_index)
-                if page.rotation == 0:
-                    normalized.insert_pdf(src, from_page=page_index, to_page=page_index)
-                    continue
-
-                is_digital = False
-                if page_classifications is not None:
-                    is_digital = page_classifications.get(page_index) in ("digital", "native_text")
-                else:
-                    is_digital = len(page.get_text().strip()) >= 50
-
-                if is_digital:
-                    # Preserve vector text layer of rotated digital page without rasterization
-                    normalized.insert_pdf(src, from_page=page_index, to_page=page_index)
-                    continue
-
-                page.set_rotation(0)
-                pix = page.get_pixmap(dpi=self._ocr_dpi)
-                w, h = page.rect.width, page.rect.height
-                new_page = normalized.new_page(width=w, height=h)
-                new_page.insert_image(fitz.Rect(0, 0, w, h), pixmap=pix)
-            return normalized.tobytes()
-        finally:
-            src.close()
+        return normalize_page_rotation(pdf_bytes, self._ocr_dpi, page_classifications)
 
     def extract_canonical(
         self,

@@ -1,19 +1,13 @@
 from decimal import Decimal
 import re
 from typing import Any, Dict, List, Optional
-import unicodedata
 
 from invoiceflow.domain.documents.models import DocumentCell, DocumentTable
+from invoiceflow.domain.documents.value_parsing import fold_vietnamese, parse_vn_decimal
 from invoiceflow.domain.invoices.models import FieldEvidence, InvoiceLine
 
 _BRACKET_SKU_PATTERN = re.compile(r"\[([A-Z0-9_-]+)(?:\]|\.[\d]*\s*|\s|$)")
 _LINE_FIELD_PATH_PATTERN = re.compile(r"^lines\[(\d+)\]\.(.+)$")
-
-
-def _strip_accents(text: str) -> str:
-    cleaned = text.replace("đ", "d").replace("Đ", "d")
-    nfkd = unicodedata.normalize("NFKD", cleaned)
-    return "".join(c for c in nfkd if not unicodedata.combining(c)).lower()
 
 
 class StructureAwareTableExtractor:
@@ -218,7 +212,7 @@ class StructureAwareTableExtractor:
         seen_cell_ids = set()
         for col_idx, cell in sorted(cells.items()):
             cell_key = id(cell)
-            norm_text = _strip_accents(cell.text.strip())
+            norm_text = fold_vietnamese(cell.text.strip())
 
             # Plain substring search (not word-bounded): table-structure
             # recognition frequently fuses adjacent header labels without a
@@ -307,8 +301,8 @@ class StructureAwareTableExtractor:
         return data
 
     def _is_summary_row(self, data: Dict[str, Any]) -> bool:
-        desc = _strip_accents(str(data.get("description", ""))).lower().strip()
-        sku = _strip_accents(str(data.get("sku", ""))).lower().strip()
+        desc = fold_vietnamese(str(data.get("description", ""))).lower().strip()
+        sku = fold_vietnamese(str(data.get("sku", ""))).lower().strip()
         row_text = f"{desc} {sku}".strip()
         return any(pattern in row_text for pattern in self._SUMMARY_ROW_PATTERNS)
 
@@ -375,17 +369,17 @@ class StructureAwareTableExtractor:
                     data["tax_rate"] = m_fused.group(1)
                 raw_amount = m_fused.group(2)
 
-        qty, qty_issue = self._parse_decimal(raw_qty, is_qty=True)
-        price, price_issue = self._parse_decimal(raw_price)
-        amount, amount_issue = self._parse_decimal(raw_amount)
+        qty, qty_issue = parse_vn_decimal(raw_qty, is_qty=True)
+        price, price_issue = parse_vn_decimal(raw_price)
+        amount, amount_issue = parse_vn_decimal(raw_amount)
 
         discount = Decimal("0.0000")
         if data.get("discount"):
-            discount, _ = self._parse_decimal(data["discount"])
+            discount, _ = parse_vn_decimal(data["discount"])
 
         tax_rate: Optional[Decimal] = None
         if data.get("tax_rate"):
-            tr, _ = self._parse_decimal(data["tax_rate"])
+            tr, _ = parse_vn_decimal(data["tax_rate"])
             tax_rate = tr
 
         issues: List[str] = []
@@ -481,59 +475,3 @@ class StructureAwareTableExtractor:
                 )
             )
         return evidence
-
-    def _parse_decimal(self, val: Any, is_qty: bool = False) -> tuple[Decimal, Optional[str]]:
-        if not val or not str(val).strip():
-            return Decimal("0.0000"), None
-        s = str(val).strip().replace("\u00a0", " ")
-        # Strip currency symbols and clean outer whitespace
-        s = re.sub(r"(?i)(?:vnd|vnđ|usd|eur|[₫đ$])", "", s).strip()
-        # Normalise space-separated thousand groups e.g. "25 000 000"
-        s = re.sub(r"(\d)\s+(\d{3})\b", r"\1\2", s)
-        # A trailing "%" marks a percentage, never a thousands-grouped
-        # integer; strip it before the separator heuristics below so e.g.
-        # "10.00%" (a whole table cell value) isn't misread as "10,000%".
-        if s.endswith("%"):
-            s = s[:-1].strip()
-        issue: Optional[str] = None
-
-        if not re.search(r"\d", s):
-            return Decimal("0.0000"), "PARSE_ERROR"
-
-        # Multi-separator disambiguation
-        if "." in s and "," in s:
-            if s.rfind(",") > s.rfind("."):
-                # 12.000.000,00 -> standard VN decimal
-                s = s.replace(".", "").replace(",", ".")
-            else:
-                # 12,000,000.00 -> US decimal
-                s = s.replace(",", "")
-        elif "." in s:
-            parts = s.split(".")
-            if is_qty and len(parts) == 2:
-                s = f"{parts[0]}.{parts[1]}"
-            elif len(parts) > 1 and all(len(p) == 3 for p in parts[1:]):
-                # 12.000.000 -> Vietnamese thousand dots
-                s = s.replace(".", "")
-            elif len(parts) == 2 and len(parts[1]) != 3:
-                pass  # standard dot decimal
-            else:
-                issue = "AMBIGUOUS_NUMBER"
-        elif "," in s:
-            parts = s.split(",")
-            if is_qty and len(parts) == 2 and len(parts[1]) == 3:
-                issue = "AMBIGUOUS_NUMBER"
-                s = s.replace(",", "")
-            elif len(parts) > 1 and all(len(p) == 3 for p in parts[1:]):
-                s = s.replace(",", "")
-            elif len(parts) == 2 and len(parts[1]) != 3:
-                s = s.replace(",", ".")
-            else:
-                issue = "AMBIGUOUS_NUMBER"
-                s = s.replace(",", "")
-
-        clean = re.sub(r"[^\d.-]", "", s)
-        try:
-            return Decimal(clean), issue
-        except Exception:
-            return Decimal("0.0000"), "PARSE_ERROR"
