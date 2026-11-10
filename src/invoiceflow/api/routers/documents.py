@@ -61,14 +61,7 @@ async def upload_document(
         await session.rollback()
         raise
 
-    if not is_replay:
-        try:
-            from invoiceflow.workers.actors import process_document_job
-
-            process_document_job.send(job.id)
-        except Exception:
-            pass
-
+    # The job is published by the transactional outbox dispatcher after commit.
     response.headers["Location"] = f"/api/v1/jobs/{job.id}"
     created_at_str = doc.created_at.isoformat() if getattr(doc, "created_at", None) else ""
     return {

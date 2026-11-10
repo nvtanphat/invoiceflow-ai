@@ -63,6 +63,8 @@ class Settings(BaseSettings):
     # A job whose status has not advanced for this long is treated as abandoned by a crashed
     # worker and may be claimed again; it must exceed the slowest expected processing stage.
     JOB_LEASE_SECONDS: int = 900
+    # Engine-reported field confidence below this marks the field UNCERTAIN for review.
+    MIN_FIELD_CONFIDENCE: float = 0.70
     DEFAULT_PRICE_TOLERANCE_PCT: float = 2.0
     DEFAULT_QTY_TOLERANCE_PCT: float = 0.0
     DOCLING_TIMEOUT_SECONDS: int = 60

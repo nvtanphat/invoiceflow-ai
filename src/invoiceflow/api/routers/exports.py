@@ -3,9 +3,13 @@ from decimal import Decimal
 from typing import Any, Literal
 from fastapi import APIRouter, Depends, Query, Response
 from pydantic import BaseModel
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from invoiceflow.api.dependencies import AuthenticatedContext, get_db, require_role
+from invoiceflow.application.exporting.service import (
+    claim_for_export,
+    list_exportable,
+    record_export,
+)
 from invoiceflow.infrastructure.database.models import InvoiceORM
 from invoiceflow.infrastructure.storage.exporter import DocumentExporter
 
@@ -65,7 +69,19 @@ async def create_export(
     ctx: AuthenticatedContext = Depends(require_role(["admin", "accountant"])),
     session: AsyncSession = Depends(get_db),
 ):
-    return await _export(session, ctx.tenant_id, req.format)
+    """Post an export batch: included invoices become EXPORTED and cannot be exported again."""
+    invoices = await claim_for_export(session, ctx.tenant_id)
+    response = _checksummed(req.format, invoices)
+    if invoices:
+        record_export(
+            session,
+            ctx.tenant_id,
+            ctx.user_id,
+            invoices,
+            response.headers["X-Export-SHA256"],
+            req.format,
+        )
+    return response
 
 
 @router.get("/invoices")
@@ -75,18 +91,12 @@ async def get_export_invoices(
     ctx: AuthenticatedContext = Depends(require_role(["admin", "accountant"])),
     session: AsyncSession = Depends(get_db),
 ):
-    return await _export(session, ctx.tenant_id, format)
+    """Read-only preview of what the next posted export would contain."""
+    return _checksummed(format, await list_exportable(session, ctx.tenant_id))
 
 
-async def _export(session: AsyncSession, tenant_id: str, format_kind: str) -> Response:
-    # Only approved invoices, in a stable order, so an export is reproducible and checkable.
-    stmt = (
-        select(InvoiceORM)
-        .where(InvoiceORM.tenant_id == tenant_id, InvoiceORM.status == "APPROVED")
-        .order_by(InvoiceORM.issue_date, InvoiceORM.invoice_number, InvoiceORM.id)
-    )
-    res = await session.execute(stmt)
-    response = _format_export_response(format_kind, _build_export_payload(res.scalars().all()))
+def _checksummed(format_kind: str, invoices: list[InvoiceORM]) -> Response:
+    response = _format_export_response(format_kind, _build_export_payload(invoices))
     response.headers["X-Export-SHA256"] = hashlib.sha256(response.body).hexdigest()
     response.headers["Access-Control-Expose-Headers"] = "X-Export-SHA256"
     return response

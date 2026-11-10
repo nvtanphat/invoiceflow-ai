@@ -305,6 +305,22 @@ class ApiClient {
     return res.json();
   }
 
+  // Posts an accounting export: included invoices become EXPORTED server-side and are
+  // never part of a later export. The checksum identifies the file in the audit log.
+  public async postExport(format: "csv" | "xlsx" | "json"): Promise<{ blob: Blob; sha256: string }> {
+    const res = await fetch(`${this.baseUrl}/exports`, {
+      method: "POST",
+      headers: this.headers({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ format }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: "Export failed" }));
+      throw new Error(typeof err.detail === "string" ? err.detail : "Export failed");
+    }
+    return { blob: await res.blob(), sha256: res.headers.get("X-Export-SHA256") || "" };
+  }
+
+  // Read-only preview of the next export; does not mark anything as exported.
   public async downloadExport(format: "csv" | "xlsx" | "json"): Promise<Blob> {
     const res = await fetch(`${this.baseUrl}/exports/invoices?format=${format}`, {
       headers: this.headers(),

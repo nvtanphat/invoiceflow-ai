@@ -53,7 +53,8 @@ export const ExportModal: React.FC<ExportModalProps> = ({ isOpen, onClose }) => 
 
         <div className="p-6 space-y-4">
           <p className="text-xs text-slate-500">
-            Chọn định dạng xuất để đồng bộ vào hệ thống ERP / Kế toán (SAP, Fast, MISA, Bravo):
+            Bản xem trước các hóa đơn đã phê duyệt. Tệp này <b>chưa chốt xuất</b>: để hạch toán vào ERP,
+            dùng trang "Xuất dữ liệu" để chốt lô (hóa đơn chuyển sang trạng thái Đã xuất, không xuất trùng).
           </p>
 
           <div className="space-y-2">

@@ -83,7 +83,8 @@ Decimal đi qua HTTP là **string** để tránh JavaScript float rounding; date
 | `GET` | `/api/v1/invoices/{id}/issues` | issue list + evidence | 403/404 |
 | `POST` | `/api/v1/purchase-orders/import` | seed/import PO | 400/409/422 |
 | `POST` | `/api/v1/goods-receipts/import` | seed/import GRN | 400/409/422 |
-| `POST` | `/api/v1/exports` | chỉ hóa đơn `APPROVED`, sắp xếp `issue_date, invoice_number, id`, header `X-Export-SHA256`; không có tùy chọn xuất hóa đơn chờ duyệt | 403/422 |
+| `POST` | `/api/v1/exports` | **chốt lô xuất**: chọn hóa đơn `APPROVED` (sắp xếp `issue_date, invoice_number, id`), chuyển nguyên tử sang `EXPORTED`, audit `INVOICES_EXPORTED` (ids + SHA-256); lô sau không thể chứa lại | 403/422 |
+| `GET` | `/api/v1/exports/invoices` | bản xem trước chỉ đọc của lô kế tiếp, header `X-Export-SHA256`; không đổi trạng thái | 403/422 |
 | `GET` | `/api/v1/exports/{id}` | metadata + download link | 403/404 |
 | `GET` | `/api/v1/audit-events` | audit filtered by auth scope | 403 |
 | `GET` | `/api/v1/reports/processing-summary?days=1..90` | số liệu theo ngày UTC từ audit (nhận, auto-approve, chuyển review, duyệt, từ chối) + kỳ trước; tỷ lệ `null` khi chưa có quyết định — nguồn duy nhất cho Dashboard/Reports | 401/422 |

@@ -33,6 +33,11 @@ from invoiceflow.infrastructure.storage.service import StoragePort
 
 logger = logging.getLogger(__name__)
 
+
+def _error_code(exc: BaseException) -> str:
+    return type(exc).__name__
+
+
 _CLAIMABLE_STATUSES = ("QUEUED", "RECEIVED", "RETRYING")
 _IN_FLIGHT_STATUSES = ("INSPECTING", "PARSING", "EXTRACTING", "VALIDATING")
 
@@ -242,7 +247,9 @@ class JobCoordinator:
             return True
 
         except (TimeoutError, ConnectionError, OSError) as e:
-            logger.warning("Transient error processing job %s: %s; flagging for retry", job_id, e)
+            logger.warning(
+                "Transient error on job %s: %s; flagging for retry", job_id, _error_code(e)
+            )
             async with self._db_manager.session() as session:
                 await session.execute(
                     update(ProcessingJobORM)
@@ -250,12 +257,13 @@ class JobCoordinator:
                     .values(
                         status="RETRYING",
                         stage="RETRY",
-                        error_message=f"Transient error: {str(e)}",
+                        error_message=f"TRANSIENT_ERROR: {_error_code(e)}",
                     )
                 )
             raise e
         except Exception as e:
-            logger.exception("Permanent error processing job %s: %s", job_id, e)
+            # Exception text can quote document content, so only its type is logged/stored.
+            logger.error("Permanent error on job %s: %s", job_id, _error_code(e))
             async with self._db_manager.session() as session:
                 await session.execute(
                     update(ProcessingJobORM)
@@ -263,7 +271,7 @@ class JobCoordinator:
                     .values(
                         status="FAILED_PERMANENT",
                         stage="ERROR",
-                        error_message=str(e),
+                        error_message=f"PROCESSING_FAILED: {_error_code(e)}",
                     )
                 )
             return False

@@ -103,20 +103,41 @@ async def test_retry_reuses_the_persisted_invoice_for_matching_and_status(env):
     assert match_invoice_ids == {first.id}
 
 
-async def test_export_contains_only_approved_invoices_in_stable_order_with_checksum(env):
-    import hashlib
+async def test_failed_job_stores_an_error_code_not_raw_exception_text(env):
+    """Exception messages can quote document content; persisted job errors must not."""
+    manager, storage, job_id, tenant_id = env
 
+    class _LeakyStorage:
+        async def get(self, uri):
+            raise ValueError("MST 0100109106 Cong Ty A amount 1100 secret-content")
+
+    assert (
+        await JobCoordinator(db_manager=manager, storage=_LeakyStorage()).process_job(job_id)
+        is False
+    )
+
+    async with manager.session() as session:
+        job = await session.get(ProcessingJobORM, job_id)
+    assert job.status == "FAILED_PERMANENT"
+    assert "secret-content" not in (job.error_message or "")
+    assert "ValueError" in job.error_message
+
+
+async def test_upload_enqueues_through_the_outbox_only(env, monkeypatch):
+    from invoiceflow.workers import actors
+
+    sent: list[str] = []
+    monkeypatch.setattr(actors.process_document_job, "send", lambda job_id: sent.append(job_id))
     from httpx import ASGITransport, AsyncClient
 
     from invoiceflow.api.dependencies import create_access_token
     from invoiceflow.api.main import create_app
     from invoiceflow.config import get_settings
-    from invoiceflow.infrastructure.database.models import MembershipORM, UserORM
+    from invoiceflow.infrastructure.database.models import MembershipORM, OutboxEventORM, UserORM
 
-    manager, storage, job_id, tenant_id = env
-    assert await JobCoordinator(db_manager=manager, storage=storage).process_job(job_id)
+    manager, storage, _, tenant_id = env
     async with manager.session() as session:
-        user = UserORM(email="acc@exp.vn", hashed_password="x", full_name="A")
+        user = UserORM(email="up@ob.vn", hashed_password="x", full_name="U")
         session.add(user)
         await session.flush()
         session.add(MembershipORM(tenant_id=tenant_id, user_id=user.id, role="accountant"))
@@ -125,17 +146,21 @@ async def test_export_contains_only_approved_invoices_in_stable_order_with_check
         user_id=user_id,
         tenant_id=tenant_id,
         role="accountant",
-        email="acc@exp.vn",
+        email="up@ob.vn",
         settings=get_settings(),
     )
     app = create_app(
         database_url="sqlite+aiosqlite:///:memory:", db_manager=manager, storage=storage
     )
-    headers = {"Authorization": f"Bearer {token}"}
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        pending = await client.get(
-            "/api/v1/exports?format=json&only_approved=false", headers=headers
+        res = await client.post(
+            "/api/v1/documents",
+            headers={"Authorization": f"Bearer {token}"},
+            files={"file": ("second.xml", XML.replace(b"0000123", b"0000999"), "application/xml")},
         )
-        assert pending.status_code == 200
-        assert pending.json() == []
-        assert pending.headers["X-Export-SHA256"] == hashlib.sha256(pending.content).hexdigest()
+    assert res.status_code == 202
+    # The route itself must not publish; the transactional outbox is the single dispatch path.
+    assert sent == []
+    async with manager.session() as session:
+        events = (await session.execute(select(OutboxEventORM))).scalars().all()
+    assert any(event.aggregate_id == res.json()["job_id"] for event in events)

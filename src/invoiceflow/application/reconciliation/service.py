@@ -16,6 +16,7 @@ from invoiceflow.domain.purchasing.models import (
 )
 from invoiceflow.infrastructure.database.models import MatchResultORM
 from invoiceflow.infrastructure.database.repositories import (
+    InvoiceRepository,
     PolicyRepository,
     PurchasingRepository,
 )
@@ -41,6 +42,7 @@ class ReconciliationService:
         self._matcher = MatchingEngine()
         self._purchasing = PurchasingRepository(session)
         self._policies = PolicyRepository(session)
+        self._invoices = InvoiceRepository(session)
 
     async def effective_policy(self, invoice: InvoiceAggregate) -> TolerancePolicy:
         as_of = invoice.issue_date or datetime.now(timezone.utc).date()
@@ -52,7 +54,7 @@ class ReconciliationService:
         policy: Optional[TolerancePolicy] = None,
     ) -> MatchReport:
         policy = policy or await self.effective_policy(invoice)
-        val_issues = self._validator.validate(invoice)
+        val_issues = self._validator.validate(invoice) + await self._duplicate_issues(invoice)
         report = await self._match_against_purchasing(invoice, policy)
 
         combined_report = merge_validation(report, val_issues)
@@ -69,6 +71,15 @@ class ReconciliationService:
         )
         await self._session.flush()
         return combined_report
+
+    async def _duplicate_issues(self, invoice: InvoiceAggregate) -> list[MatchIssue]:
+        if not invoice.supplier_tax_id or not invoice.invoice_number:
+            return []
+        # A rejected invoice may legitimately be submitted again.
+        others = await self._invoices.list_supplier_invoices(
+            invoice.tenant_id, invoice.supplier_tax_id, exclude_statuses=("REJECTED",)
+        )
+        return self._validator.check_duplicates(invoice, others)
 
     async def _match_against_purchasing(
         self, invoice: InvoiceAggregate, policy: TolerancePolicy

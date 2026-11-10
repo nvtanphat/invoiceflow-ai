@@ -373,3 +373,27 @@ def test_multi_signal_verifier_marks_unextracted_and_unlocated_fields():
 
     assert states["tax_total"] == FieldVerificationState.MISSING
     assert states["subtotal"] == FieldVerificationState.UNCERTAIN
+
+
+def test_multi_signal_verifier_uses_the_configured_confidence_threshold():
+    inv = InvoiceAggregate(
+        tenant_id=uuid.uuid4(),
+        document_id=uuid.uuid4(),
+        supplier_tax_id="0100109106",
+        supplier_name="Cong ty A",
+        evidence=[
+            FieldEvidence(field_path="supplier_name", source_kind="pdf", confidence=0.8),
+        ],
+    )
+
+    strict = {
+        ev.field_path: ev.verification_state
+        for ev in MultiSignalVerifier(min_field_confidence=0.9).verify_invoice(inv).evidence
+    }
+    lenient = {
+        ev.field_path: ev.verification_state
+        for ev in MultiSignalVerifier(min_field_confidence=0.5).verify_invoice(inv).evidence
+    }
+
+    assert strict["supplier_name"] == FieldVerificationState.UNCERTAIN
+    assert lenient["supplier_name"] == FieldVerificationState.VALID

@@ -387,3 +387,28 @@ def test_playwright_e2e_field_level_review_round_trips_through_api(e2e_server):
         )
         assert page.is_visible("text=Đã xác nhận trường supplier_name")
         browser.close()
+
+
+def test_playwright_e2e_posted_export_cannot_include_an_invoice_twice(e2e_server):
+    """Posting an export marks approved invoices exported; the next batch is empty."""
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        context = browser.new_context(
+            viewport={"width": 1280, "height": 800}, accept_downloads=True
+        )
+        page = context.new_page()
+        _login(page, e2e_server)
+        page.click("nav >> text=Xuất dữ liệu")
+        button = page.locator("#eBtn")
+        button.wait_for(timeout=8000)
+        assert "(0 hóa đơn)" not in button.inner_text()
+
+        with page.expect_download(timeout=10000) as download_info:
+            button.click()
+        assert download_info.value.suggested_filename.endswith(".xlsx")
+
+        page.wait_for_function(
+            "document.querySelector('#eBtn').innerText.includes('(0 hóa đơn)')", timeout=8000
+        )
+        context.close()
+        browser.close()

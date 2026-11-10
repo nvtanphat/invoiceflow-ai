@@ -380,6 +380,7 @@ class DocumentAIService:
             chosen_lines = table_lines
             is_table_lines = True
 
+        recovery_issues: list[str] = []
         if self._region_recoverer is not None:
             try:
                 doc_pdf_rec = fitz.open(stream=content, filetype="pdf")
@@ -500,8 +501,10 @@ class DocumentAIService:
                     recovered_lines.append(line)
                 chosen_lines = recovered_lines
                 doc_pdf_rec.close()
-            except Exception as e:
-                logger.debug("Exception during region OCR recovery: %s", e)
+            except Exception as exc:
+                # Recovery is optional, but its failure must stay visible to review and ops.
+                recovery_issues.append(f"REGION_RECOVERY_FAILED: {type(exc).__name__}")
+                logger.warning("Region OCR recovery failed: %s", type(exc).__name__)
 
         has_zero_qty = any(line.qty <= Decimal("0.0000") for line in chosen_lines)
         has_line_issue = any(
@@ -534,7 +537,7 @@ class DocumentAIService:
         fallback_reason: Optional[str] = None
         provider_failure: Optional[str] = None
         cost_usd = 0.0
-        parser_issues = list(digital_res.issues)
+        parser_issues = list(digital_res.issues) + recovery_issues
         vision_header_evidence: list[FieldEvidence] = []
 
         can_use_vision = False

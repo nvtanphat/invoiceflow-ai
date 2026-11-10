@@ -220,6 +220,29 @@ class InvoiceRepository:
         res = await self._session.execute(stmt)
         return list(res.scalars().all())
 
+    async def list_supplier_invoices(
+        self, tenant_id: UUID | str, supplier_tax_id: str, exclude_statuses: tuple[str, ...]
+    ) -> List[InvoiceAggregate]:
+        """Business keys of a supplier's invoices, for duplicate detection."""
+        rows = await self._session.execute(
+            select(InvoiceORM).where(
+                InvoiceORM.tenant_id == str(tenant_id),
+                InvoiceORM.supplier_tax_id == supplier_tax_id,
+                InvoiceORM.status.not_in(exclude_statuses),
+            )
+        )
+        return [
+            InvoiceAggregate(
+                id=row.id,
+                tenant_id=row.tenant_id,
+                document_id=row.document_id,
+                supplier_tax_id=row.supplier_tax_id,
+                invoice_number=row.invoice_number,
+                invoice_series=row.invoice_series,
+            )
+            for row in rows.scalars().all()
+        ]
+
     async def load_aggregate(self, invoice: InvoiceORM) -> InvoiceAggregate:
         """Current persisted invoice state as a domain aggregate (for re-validation/matching)."""
         lines = (

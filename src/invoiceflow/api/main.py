@@ -32,7 +32,8 @@ async def _run_outbox_loop(db_manager: DatabaseSessionManager, stop_event: async
         try:
             await dispatcher.dispatch_pending_events(limit=50)
         except Exception as e:
-            logger.debug("Outbox loop tick: %s", e)
+            # A failing dispatcher stalls every upload; it must be visible to operations.
+            logger.warning("Outbox dispatch failed: %s", type(e).__name__)
         try:
             await asyncio.wait_for(stop_event.wait(), timeout=2.0)
         except (asyncio.TimeoutError, TimeoutError):

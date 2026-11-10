@@ -274,7 +274,7 @@ class InvoiceValidator:
         if not invoice.supplier_tax_id or not invoice.invoice_number:
             return issues
 
-        inv_num = invoice.invoice_number.strip().lower()
+        inv_num = _invoice_number_key(invoice.invoice_number)
         inv_tax = invoice.supplier_tax_id.strip()
         inv_series = (invoice.invoice_series or "").strip().lower()
 
@@ -285,7 +285,7 @@ class InvoiceValidator:
                 other.supplier_tax_id
                 and other.supplier_tax_id.strip() == inv_tax
                 and other.invoice_number
-                and other.invoice_number.strip().lower() == inv_num
+                and _invoice_number_key(other.invoice_number) == inv_num
             ):
                 other_series = (other.invoice_series or "").strip().lower()
                 if not inv_series or not other_series or inv_series == other_series:
@@ -301,3 +301,8 @@ class InvoiceValidator:
                     )
                     break
         return issues
+
+
+def _invoice_number_key(number: str) -> str:
+    # VN invoice numbers are fixed-width; OCR and XML may or may not keep leading zeros.
+    return number.strip().lower().lstrip("0") or "0"

@@ -421,3 +421,50 @@ async def test_worker_routes_cleared_invoice_to_review_when_auto_approval_disabl
         "accounting_approved": False,
     }
     assert "AUTO_APPROVAL_DISABLED_BY_POLICY" in details["review_reasons"]
+
+
+async def _persist_invoice(session, tenant_id: str, number: str, status: str) -> str:
+    invoice = InvoiceORM(
+        tenant_id=tenant_id,
+        document_id=str(uuid.uuid4()),
+        status=status,
+        supplier_tax_id=VENDOR_TAX_ID,
+        invoice_number=number,
+        invoice_series="1C26TAA",
+        subtotal=Decimal("5000000.0000"),
+        tax_total=Decimal("500000.0000"),
+        amount_payable=Decimal("5500000.0000"),
+    )
+    session.add(invoice)
+    await session.flush()
+    return invoice.id
+
+
+async def test_reconciliation_flags_the_same_invoice_submitted_again_as_another_file(db_manager):
+    """Regression: check_duplicates existed but was never called, so a second file of an
+    already approved invoice could be approved and exported again (double payment)."""
+    async with db_manager.session() as session:
+        tenant_id = await _seed_tenant(session)
+        await _seed_po(session, tenant_id)
+        await _persist_invoice(session, tenant_id, "0000099", "EXPORTED")
+        resubmitted = _invoice(tenant_id)
+        resubmitted.invoice_number = "99"
+        resubmitted.invoice_series = "1C26TAA"
+
+        report = await ReconciliationService(session).reconcile_invoice(resubmitted)
+
+    duplicate = [i for i in report.issues if i.code == "DUPLICATE_INVOICE"]
+    assert duplicate and duplicate[0].severity.value == "critical"
+    assert report.is_matched is False
+
+
+async def test_resubmission_after_rejection_is_not_a_duplicate(db_manager):
+    async with db_manager.session() as session:
+        tenant_id = await _seed_tenant(session)
+        await _seed_po(session, tenant_id)
+        await _persist_invoice(session, tenant_id, "0000099", "REJECTED")
+
+        report = await ReconciliationService(session).reconcile_invoice(_invoice(tenant_id))
+
+    assert "DUPLICATE_INVOICE" not in [i.code for i in report.issues]
+    assert report.status == MatchStatus.MATCHED_EXACT

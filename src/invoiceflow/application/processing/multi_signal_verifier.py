@@ -3,6 +3,7 @@ import logging
 import re
 from typing import Any, List, Optional
 
+from invoiceflow.config import get_settings
 from invoiceflow.domain.invoices.evidence_gate import UNLOCATED_IN_SOURCE
 from invoiceflow.domain.invoices.models import (
     FieldEvidence,
@@ -29,6 +30,13 @@ class MultiSignalVerifier:
     region retries, arithmetic consistency checks, and Vision candidates.
     Assigns normalized FieldVerificationState semantics to each extracted field.
     """
+
+    def __init__(self, min_field_confidence: Optional[float] = None):
+        self._min_confidence = (
+            min_field_confidence
+            if min_field_confidence is not None
+            else get_settings().MIN_FIELD_CONFIDENCE
+        )
 
     def verify_invoice(self, invoice: InvoiceAggregate) -> InvoiceAggregate:
         existing_evidence = {ev.field_path: ev for ev in invoice.evidence}
@@ -271,7 +279,7 @@ class MultiSignalVerifier:
 
         # Confidence and source-kind checks
         if existing_ev is not None:
-            if existing_ev.confidence is not None and existing_ev.confidence < 0.70:
+            if existing_ev.confidence is not None and existing_ev.confidence < self._min_confidence:
                 return (
                     FieldVerificationState.UNCERTAIN,
                     f"Extraction confidence ({existing_ev.confidence:.2f}) below threshold",
@@ -306,7 +314,11 @@ class MultiSignalVerifier:
         if _is_model_sourced(qty_ev):
             return FieldVerificationState.MODEL_PROPOSED, _MODEL_PROPOSED_REASON
 
-        if qty_ev is not None and qty_ev.confidence is not None and qty_ev.confidence < 0.70:
+        if (
+            qty_ev is not None
+            and qty_ev.confidence is not None
+            and qty_ev.confidence < self._min_confidence
+        ):
             return (
                 FieldVerificationState.UNCERTAIN,
                 f"Quantity confidence ({qty_ev.confidence:.2f}) below threshold",

@@ -218,6 +218,8 @@ Any non-terminal stage -> FAILED_PERMANENT / NEEDS_INPUT / WAITING_PROVIDER
 - Duyệt thủ công: chỉ từ `READY_FOR_REVIEW`; kiểm tra SoD trước, rồi số học dòng, evidence trọng yếu (MISSING/INVALID/CONFLICT phải được **sửa**, sửa trường nào thì evidence trường đó thành `human_approved`), rồi match result mới nhất (bắt buộc tồn tại).
 - Worker claim job bằng CAS (`QUEUED`/`RETRYING`, hoặc job đang chạy quá `JOB_LEASE_SECONDS` không đổi trạng thái); message trùng khi job còn trong lease là no-op; hóa đơn của tài liệu đã tồn tại → hoàn tất job, không chạy lại pipeline/STP.
 - Frontend production không có chế độ demo (`import.meta.env.DEV`), không tự đặt trạng thái khi API thất bại, số liệu dashboard/báo cáo chỉ lấy từ `reports/processing-summary`.
+- Hóa đơn trùng (cùng tenant + MST người bán + số hóa đơn, bỏ số 0 đầu, cùng/thiếu ký hiệu; bỏ qua hóa đơn `REJECTED`) là issue `DUPLICATE_INVOICE` critical trong đối soát → chặn STP và duyệt; chống trả tiền hai lần khi cùng hóa đơn được gửi lại dưới file khác.
+- Upload chỉ phát job qua transactional outbox (không gửi trực tiếp từ route); lỗi dispatcher, lỗi region recovery (`REGION_RECOVERY_FAILED`) được ghi ở mức WARNING/issue; job lỗi chỉ lưu mã lỗi (`PROCESSING_FAILED: <ExceptionType>`), không lưu/log nội dung exception vì có thể trích dẫn chứng từ.
 - Export tạo snapshot từ **approved invoice revision**, có checksum và version của schema; không export dữ liệu đang pending hoặc stale.
 
 ## 7. Lựa chọn AI API / prompt

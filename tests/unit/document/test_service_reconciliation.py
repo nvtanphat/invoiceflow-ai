@@ -975,3 +975,52 @@ def test_vision_format_differences_are_not_conflicts_and_dates_are_normalised():
 
     VisionReconciler().reconcile_header(header, vision, issues, evidence)
     assert not [i for i in issues if i.startswith("FIELD_CONFLICT")]
+
+
+@pytest.mark.asyncio
+async def test_region_recovery_failure_is_reported_not_swallowed(monkeypatch):
+    """A crashing targeted retry must leave a parser issue so the field goes to review visibly."""
+    import fitz
+
+    from invoiceflow.domain.documents.models import CanonicalDocument
+    from invoiceflow.infrastructure.document.pdf_inspector import PDFInspector
+    from invoiceflow.infrastructure.llm.openai_adapter import OpenAIAdapter
+
+    class _BrokenRecoverer:
+        def recover_missing_header_field(self, *args, **kwargs):
+            raise RuntimeError("easyocr model failed to load")
+
+        def recover_line_quantity(self, *args, **kwargs):
+            raise RuntimeError("easyocr model failed to load")
+
+    mock_docling = MagicMock()
+    mock_docling._normalize_page_rotation.side_effect = lambda b, **_: b
+    mock_docling.extract_canonical.return_value = CanonicalDocument(
+        document_id=uuid.uuid4(),
+        tenant_id=uuid.uuid4(),
+        source_format="pdf",
+        parser_name="docling",
+        parser_version="2",
+        config_hash="h",
+        page_count=1,
+        elements=[],
+    )
+    service = DocumentAIService(
+        pdf_inspector=PDFInspector(),
+        docling_adapter=mock_docling,
+        region_recoverer=_BrokenRecoverer(),
+        llm_adapter=OpenAIAdapter(api_key=None),
+    )
+    doc = fitz.open()
+    doc.new_page()
+    pdf_bytes = doc.write()
+    doc.close()
+
+    result = await service.process_document(
+        tenant_id=uuid.uuid4(), document_id=uuid.uuid4(), filename="scan.pdf", content=pdf_bytes
+    )
+
+    assert any(
+        issue.startswith("REGION_RECOVERY_FAILED")
+        for issue in result.invoice_aggregate.parser_issues
+    )
