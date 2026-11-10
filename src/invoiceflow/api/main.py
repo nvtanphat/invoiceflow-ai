@@ -7,7 +7,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from invoiceflow.api.dependencies import set_global_dependencies
-from invoiceflow.api.routers import auth, documents, exports, health, invoices, jobs, matching
+from invoiceflow.api.routers import (
+    auth,
+    documents,
+    exports,
+    health,
+    invoices,
+    jobs,
+    matching,
+    reports,
+)
 from invoiceflow.config import get_settings
 from invoiceflow.infrastructure.database.session import DatabaseSessionManager
 from invoiceflow.infrastructure.storage.service import StoragePort, get_storage_service
@@ -92,6 +101,7 @@ def create_app(
     app.include_router(invoices.router, prefix=settings.API_V1_STR)
     app.include_router(matching.router, prefix=settings.API_V1_STR)
     app.include_router(exports.router, prefix=settings.API_V1_STR)
+    app.include_router(reports.router, prefix=settings.API_V1_STR)
 
     @app.exception_handler(Exception)
     async def global_exception_handler(request: Request, exc: Exception):

@@ -71,3 +71,28 @@ def test_digital_pdf_parser_natural_vietnamese_date_and_currencies():
     assert res.amount_payable == Decimal("13230000.0000")
     assert len(res.lines) == 1
     assert res.lines[0].sku == "RON-95"
+
+
+def test_digital_parser_reads_single_line_ocr_totals():
+    from decimal import Decimal
+
+    from invoiceflow.infrastructure.document.digital_pdf_parser import DigitalPDFParser
+
+    res = DigitalPDFParser().parse(
+        "Ky hieu: 2C26TCC So: 0003412 Ngay: 2026-03-08\n"
+        "Tien hang: 8500000.0000 Thue GTGT: 680000.0000 Tong cong: 9180000.0000"
+    )
+
+    assert res.subtotal == Decimal("8500000.0000")
+    assert res.tax_total == Decimal("680000.0000")
+    assert res.amount_payable == Decimal("9180000.0000")
+
+
+def test_digital_parser_reports_totals_it_could_not_find():
+    from invoiceflow.infrastructure.document.digital_pdf_parser import DigitalPDFParser
+
+    res = DigitalPDFParser().parse("So: 0000001\nTong cong: 1.100.000")
+
+    assert "SUBTOTAL_NOT_FOUND" in res.issues
+    assert "TAX_TOTAL_NOT_FOUND" in res.issues
+    assert "AMOUNT_PAYABLE_NOT_FOUND" not in res.issues

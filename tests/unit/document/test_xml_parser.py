@@ -95,3 +95,54 @@ def test_secure_xml_parser_rejects_xxe_payload():
             document_id=uuid.uuid4(),
             xml_content=MALICIOUS_XXE_XML,
         )
+
+
+def test_secure_xml_parser_emits_source_evidence_for_every_parsed_field():
+    from invoiceflow.infrastructure.document.xml_parser import SecureXMLParser
+
+    inv = SecureXMLParser().parse_invoice_xml(
+        "00000000-0000-0000-0000-0000000000aa",
+        "00000000-0000-0000-0000-000000000001",
+        SAMPLE_VN_XML,
+    )
+    evidence = {ev.field_path: ev for ev in inv.evidence}
+
+    for path in (
+        "supplier_tax_id",
+        "supplier_name",
+        "invoice_number",
+        "invoice_series",
+        "issue_date",
+        "subtotal",
+        "tax_total",
+        "amount_payable",
+        "lines[0].qty",
+        "lines[0].unit_price",
+        "lines[0].line_amount",
+    ):
+        assert path in evidence, path
+        assert evidence[path].source_kind == "xml"
+        assert evidence[path].extractor == "xml_deterministic"
+        assert evidence[path].raw_value
+    assert evidence["supplier_tax_id"].raw_value == "0109876543"
+    assert evidence["lines[0].qty"].raw_value == "1.0000"
+
+
+def test_secure_xml_parser_does_not_invent_missing_quantity_or_amount():
+    from invoiceflow.infrastructure.document.xml_parser import SecureXMLParser
+
+    xml = (
+        b'<?xml version="1.0" encoding="UTF-8"?><HDon><DLHDon><TTChung><SHDon>0000077</SHDon>'
+        b"</TTChung><NDHDon><DSHHDVu><HHDVu><STT>1</STT><THHDVu>Dich vu</THHDVu>"
+        b"<DGia>500000</DGia></HHDVu></DSHHDVu></NDHDon></DLHDon></HDon>"
+    )
+
+    inv = SecureXMLParser().parse_invoice_xml(
+        "00000000-0000-0000-0000-0000000000aa", "00000000-0000-0000-0000-000000000002", xml
+    )
+    paths = {ev.field_path for ev in inv.evidence}
+
+    assert "lines[0].qty" not in paths
+    assert "lines[0].line_amount" not in paths
+    assert "QTY_MISSING_IN_SOURCE" in inv.lines[0].issues
+    assert "LINE_AMOUNT_MISSING_IN_SOURCE" in inv.lines[0].issues

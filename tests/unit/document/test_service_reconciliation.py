@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock, MagicMock
 import uuid
 import pytest
 from invoiceflow.application.processing.service import DocumentAIService
+from invoiceflow.application.processing.vision_reconciliation import VisionReconciler
 from invoiceflow.domain.documents.models import (
     BoundingBox,
     CanonicalDocument,
@@ -153,7 +154,8 @@ async def test_document_ai_service_reconciles_ocr_cell_merge_with_vision():
     ]
     assert len(vision_qty_ev) == 1
     assert vision_qty_ev[0].normalized_value == "5.0000"
-    assert vision_qty_ev[0].verification_state == "arithmetically_consistent"
+    # Arithmetic agreement of a model-proposed value is not independent verification.
+    assert vision_qty_ev[0].verification_state == "model_proposed"
     # Dynamic confidence must not be hardcoded to 0.95
     assert vision_qty_ev[0].confidence != 0.95
 
@@ -824,3 +826,152 @@ def test_field_verification_state_semantics():
         verification_state=FieldVerificationState.CONFLICT,
     )
     assert ev_conflict.verification_state == "conflict"
+
+
+@pytest.mark.asyncio
+async def test_image_route_reports_evidence_in_original_image_pixels(monkeypatch):
+    from invoiceflow.application.processing.service import DocumentAIResult
+    from invoiceflow.domain.invoices.models import FieldEvidence, InvoiceAggregate
+    from invoiceflow.application.processing.document_router import ProcessingRoute
+    from invoiceflow.domain.documents.models import BoundingBox, CoordinateSystem
+    from invoiceflow.infrastructure.document.image_preprocessor import (
+        GeometryTransform,
+        ImageQualityMetrics,
+        PreprocessedImageResult,
+    )
+
+    transform = GeometryTransform(
+        original_width=1000,
+        original_height=1400,
+        processed_width=1000,
+        processed_height=1400,
+        pdf_points_per_pixel=0.5,
+    )
+
+    class _Preprocessor:
+        def preprocess(self, content):
+            return PreprocessedImageResult(
+                original_image_bytes=content,
+                processed_image_bytes=content,
+                pdf_bytes=b"%PDF",
+                quality=ImageQualityMetrics(10.0, 120.0, 50.0, False, False, False),
+                transform=transform,
+            )
+
+    service = DocumentAIService(image_preprocessor=_Preprocessor(), llm_adapter=MagicMock())
+
+    async def fake_pdf(**_kwargs):
+        invoice = InvoiceAggregate(
+            tenant_id=uuid.uuid4(),
+            document_id=uuid.uuid4(),
+            evidence=[
+                FieldEvidence(
+                    field_path="invoice_number",
+                    source_kind="pdf",
+                    bbox=BoundingBox(page_index=0, x0=50, y0=100, x1=150, y1=120),
+                )
+            ],
+        )
+        return DocumentAIResult(
+            invoice_aggregate=invoice,
+            route=ProcessingRoute.DOCLING_OCR_STRUCTURED,
+            classification="scanned_pdf",
+            has_rotated_pages=False,
+            used_vision=False,
+            cost_usd=0.0,
+            raw_header={},
+            raw_lines=[],
+        )
+
+    monkeypatch.setattr(service, "_process_pdf", fake_pdf)
+    result = await service.process_document(
+        tenant_id=uuid.uuid4(), document_id=uuid.uuid4(), filename="photo.jpg", content=b"\xff\xd8"
+    )
+
+    bbox = next(
+        ev.bbox for ev in result.invoice_aggregate.evidence if ev.field_path == "invoice_number"
+    )
+    assert bbox.coordinate_system == CoordinateSystem.PIXELS
+    assert (bbox.x0, bbox.y0, bbox.x1, bbox.y1) == (100.0, 200.0, 300.0, 240.0)
+    assert (bbox.page_width, bbox.page_height) == (1000, 1400)
+
+
+def test_vision_filled_totals_carry_model_provenance_without_invented_confidence():
+    header = {
+        "supplier_tax_id": "0101234567",
+        "supplier_name": "Cong ty A",
+        "buyer_tax_id": "",
+        "buyer_name": "",
+        "invoice_number": "0005599",
+        "invoice_series": "",
+        "issue_date": "",
+        "subtotal": Decimal("0.0000"),
+        "tax_total": Decimal("0.0000"),
+        "amount_payable": Decimal("0.0000"),
+    }
+    vision = ExtractionResult(
+        subtotal=Decimal("60000000.0000"),
+        tax_total=Decimal("6000000.0000"),
+        amount_payable=Decimal("66000000.0000"),
+    )
+    evidence: list = []
+
+    VisionReconciler().reconcile_header(header, vision, [], evidence)
+
+    by_path = {ev.field_path: ev for ev in evidence}
+    for path in ("subtotal", "tax_total", "amount_payable"):
+        assert by_path[path].source_kind == "vision_llm", path
+        assert by_path[path].verification_state == "model_proposed", path
+    assert all(ev.confidence is None for ev in evidence)
+
+
+def test_vision_only_lines_get_indexed_model_evidence_for_each_numeric_field():
+    from invoiceflow.application.processing.vision_reconciliation import vision_line_evidence
+    from invoiceflow.domain.invoices.models import InvoiceLine
+
+    lines = [
+        InvoiceLine(
+            line_no=1,
+            description="A",
+            qty=Decimal("2"),
+            unit_price=Decimal("5"),
+            line_amount=Decimal("10"),
+        )
+    ]
+
+    evidence = {ev.field_path: ev for ev in vision_line_evidence(lines)}
+
+    assert set(evidence) == {"lines[0].qty", "lines[0].unit_price", "lines[0].line_amount"}
+    assert all(ev.source_kind == "vision_llm" and ev.confidence is None for ev in evidence.values())
+
+
+def test_vision_format_differences_are_not_conflicts_and_dates_are_normalised():
+    header = {
+        "supplier_tax_id": "0101234567",
+        "supplier_name": "Cong ty A",
+        "buyer_tax_id": "",
+        "buyer_name": "",
+        "invoice_number": "0005599",
+        "invoice_series": "1C26TAA",
+        "issue_date": "",
+        "subtotal": Decimal("1000.0000"),
+        "tax_total": Decimal("100.0000"),
+        "amount_payable": Decimal("1100.0000"),
+    }
+    vision = ExtractionResult(
+        supplier_tax_id="0101 234 567",
+        issue_date="20/03/2026",
+        subtotal=Decimal("1000"),
+        tax_total=Decimal("100"),
+        amount_payable=Decimal("1100"),
+    )
+    issues: list = []
+    evidence: list = []
+
+    VisionReconciler().reconcile_header(header, vision, issues, evidence)
+
+    assert not [i for i in issues if i.startswith("FIELD_CONFLICT")]
+    assert header["issue_date"] == "2026-03-20"
+
+    VisionReconciler().reconcile_header(header, vision, issues, evidence)
+    assert not [i for i in issues if i.startswith("FIELD_CONFLICT")]

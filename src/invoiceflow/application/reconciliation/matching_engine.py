@@ -90,20 +90,6 @@ class MatchingEngine:
                 issues=issues,
             )
 
-        # Check total amount delta policy
-        amount_delta = abs(invoice.amount_payable - po.subtotal)
-        if amount_delta > policy.max_amount_delta:
-            issues.append(
-                MatchIssue(
-                    code="MAX_AMOUNT_DELTA_EXCEEDED",
-                    severity=IssueSeverity.WARNING,
-                    message=f"Total invoice amount deviation ({amount_delta}) exceeds max policy delta ({policy.max_amount_delta}).",
-                    field_path="amount_payable",
-                    actual_value=str(invoice.amount_payable),
-                    expected_value=str(po.subtotal),
-                )
-            )
-
         # Build index of PO lines
         po_lines_by_id = {line.id: line for line in po.lines}
         po_lines_by_sku = {line.sku: line for line in po.lines if line.sku}
@@ -123,6 +109,11 @@ class MatchingEngine:
         has_missing_grn = False
         has_minor_price_variance = False
         has_minor_qty_variance = False
+
+        # Pre-tax value the PO authorises for exactly the invoiced quantities; comparing
+        # against the whole PO subtotal would mix tax-inclusive totals and partial invoices.
+        expected_subtotal = Decimal("0.0000")
+        all_lines_matched = True
 
         for inv_line in invoice.lines:
             # 1. Multi-factor match to PO line
@@ -160,7 +151,10 @@ class MatchingEngine:
                         line_no=inv_line.line_no,
                     )
                 )
+                all_lines_matched = False
                 continue
+
+            expected_subtotal += matched_po_line.unit_price * inv_line.qty - inv_line.discount
 
             # Unit of Measure (UoM) cross-validation
             norm_inv_unit = _normalize_uom(inv_line.unit)
@@ -228,6 +222,20 @@ class MatchingEngine:
                 elif inv_line.qty != tot_received:
                     has_minor_qty_variance = True
 
+        if all_lines_matched and invoice.lines:
+            amount_delta = abs(invoice.subtotal - expected_subtotal)
+            if amount_delta > policy.max_amount_delta:
+                issues.append(
+                    MatchIssue(
+                        code="MAX_AMOUNT_DELTA_EXCEEDED",
+                        severity=IssueSeverity.WARNING,
+                        message=f"Invoice subtotal deviation ({amount_delta}) exceeds max policy delta ({policy.max_amount_delta}).",
+                        field_path="subtotal",
+                        actual_value=str(invoice.subtotal),
+                        expected_value=str(expected_subtotal),
+                    )
+                )
+
         # Determine overall match status
         has_critical_issue = any(i.severity == IssueSeverity.CRITICAL for i in issues)
 
@@ -247,14 +255,15 @@ class MatchingEngine:
             status = MatchStatus.EXCEPTION
             is_matched = False
             requires_review = True
+        elif issues:
+            # Tolerated variances raise no issue; any recorded warning must reach a reviewer.
+            status = MatchStatus.EXCEPTION
+            is_matched = False
+            requires_review = True
         elif has_minor_price_variance or has_minor_qty_variance:
             status = MatchStatus.MATCHED_WITHIN_TOLERANCE
             is_matched = True
             requires_review = False
-        elif issues:
-            status = MatchStatus.EXCEPTION
-            is_matched = False
-            requires_review = True
         else:
             status = MatchStatus.MATCHED_EXACT
             is_matched = True

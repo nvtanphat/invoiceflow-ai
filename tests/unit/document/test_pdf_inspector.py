@@ -1,3 +1,4 @@
+from invoiceflow.domain.documents.value_parsing import parse_vn_decimal
 from decimal import Decimal
 import fitz
 import pytest
@@ -184,16 +185,14 @@ def test_no_arbitrary_self_healing_preserves_accounting_errors():
 
 
 def test_numeric_parsing_separators_and_ambiguity():
-    parser = DigitalPDFParser()
-    assert parser._parse_decimal("200.000", is_qty=True)[0] == Decimal("200.000")
-    assert parser._parse_decimal("200.5", is_qty=True)[0] == Decimal("200.5")
-    assert parser._parse_decimal("12.000.000")[0] == Decimal("12000000")
-    assert parser._parse_decimal("1,234.56")[0] == Decimal("1234.56")
-    assert parser._parse_decimal("1.234,56")[0] == Decimal("1234.56")
+    assert parse_vn_decimal("200.000", is_qty=True)[0] == Decimal("200.000")
+    assert parse_vn_decimal("200.5", is_qty=True)[0] == Decimal("200.5")
+    assert parse_vn_decimal("12.000.000")[0] == Decimal("12000000")
+    assert parse_vn_decimal("1,234.56")[0] == Decimal("1234.56")
+    assert parse_vn_decimal("1.234,56")[0] == Decimal("1234.56")
 
 
 def test_unparseable_number_records_issue():
-    parser = DigitalPDFParser()
-    val, issue = parser._parse_decimal("invalid_amount_xyz")
+    val, issue = parse_vn_decimal("invalid_amount_xyz")
     assert val is None or val == Decimal("0.0000")
     assert issue == "PARSE_ERROR"

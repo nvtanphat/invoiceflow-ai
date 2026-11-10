@@ -5,6 +5,7 @@ from fastapi import (
     File,
     Header,
     HTTPException,
+    Query,
     Response,
     UploadFile,
     status,
@@ -22,6 +23,9 @@ from invoiceflow.application.ingestion.preflight import IngestionPreflight, Pref
 from invoiceflow.application.ingestion.service import IngestionService
 from invoiceflow.infrastructure.database.models import DocumentORM
 from invoiceflow.infrastructure.database.repositories import DocumentRepository
+from invoiceflow.config import get_settings
+from invoiceflow.infrastructure.document.page_orientation import normalize_page_rotation
+from invoiceflow.infrastructure.document.pdf_inspector import PDFInspector
 from invoiceflow.infrastructure.storage.service import StoragePort
 
 router = APIRouter(prefix="/documents", tags=["Documents"])
@@ -169,7 +173,7 @@ async def preview_document(
 async def render_document_page(
     document_id: str,
     page_index: int = 0,
-    dpi: int = 150,
+    dpi: int = Query(150, ge=36, le=300),
     ctx: AuthenticatedContext = Depends(get_current_context),
     session: AsyncSession = Depends(get_db),
     storage: StoragePort = Depends(get_storage),
@@ -189,6 +193,9 @@ async def render_document_page(
     if doc.mime_type == "application/pdf" or doc.filename.lower().endswith(".pdf"):
         import fitz
 
+        # Render exactly the page OCR ran on, so evidence coordinates line up with the image.
+        page_classes = PDFInspector().inspect(content).page_classifications
+        content = normalize_page_rotation(content, get_settings().OCR_DPI, page_classes)
         doc_pdf = fitz.open(stream=content, filetype="pdf")
         if page_index < 0 or page_index >= len(doc_pdf):
             doc_pdf.close()
@@ -200,7 +207,8 @@ async def render_document_page(
         page_width = float(page.rect.width)
         page_height = float(page.rect.height)
         page_count = len(doc_pdf)
-        rotation = page.rotation
+        # get_pixmap applies any remaining /Rotate, so the served image is already upright.
+        rotation = 0
         pix = page.get_pixmap(dpi=dpi)
         png_bytes = pix.tobytes("png")
         doc_pdf.close()

@@ -20,6 +20,18 @@ class XMLParsingError(Exception):
     pass
 
 
+def _source_evidence(field_path: str, raw_value: str) -> FieldEvidence:
+    # Parsed directly from the structured e-invoice element, so no model confidence applies.
+    return FieldEvidence(
+        field_path=field_path,
+        source_kind="xml",
+        raw_value=raw_value,
+        normalized_value=raw_value.strip(),
+        extractor="xml_deterministic",
+        verification_state="valid",
+    )
+
+
 class SecureXMLParser:
     """Hardened XML Parser for Vietnamese electronic invoices conforming to TT78/ND123/ND254."""
 
@@ -63,11 +75,29 @@ class SecureXMLParser:
 
         # Total amounts
         t_toan = self._find_element(root, ["DLHDon", "NDHDon", "TToan"], ["TToan"])
-        subtotal = self._parse_decimal(self._get_text(t_toan, ["TgTCThue", "TongTienChuaThue"]))
-        tax_total = self._parse_decimal(self._get_text(t_toan, ["TgTThue", "TongTienThue"]))
-        amount_payable = self._parse_decimal(
-            self._get_text(t_toan, ["TgTTTBSo", "TongTienThanhToan"])
-        )
+        subtotal_raw = self._get_text(t_toan, ["TgTCThue", "TongTienChuaThue"])
+        tax_total_raw = self._get_text(t_toan, ["TgTThue", "TongTienThue"])
+        amount_payable_raw = self._get_text(t_toan, ["TgTTTBSo", "TongTienThanhToan"])
+        subtotal = self._parse_decimal(subtotal_raw)
+        tax_total = self._parse_decimal(tax_total_raw)
+        amount_payable = self._parse_decimal(amount_payable_raw)
+
+        evidence = [
+            _source_evidence(path, raw)
+            for path, raw in (
+                ("supplier_tax_id", supplier_tax_id),
+                ("supplier_name", supplier_name),
+                ("buyer_tax_id", buyer_tax_id),
+                ("buyer_name", buyer_name),
+                ("invoice_number", invoice_number),
+                ("invoice_series", invoice_series),
+                ("issue_date", issue_date_str if issue_date else None),
+                ("subtotal", subtotal_raw),
+                ("tax_total", tax_total_raw),
+                ("amount_payable", amount_payable_raw),
+            )
+            if raw
+        ]
 
         # Line items
         lines: list[InvoiceLine] = []
@@ -83,13 +113,29 @@ class SecureXMLParser:
                         if m_sku:
                             sku = m_sku.group(1)
                     unit = self._get_text(child, ["DVTinh"])
-                    qty = self._parse_decimal(
-                        self._get_text(child, ["SLuong", "SoLuong"])
-                    ) or Decimal("1.0000")
-                    price = self._parse_decimal(self._get_text(child, ["DGia", "DonGia"]))
+                    qty_raw = self._get_text(child, ["SLuong", "SoLuong"])
+                    price_raw = self._get_text(child, ["DGia", "DonGia"])
+                    amount_raw = self._get_text(child, ["ThTien", "ThanhTien"])
+                    qty = self._parse_decimal(qty_raw)
+                    price = self._parse_decimal(price_raw)
                     discount = self._parse_decimal(self._get_text(child, ["STCKhau", "TienCK"]))
-                    line_amount = self._parse_decimal(
-                        self._get_text(child, ["ThTien", "ThanhTien"])
+                    line_amount = self._parse_decimal(amount_raw)
+
+                    # Absent source values stay zero with an explicit issue; never invented.
+                    line_issues = []
+                    if not qty_raw:
+                        line_issues.append("QTY_MISSING_IN_SOURCE")
+                    if not amount_raw:
+                        line_issues.append("LINE_AMOUNT_MISSING_IN_SOURCE")
+                    prefix = f"lines[{line_no - 1}]"
+                    evidence.extend(
+                        _source_evidence(f"{prefix}.{name}", raw)
+                        for name, raw in (
+                            ("qty", qty_raw),
+                            ("unit_price", price_raw),
+                            ("line_amount", amount_raw),
+                        )
+                        if raw
                     )
 
                     tax_rate_str = self._get_text(child, ["TSuat", "ThueSuat"])
@@ -107,9 +153,11 @@ class SecureXMLParser:
                             discount=discount,
                             tax_rate=tax_rate,
                             tax=tax,
-                            line_amount=line_amount
-                            if line_amount > Decimal("0")
-                            else (qty * price - discount),
+                            line_amount=line_amount,
+                            raw_qty=qty_raw,
+                            raw_unit_price=price_raw,
+                            raw_line_amount=amount_raw,
+                            issues=line_issues,
                         )
                     )
                     line_no += 1
@@ -121,17 +169,6 @@ class SecureXMLParser:
             if signature_el is not None
             else VerificationStatus.NOT_CHECKED
         )
-
-        evidence = [
-            FieldEvidence(
-                field_path="amount_payable",
-                source_kind="xml",
-                raw_value=str(amount_payable),
-                normalized_value=str(amount_payable),
-                confidence=1.0,
-                extractor="xml_deterministic",
-            )
-        ]
 
         return InvoiceAggregate(
             tenant_id=UUID(str(tenant_id)),

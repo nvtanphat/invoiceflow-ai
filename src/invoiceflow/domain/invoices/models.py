@@ -35,6 +35,7 @@ class FieldVerificationState(str, Enum):
     ARITHMETICALLY_CONSISTENT = "arithmetically_consistent"
     MODEL_PROPOSED = "model_proposed"
     HUMAN_APPROVED = "human_approved"
+    HUMAN_REJECTED = "human_rejected"
 
 
 class TaxBreakdown(BaseModel):

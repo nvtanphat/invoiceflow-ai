@@ -10,6 +10,7 @@ from invoiceflow.infrastructure.database.models import (
     DocumentORM,
     InvoiceLineORM,
     InvoiceORM,
+    MatchResultORM,
     MembershipORM,
     OutboxEventORM,
     PurchaseOrderLineORM,
@@ -186,7 +187,16 @@ async def test_separation_of_duties_uploader_cannot_approve():
             tax_total=Decimal("100000"),
             amount_payable=Decimal("1100000"),
         )
-        session.add_all([t, u_uploader, u_approver, m1, m2, doc, inv])
+        # Approval requires a reconciliation result; this test isolates the SoD rule.
+        cleared_match = MatchResultORM(
+            tenant_id=tenant_id,
+            invoice_id=invoice_id,
+            status="MATCHED_EXACT",
+            is_matched=True,
+            requires_review=False,
+            issues_json="[]",
+        )
+        session.add_all([t, u_uploader, u_approver, m1, m2, doc, inv, cleared_match])
 
     app = create_app(database_url=db_url, db_manager=db_manager)
     transport = ASGITransport(app=app)

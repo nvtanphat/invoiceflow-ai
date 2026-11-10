@@ -300,3 +300,76 @@ def test_matching_engine_matched_within_tolerance():
     assert report.is_matched is True
     assert report.status == MatchStatus.MATCHED_WITHIN_TOLERANCE
     assert report.requires_review is False
+
+
+def test_multi_signal_verifier_keeps_vision_values_model_proposed_despite_arithmetic():
+    """Arithmetic consistency cannot verify numbers that a Vision model produced itself."""
+    inv = InvoiceAggregate(
+        tenant_id=uuid.uuid4(),
+        document_id=uuid.uuid4(),
+        supplier_tax_id="0101234567",
+        invoice_number="0001235",
+        subtotal=Decimal("2000000.0000"),
+        tax_total=Decimal("200000.0000"),
+        amount_payable=Decimal("2200000.0000"),
+        lines=[
+            InvoiceLine(
+                line_no=1,
+                description="Thiết bị",
+                qty=Decimal("2.0000"),
+                unit_price=Decimal("1000000.0000"),
+                line_amount=Decimal("2000000.0000"),
+            )
+        ],
+        evidence=[
+            FieldEvidence(field_path=path, source_kind="vision_llm", extractor="openai_vision")
+            for path in (
+                "subtotal",
+                "tax_total",
+                "amount_payable",
+                "lines[0].unit_price",
+                "lines[0].line_amount",
+            )
+        ],
+    )
+
+    verified = MultiSignalVerifier().verify_invoice(inv)
+    states = {ev.field_path: ev.verification_state for ev in verified.evidence}
+
+    for path in (
+        "subtotal",
+        "tax_total",
+        "amount_payable",
+        "lines[0].unit_price",
+        "lines[0].line_amount",
+    ):
+        assert states[path] == FieldVerificationState.MODEL_PROPOSED, path
+
+
+def test_multi_signal_verifier_marks_unextracted_and_unlocated_fields():
+    inv = InvoiceAggregate(
+        tenant_id=uuid.uuid4(),
+        document_id=uuid.uuid4(),
+        supplier_tax_id="0105554321",
+        invoice_number="0003412",
+        subtotal=Decimal("1000000.0000"),
+        tax_total=Decimal("0.0000"),
+        amount_payable=Decimal("1100000.0000"),
+        evidence=[
+            FieldEvidence(
+                field_path="subtotal",
+                source_kind="pdf",
+                normalized_value="1000000.0000",
+                review_reason="no_direct_text_match",
+            )
+        ],
+        parser_issues=["TAX_TOTAL_NOT_FOUND"],
+    )
+
+    states = {
+        ev.field_path: ev.verification_state
+        for ev in MultiSignalVerifier().verify_invoice(inv).evidence
+    }
+
+    assert states["tax_total"] == FieldVerificationState.MISSING
+    assert states["subtotal"] == FieldVerificationState.UNCERTAIN

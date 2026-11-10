@@ -1,5 +1,6 @@
+from dataclasses import asdict
 import json
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 from fastapi import APIRouter, Depends, Header, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -11,6 +12,7 @@ from invoiceflow.api.dependencies import (
     require_role,
 )
 from invoiceflow.application.review.service import ConcurrencyConflictError, ReviewService
+from invoiceflow.domain.invoices.evidence_gate import review_items
 from invoiceflow.infrastructure.database.models import (
     FieldEvidenceORM,
     InvoiceLineORM,
@@ -22,10 +24,13 @@ router = APIRouter(prefix="/invoices", tags=["Invoices"])
 
 
 class UnifiedReviewRequest(BaseModel):
-    action: str  # "approve", "reject", "correct"
+    action: Literal["approve", "reject", "correct", "resolve_field"]
     notes: Optional[str] = None
     reason: Optional[str] = None
     corrections: Optional[dict[str, Any]] = None
+    field_path: Optional[str] = None
+    decision: Optional[Literal["accept_extracted", "accept_candidate", "correct"]] = None
+    value: Optional[str] = None
 
 
 class PatchInvoiceRequest(BaseModel):
@@ -165,14 +170,13 @@ async def get_invoice(
                 "cell_id": e.cell_id,
                 "raw_value": e.raw_value or "",
                 "normalized_value": e.normalized_value or "",
-                "confidence": float(e.confidence)
-                if getattr(e, "confidence", None) is not None
-                else 1.0,
+                "confidence": float(e.confidence) if e.confidence is not None else None,
                 "verification_state": getattr(e, "verification_state", "model_proposed"),
                 "review_reason": getattr(e, "review_reason", None),
             }
             for e in evidence
         ],
+        "review_items": [asdict(item) for item in review_items(evidence, line_count=len(lines))],
         "issues": issues,
     }
 
@@ -214,6 +218,19 @@ async def review_invoice_unified(
                 expected_revision=expected_revision,
                 actor_id=ctx.user_id,
                 reason=req.reason or "Rejected by reviewer",
+            )
+        elif req.action == "resolve_field":
+            if not req.field_path or not req.decision:
+                raise ValueError("resolve_field requires field_path and decision.")
+            updated = await review_service.resolve_field(
+                tenant_id=ctx.tenant_id,
+                invoice_id=invoice_id,
+                expected_revision=expected_revision,
+                actor_id=ctx.user_id,
+                field_path=req.field_path,
+                decision=req.decision,
+                value=req.value,
+                reason=req.reason,
             )
         else:
             updated = await review_service.update_invoice_fields(

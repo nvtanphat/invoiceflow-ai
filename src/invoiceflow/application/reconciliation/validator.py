@@ -185,9 +185,8 @@ class InvoiceValidator:
             + invoice.tax_total
             + invoice.rounding_adjustment
         )
-        if invoice.subtotal > Decimal("0.0000") and abs(
-            invoice.amount_payable - expected_payable
-        ) >= Decimal("1.0000"):
+        # A zero subtotal usually means it was never extracted; it must not skip the check.
+        if abs(invoice.amount_payable - expected_payable) >= Decimal("1.0000"):
             issues.append(
                 MatchIssue(
                     code="TOTAL_PAYABLE_MISMATCH",

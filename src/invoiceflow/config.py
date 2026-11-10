@@ -60,6 +60,9 @@ class Settings(BaseSettings):
     MAX_DOCUMENT_PAGES: int = 50
     OCR_DPI: int = 150
     WORKER_CONCURRENCY: int = 4
+    # A job whose status has not advanced for this long is treated as abandoned by a crashed
+    # worker and may be claimed again; it must exceed the slowest expected processing stage.
+    JOB_LEASE_SECONDS: int = 900
     DEFAULT_PRICE_TOLERANCE_PCT: float = 2.0
     DEFAULT_QTY_TOLERANCE_PCT: float = 0.0
     DOCLING_TIMEOUT_SECONDS: int = 60

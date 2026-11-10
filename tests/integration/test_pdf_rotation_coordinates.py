@@ -89,3 +89,66 @@ def test_bounding_box_coordinates_origin_and_bounds():
     assert 0 <= bbox.x0 <= 595.0
     assert 0 <= bbox.y0 <= page_height
     assert bbox.coordinate_system == CoordinateSystem.PDF_POINTS
+
+
+@pytest.mark.asyncio
+async def test_page_render_uses_the_orientation_evidence_coordinates_refer_to(tmp_path):
+    """Regression (case_07): evidence bboxes are computed on the rotation-normalised page, but
+    the viewer drew the /Rotate-applied page and rotated it again in CSS, so boxes drifted."""
+    import uuid
+
+    from httpx import ASGITransport, AsyncClient
+
+    from invoiceflow.api.dependencies import create_access_token
+    from invoiceflow.api.main import create_app
+    from invoiceflow.config import get_settings
+    from invoiceflow.infrastructure.database.models import (
+        DocumentORM,
+        MembershipORM,
+        TenantORM,
+        UserORM,
+    )
+    from invoiceflow.infrastructure.database.session import DatabaseSessionManager
+    from invoiceflow.infrastructure.storage.service import LocalStorageService
+
+    storage = LocalStorageService(base_dir=str(tmp_path))
+    uri = await storage.save("t", "rotated.pdf", create_sample_pdf(rotation=90, is_scanned=True))
+    db_manager = DatabaseSessionManager(database_url="sqlite+aiosqlite:///:memory:", echo=False)
+    await db_manager.create_tables()
+    async with db_manager.session() as session:
+        tenant = TenantORM(name="Rot")
+        user = UserORM(email="rot@vn.vn", hashed_password="x", full_name="R")
+        session.add_all([tenant, user])
+        await session.flush()
+        session.add(MembershipORM(tenant_id=tenant.id, user_id=user.id, role="viewer"))
+        doc = DocumentORM(
+            tenant_id=tenant.id,
+            filename="rotated.pdf",
+            mime_type="application/pdf",
+            file_size_bytes=1,
+            sha256=uuid.uuid4().hex,
+            storage_uri=uri,
+        )
+        session.add(doc)
+        await session.flush()
+        ids = (tenant.id, user.id, doc.id)
+
+    token = create_access_token(
+        user_id=ids[1], tenant_id=ids[0], role="viewer", email="rot@vn.vn", settings=get_settings()
+    )
+    app = create_app(
+        database_url="sqlite+aiosqlite:///:memory:", db_manager=db_manager, storage=storage
+    )
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        res = await client.get(
+            f"/api/v1/documents/{ids[2]}/pages/0/render",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+    await db_manager.close()
+
+    assert res.status_code == 200
+    assert res.headers["X-Page-Rotation"] == "0"
+    assert (float(res.headers["X-Page-Width"]), float(res.headers["X-Page-Height"])) == (
+        595.0,
+        842.0,
+    )

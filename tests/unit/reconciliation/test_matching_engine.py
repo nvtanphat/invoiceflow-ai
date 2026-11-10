@@ -162,3 +162,107 @@ def test_3_way_matching_quantity_variance():
     assert report.status == MatchStatus.QUANTITY_VARIANCE
     assert report.requires_review is True
     assert any(i.code == "QUANTITY_VARIANCE" for i in report.issues)
+
+
+def _po_grn_invoice(invoice_unit_price: str, invoice_unit: str = "cai"):
+    tenant_id = uuid.uuid4()
+    po_id = uuid.uuid4()
+    po_line_id = uuid.uuid4()
+    grn_id = uuid.uuid4()
+    po = PurchaseOrder(
+        id=po_id,
+        tenant_id=tenant_id,
+        vendor_tax_id="0101234567",
+        vendor_name="Nhà cung cấp",
+        po_number="PO-2026-777",
+        order_date=date(2026, 11, 1),
+        subtotal=Decimal("2000000.0000"),
+        lines=[
+            POLine(
+                id=po_line_id,
+                po_id=po_id,
+                line_no=1,
+                sku="SKU-77",
+                description="Thiết bị B",
+                unit="cai",
+                ordered_qty=Decimal("2.0000"),
+                unit_price=Decimal("1000000.0000"),
+                line_total=Decimal("2000000.0000"),
+            )
+        ],
+    )
+    grn = GoodsReceipt(
+        id=grn_id,
+        tenant_id=tenant_id,
+        po_id=po_id,
+        grn_number="GRN-777",
+        receipt_date=date(2026, 11, 3),
+        lines=[
+            GRNLine(
+                grn_id=grn_id,
+                po_line_id=po_line_id,
+                line_no=1,
+                received_qty=Decimal("2.0000"),
+            )
+        ],
+    )
+    unit_price = Decimal(invoice_unit_price)
+    subtotal = unit_price * Decimal("2")
+    invoice = InvoiceAggregate(
+        tenant_id=tenant_id,
+        document_id=uuid.uuid4(),
+        supplier_tax_id="0101234567",
+        invoice_number="INV-777",
+        subtotal=subtotal,
+        tax_total=subtotal / Decimal("10"),
+        amount_payable=subtotal + subtotal / Decimal("10"),
+        lines=[
+            InvoiceLine(
+                line_no=1,
+                sku_ref="SKU-77",
+                description="Thiết bị B",
+                unit=invoice_unit,
+                qty=Decimal("2.0000"),
+                unit_price=unit_price,
+                line_amount=subtotal,
+            )
+        ],
+    )
+    return po, grn, invoice, TolerancePolicy(tenant_id=tenant_id)
+
+
+def test_amount_delta_compares_pre_tax_values():
+    from invoiceflow.application.reconciliation.matching_engine import MatchingEngine
+
+    po, grn, invoice, policy = _po_grn_invoice("1000000.0000")
+
+    report = MatchingEngine().match_3_way(invoice, po, [grn], policy)
+
+    assert "MAX_AMOUNT_DELTA_EXCEEDED" not in [i.code for i in report.issues]
+    assert report.status == MatchStatus.MATCHED_EXACT
+
+
+def test_amount_delta_beyond_policy_is_reported_on_pre_tax_subtotal():
+    from invoiceflow.application.reconciliation.matching_engine import MatchingEngine
+
+    po, grn, invoice, policy = _po_grn_invoice("1000000.0000")
+    invoice.subtotal = Decimal("2100000.0000")
+
+    report = MatchingEngine().match_3_way(invoice, po, [grn], policy)
+
+    assert "MAX_AMOUNT_DELTA_EXCEEDED" in [i.code for i in report.issues]
+    assert report.is_matched is False
+    assert report.requires_review is True
+
+
+def test_warning_issues_are_not_hidden_by_tolerated_price_variance():
+    from invoiceflow.application.reconciliation.matching_engine import MatchingEngine
+
+    po, grn, invoice, policy = _po_grn_invoice("1010000.0000", invoice_unit="kg")
+
+    report = MatchingEngine().match_3_way(invoice, po, [grn], policy)
+
+    assert "UOM_MISMATCH" in [i.code for i in report.issues]
+    assert report.status == MatchStatus.EXCEPTION
+    assert report.is_matched is False
+    assert report.requires_review is True

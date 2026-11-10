@@ -310,8 +310,19 @@ async def test_full_application_lifecycle_scanned_pdf_upload_to_export():
             assert len(evidence) > 0
 
         # 4. REVIEW & APPROVE
+        # The OCR route reads only the grand total of case_03, so subtotal/tax arrive empty and
+        # approval is blocked until a reviewer enters them from the source document.
         async with db_manager.session() as session:
             review_svc = ReviewService(session)
+            corrected = await review_svc.update_invoice_fields(
+                tenant_id=tenant_id,
+                invoice_id=invoice_id,
+                expected_revision=current_revision,
+                actor_id=reviewer_id,
+                patches={"subtotal": "8500000.0000", "tax_total": "680000.0000"},
+                reason="Nhập tiền hàng và thuế GTGT theo chứng từ gốc",
+            )
+            current_revision = corrected.revision
             approved_inv = await review_svc.approve_invoice(
                 tenant_id=tenant_id,
                 invoice_id=invoice_id,

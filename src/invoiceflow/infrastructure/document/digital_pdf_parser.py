@@ -3,6 +3,10 @@ import re
 from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, ConfigDict, Field
 
+from invoiceflow.domain.documents.value_parsing import parse_vn_decimal
+from invoiceflow.infrastructure.document.text_normalization import normalize_extracted_text
+from invoiceflow.infrastructure.document.totals_extractor import extract_invoice_totals
+
 
 class DigitalExtractedLine(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -63,8 +67,6 @@ class DigitalPDFParser:
     def parse(self, text: str) -> DigitalInvoiceExtraction:
         if not text or not text.strip():
             return DigitalInvoiceExtraction()
-
-        from invoiceflow.infrastructure.document.text_normalization import normalize_extracted_text
 
         text = normalize_extracted_text(text)
 
@@ -178,40 +180,17 @@ class DigitalPDFParser:
                 fields_found += 1
 
         # 7. Monetary Totals
-        m_subtotal = re.search(
-            r"(?:Cong tien hang|Cộng tiền hàng|Subtotal)(?:\s*\([^)]*\))?:\s*([0-9.,\s]+?)(?=\s*(?:[₫đ$]|VND|VNĐ|\r|\n|$))",
-            text,
-            re.IGNORECASE,
-        )
-        if m_subtotal:
-            subtotal_val, subtotal_err = self._parse_decimal(m_subtotal.group(1))
-            data["subtotal"] = subtotal_val
-            if subtotal_err:
-                doc_issues.append(f"SUBTOTAL_{subtotal_err}")
-            fields_found += 1
-
-        m_tax = re.search(
-            r"(?:Tien thue GTGT|Tiền thuế GTGT|Tax Total)(?:\s*\([^)]*\))?:\s*([0-9.,\s]+?)(?=\s*(?:[₫đ$]|VND|VNĐ|\r|\n|$))",
-            text,
-            re.IGNORECASE,
-        )
-        if m_tax:
-            tax_val, tax_err = self._parse_decimal(m_tax.group(1))
-            data["tax_total"] = tax_val
-            if tax_err:
-                doc_issues.append(f"TAX_{tax_err}")
-            fields_found += 1
-
-        m_total = re.search(
-            r"(?:Tong cong|Tổng cộng|Total Amount)(?:\s*\([^)]*\))?:\s*([0-9.,\s]+?)(?=\s*(?:[₫đ$]|VND|VNĐ|\r|\n|$))",
-            text,
-            re.IGNORECASE,
-        )
-        if m_total:
-            total_val, total_err = self._parse_decimal(m_total.group(1))
-            data["amount_payable"] = total_val
-            if total_err:
-                doc_issues.append(f"TOTAL_{total_err}")
+        totals = extract_invoice_totals(text)
+        for field_name in ("subtotal", "tax_total", "amount_payable"):
+            total = totals.get(field_name)
+            if total is None:
+                # Left at zero for the aggregate, but flagged so it is never taken as read.
+                doc_issues.append(f"{field_name.upper()}_NOT_FOUND")
+                continue
+            value, parse_issue = parse_vn_decimal(total.raw)
+            data[field_name] = value
+            if parse_issue:
+                doc_issues.append(f"{field_name.upper()}_{parse_issue}")
             fields_found += 1
 
         # 8. Multi-line Items Extraction
@@ -248,10 +227,10 @@ class DigitalPDFParser:
             raw_tax_rate = m_line.group(5).strip()
             raw_line_amount = m_line.group(6).strip()
 
-            qty, qty_issue = self._parse_decimal(raw_qty, is_qty=True)
-            unit_price, price_issue = self._parse_decimal(raw_unit_price)
-            tax_rate, _ = self._parse_decimal(raw_tax_rate)
-            line_amount, amount_issue = self._parse_decimal(raw_line_amount)
+            qty, qty_issue = parse_vn_decimal(raw_qty, is_qty=True)
+            unit_price, price_issue = parse_vn_decimal(raw_unit_price)
+            tax_rate, _ = parse_vn_decimal(raw_tax_rate)
+            line_amount, amount_issue = parse_vn_decimal(raw_line_amount)
 
             line_issues: List[str] = []
             if qty_issue:
@@ -311,8 +290,8 @@ class DigitalPDFParser:
                                 desc = desc.replace(cand, "").strip(" -:,")
                 raw_qty = m_line.group(3).strip()
                 raw_price = m_line.group(4).strip()
-                qty, qty_issue = self._parse_decimal(raw_qty, is_qty=True)
-                unit_price, price_issue = self._parse_decimal(raw_price)
+                qty, qty_issue = parse_vn_decimal(raw_qty, is_qty=True)
+                unit_price, price_issue = parse_vn_decimal(raw_price)
                 line_amount = qty * unit_price
                 line_issues = []
                 if qty_issue:
@@ -364,11 +343,11 @@ class DigitalPDFParser:
                 if m_sku:
                     item_sku = m_sku.group(1)
                     item_desc = re.sub(r"\s*\[[A-Z0-9_-]+\]\s*", "", item_desc).strip()
-                qty_val, q_err = self._parse_decimal(m_qty.group(1), is_qty=True)
-                price_val, p_err = self._parse_decimal(m_price.group(1))
+                qty_val, q_err = parse_vn_decimal(m_qty.group(1), is_qty=True)
+                price_val, p_err = parse_vn_decimal(m_price.group(1))
                 amt_val = qty_val * price_val
                 if m_amt:
-                    parsed_a, _ = self._parse_decimal(m_amt.group(1))
+                    parsed_a, _ = parse_vn_decimal(m_amt.group(1))
                     if parsed_a > Decimal("0.0000"):
                         amt_val = parsed_a
                 item_issues = []
@@ -417,59 +396,3 @@ class DigitalPDFParser:
             issues=doc_issues,
             confidence=confidence,
         )
-
-    def _parse_decimal(self, val: Any, is_qty: bool = False) -> tuple[Decimal, Optional[str]]:
-        if not val or not str(val).strip():
-            return Decimal("0.0000"), None
-        s = str(val).strip().replace("\u00a0", " ")
-        # Strip currency symbols and clean outer whitespace
-        s = re.sub(r"(?i)(?:vnd|vnđ|usd|eur|[₫đ$])", "", s).strip()
-        # Normalise space-separated thousand groups e.g. "25 000 000"
-        s = re.sub(r"(\d)\s+(\d{3})\b", r"\1\2", s)
-        # Strip trailing % if present
-        if s.endswith("%"):
-            s = s[:-1].strip()
-        issue: Optional[str] = None
-
-        if not re.search(r"\d", s):
-            return Decimal("0.0000"), "PARSE_ERROR"
-
-        # Handle Vietnamese and International monetary formats
-        if "." in s and "," in s:
-            if s.rfind(",") > s.rfind("."):
-                # 12.000.000,00 -> standard VN notation
-                s = s.replace(".", "").replace(",", ".")
-            else:
-                # 12,000,000.00 -> US notation
-                s = s.replace(",", "")
-        elif "." in s:
-            parts = s.split(".")
-            if is_qty and len(parts) == 2:
-                # Quantities with a single dot are decimal representations e.g. 200.000 or 5.5
-                s = f"{parts[0]}.{parts[1]}"
-            elif len(parts) > 1 and all(len(p) == 3 for p in parts[1:]):
-                # Standard VN thousand separators e.g. 12.000.000 or 60.000
-                s = s.replace(".", "")
-            elif len(parts) == 2 and len(parts[1]) != 3:
-                # Decimal dot e.g. 12.5
-                pass
-            else:
-                issue = "AMBIGUOUS_NUMBER"
-        elif "," in s:
-            parts = s.split(",")
-            if is_qty and len(parts) == 2 and len(parts[1]) == 3:
-                issue = "AMBIGUOUS_NUMBER"
-                s = s.replace(",", "")
-            elif len(parts) > 1 and all(len(p) == 3 for p in parts[1:]):
-                s = s.replace(",", "")
-            elif len(parts) == 2 and len(parts[1]) != 3:
-                s = s.replace(",", ".")
-            else:
-                issue = "AMBIGUOUS_NUMBER"
-                s = s.replace(",", "")
-
-        clean = re.sub(r"[^\d.-]", "", s)
-        try:
-            return Decimal(clean), issue
-        except Exception:
-            return Decimal("0.0000"), "PARSE_ERROR"

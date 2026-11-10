@@ -3,6 +3,7 @@ import logging
 import re
 from typing import Any, List, Optional
 
+from invoiceflow.domain.invoices.evidence_gate import UNLOCATED_IN_SOURCE
 from invoiceflow.domain.invoices.models import (
     FieldEvidence,
     FieldVerificationState,
@@ -12,6 +13,14 @@ from invoiceflow.domain.invoices.models import (
 logger = logging.getLogger(__name__)
 
 _TAX_ID_PATTERN = re.compile(r"^\d{10}(?:-\d{3})?$")
+_MODEL_SOURCE_KIND = "vision_llm"
+_MODEL_PROPOSED_REASON = (
+    "Value proposed by Vision LLM; arithmetic consistency of model output is not verification"
+)
+
+
+def _is_model_sourced(evidence: Optional[FieldEvidence]) -> bool:
+    return evidence is not None and evidence.source_kind == _MODEL_SOURCE_KIND
 
 
 class MultiSignalVerifier:
@@ -68,9 +77,9 @@ class MultiSignalVerifier:
                 new_ev = FieldEvidence(
                     field_path=field_name,
                     source_kind="multi_signal_verifier",
-                    raw_value=str(field_value) if field_value is not None else None,
+                    raw_value=None,
                     normalized_value=str(field_value) if field_value is not None else None,
-                    confidence=0.90 if state == FieldVerificationState.VALID else 0.70,
+                    confidence=None,
                     extractor="multi_signal_verifier",
                     verification_state=state,
                     review_reason=reason,
@@ -98,11 +107,11 @@ class MultiSignalVerifier:
                 consolidated_evidence.append(
                     FieldEvidence(
                         field_path=f"{line_prefix}.qty",
-                        source_kind="table_extraction",
-                        raw_value=line.raw_qty or str(line.qty),
+                        source_kind="multi_signal_verifier",
+                        raw_value=line.raw_qty,
                         normalized_value=str(line.qty),
-                        confidence=0.90 if qty_state == FieldVerificationState.VALID else 0.60,
-                        extractor="table_extractor",
+                        confidence=None,
+                        extractor="multi_signal_verifier",
                         verification_state=qty_state,
                         review_reason=qty_reason,
                     )
@@ -110,14 +119,22 @@ class MultiSignalVerifier:
 
             # Line Unit Price
             price_ev = existing_evidence.get(f"{line_prefix}.unit_price")
-            price_state = (
-                FieldVerificationState.ZERO
-                if line.unit_price <= Decimal("0.0000")
-                else FieldVerificationState.VALID
-            )
+            if line.unit_price <= Decimal("0.0000"):
+                price_state = FieldVerificationState.ZERO
+            elif _is_model_sourced(price_ev):
+                price_state = FieldVerificationState.MODEL_PROPOSED
+            else:
+                price_state = FieldVerificationState.VALID
             if price_ev is not None:
                 consolidated_evidence.append(
-                    price_ev.model_copy(update={"verification_state": price_state})
+                    price_ev.model_copy(
+                        update={
+                            "verification_state": price_state,
+                            "review_reason": _MODEL_PROPOSED_REASON
+                            if price_state == FieldVerificationState.MODEL_PROPOSED
+                            else price_ev.review_reason,
+                        }
+                    )
                 )
 
             # Line Amount & Arithmetic
@@ -131,6 +148,9 @@ class MultiSignalVerifier:
             if line.line_amount <= Decimal("0.0000"):
                 amt_state = FieldVerificationState.ZERO
                 amt_reason = "Line amount is zero or negative"
+            elif _is_model_sourced(amt_ev):
+                amt_state = FieldVerificationState.MODEL_PROPOSED
+                amt_reason = _MODEL_PROPOSED_REASON
             elif amt_consistent:
                 amt_state = FieldVerificationState.ARITHMETICALLY_CONSISTENT
                 amt_reason = "Line arithmetic verified: qty * price - discount == line_amount"
@@ -154,17 +174,11 @@ class MultiSignalVerifier:
                 consolidated_evidence.append(
                     FieldEvidence(
                         field_path=f"{line_prefix}.line_amount",
-                        source_kind="table_extraction",
-                        raw_value=line.raw_line_amount or str(line.line_amount),
+                        source_kind="multi_signal_verifier",
+                        raw_value=line.raw_line_amount,
                         normalized_value=str(line.line_amount),
-                        confidence=0.90
-                        if amt_state
-                        in (
-                            FieldVerificationState.VALID,
-                            FieldVerificationState.ARITHMETICALLY_CONSISTENT,
-                        )
-                        else 0.60,
-                        extractor="table_extractor",
+                        confidence=None,
+                        extractor="multi_signal_verifier",
                         verification_state=amt_state,
                         review_reason=amt_reason,
                     )
@@ -216,6 +230,25 @@ class MultiSignalVerifier:
                     f"Tax ID '{clean_tax}' does not conform to Vietnamese 10/13 digit standard",
                 )
 
+        if (
+            _is_model_sourced(existing_ev)
+            and existing_ev is not None
+            and existing_ev.extractor != "xml_deterministic"
+        ):
+            return FieldVerificationState.MODEL_PROPOSED, _MODEL_PROPOSED_REASON
+
+        # Parsers default unread totals to zero; their own report decides, not the value.
+        if f"{field_name.upper()}_NOT_FOUND" in parser_issues:
+            return (
+                FieldVerificationState.MISSING,
+                f"Field {field_name} was not found in the document",
+            )
+        if existing_ev is not None and existing_ev.review_reason == UNLOCATED_IN_SOURCE:
+            return (
+                FieldVerificationState.UNCERTAIN,
+                f"Value of {field_name} could not be located in the source document",
+            )
+
         if field_name == "amount_payable":
             if invoice.amount_payable <= Decimal("0.0000"):
                 return FieldVerificationState.ZERO, "Amount payable is zero or negative"
@@ -238,11 +271,6 @@ class MultiSignalVerifier:
 
         # Confidence and source-kind checks
         if existing_ev is not None:
-            if (
-                existing_ev.source_kind == "vision_llm"
-                and existing_ev.extractor != "xml_deterministic"
-            ):
-                return FieldVerificationState.MODEL_PROPOSED, "Field proposed by Vision LLM"
             if existing_ev.confidence is not None and existing_ev.confidence < 0.70:
                 return (
                     FieldVerificationState.UNCERTAIN,
@@ -275,13 +303,8 @@ class MultiSignalVerifier:
                 "Quantity recovered and validated by region OCR arithmetic consistency",
             )
 
-        if qty_ev is not None and qty_ev.source_kind == "vision_llm":
-            if qty_ev.verification_state == "arithmetically_consistent":
-                return (
-                    FieldVerificationState.ARITHMETICALLY_CONSISTENT,
-                    "Vision quantity validated by line arithmetic consistency",
-                )
-            return FieldVerificationState.MODEL_PROPOSED, "Line quantity proposed by Vision LLM"
+        if _is_model_sourced(qty_ev):
+            return FieldVerificationState.MODEL_PROPOSED, _MODEL_PROPOSED_REASON
 
         if qty_ev is not None and qty_ev.confidence is not None and qty_ev.confidence < 0.70:
             return (

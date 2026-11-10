@@ -4,6 +4,11 @@ import cv2
 import fitz
 import numpy as np
 
+from invoiceflow.domain.documents.models import BoundingBox, CoordinateSystem
+
+# Processed images are embedded at a 150 DPI page equivalent (72 PDF points per inch).
+PDF_POINTS_PER_PIXEL = 72.0 / 150.0
+
 
 @dataclass
 class ImageQualityMetrics:
@@ -28,14 +33,38 @@ class GeometryTransform:
     processed_height: int = 0
     perspective_matrix: Optional[list[float]] = None
     inverse_perspective_matrix: Optional[list[float]] = None
+    deskew_matrix: Optional[list[float]] = None
+    pdf_points_per_pixel: float = PDF_POINTS_PER_PIXEL
 
     def map_point_to_original(self, x: float, y: float) -> Tuple[float, float]:
-        if not self.applied_perspective or self.inverse_perspective_matrix is None:
-            return x, y
-        m = np.array(self.inverse_perspective_matrix, dtype=np.float64).reshape((3, 3))
+        """Processed-image pixel -> original-image pixel (undo deskew, then perspective)."""
         pt = np.array([[[x, y]]], dtype=np.float64)
-        transformed = cv2.perspectiveTransform(pt, m)
-        return float(transformed[0, 0, 0]), float(transformed[0, 0, 1])
+        if self.applied_deskew and self.deskew_matrix is not None:
+            forward = np.array(self.deskew_matrix, dtype=np.float64).reshape((2, 3))
+            pt = cv2.transform(pt, cv2.invertAffineTransform(forward))
+        if self.applied_perspective and self.inverse_perspective_matrix is not None:
+            m = np.array(self.inverse_perspective_matrix, dtype=np.float64).reshape((3, 3))
+            pt = cv2.perspectiveTransform(pt, m)
+        return float(pt[0, 0, 0]), float(pt[0, 0, 1])
+
+    def map_page_bbox_to_original(self, bbox: BoundingBox) -> BoundingBox:
+        """Bbox on the generated processed PDF page -> original image pixels for the viewer."""
+        scale = 1.0 / self.pdf_points_per_pixel
+        x0, y0, x1, y1 = self.map_bbox_to_original(
+            bbox.x0 * scale, bbox.y0 * scale, bbox.x1 * scale, bbox.y1 * scale
+        )
+        return bbox.model_copy(
+            update={
+                "x0": x0,
+                "y0": y0,
+                "x1": x1,
+                "y1": y1,
+                "coordinate_system": CoordinateSystem.PIXELS,
+                "page_width": self.original_width,
+                "page_height": self.original_height,
+                "rotation": 0,
+            }
+        )
 
     def map_bbox_to_original(
         self, x0: float, y0: float, x1: float, y1: float
@@ -275,11 +304,18 @@ class ImagePreprocessor:
             transform.inverse_perspective_matrix = inv_mat.flatten().tolist()
 
         # Step 2: Deskew if slightly tilted
+        pre_deskew_h, pre_deskew_w = curr_img.shape[:2]
         deskewed, angle = self.estimate_and_correct_skew(curr_img)
         if abs(angle) >= 0.5:
             curr_img = deskewed
             transform.applied_deskew = True
             transform.deskew_angle = angle
+            # Same rotation estimate_and_correct_skew applied, kept for mapping bboxes back.
+            transform.deskew_matrix = (
+                cv2.getRotationMatrix2D((pre_deskew_w // 2, pre_deskew_h // 2), angle, 1.0)
+                .flatten()
+                .tolist()
+            )
 
         # Step 3: Enhance lighting and remove shadows conditionally
         if quality.is_uneven_illumination or quality.is_low_contrast or force_enhancement:
@@ -295,10 +331,8 @@ class ImagePreprocessor:
 
         # Generate a clean single-page PDF containing the processed document image
         pdf_doc = fitz.open()
-        # Use standard PDF points (72 DPI) based on 150 DPI page equivalent
-        scale_dpi = 72.0 / 150.0
-        page_w = proc_w * scale_dpi
-        page_h = proc_h * scale_dpi
+        page_w = proc_w * PDF_POINTS_PER_PIXEL
+        page_h = proc_h * PDF_POINTS_PER_PIXEL
         page = pdf_doc.new_page(width=page_w, height=page_h)
         page.insert_image(fitz.Rect(0, 0, page_w, page_h), stream=processed_bytes)
         pdf_bytes = pdf_doc.tobytes(garbage=4, deflate=True)
