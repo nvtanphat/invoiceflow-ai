@@ -21,6 +21,9 @@ from invoiceflow.infrastructure.document.text_normalization import normalize_ext
 
 logger = logging.getLogger(__name__)
 
+# Page kinds PDFInspector reports for pages without a usable text layer.
+_SCANNED_PAGE_KINDS = frozenset({"scanned", "scanned_image"})
+
 
 class DoclingPatchStatus(str, Enum):
     UNINITIALIZED = "uninitialized"
@@ -132,7 +135,7 @@ class DoclingAdapter:
         force_full_page_ocr: Optional[bool] = None,
     ):
         self._fallback_extractor = fallback_extractor or LayoutExtractor()
-        self._converters: dict[bool, Any] = {}
+        self._converters: dict[tuple[bool, bool], Any] = {}
 
         if (
             ocr_engine is None
@@ -158,9 +161,17 @@ class DoclingAdapter:
         self._ocr_languages = ocr_languages
         self._force_full_page_ocr = force_full_page_ocr
 
-    def _get_converter(self, do_ocr: bool = False):
-        if do_ocr in self._converters:
-            return self._converters[do_ocr]
+    def _force_full_page_for(self, page_classifications: Optional[dict[int, str]]) -> bool:
+        # Full-page OCR only when no page has a text layer: on a mixed PDF it would replace
+        # the exact embedded text of digital pages with OCR output.
+        if not self._force_full_page_ocr or not page_classifications:
+            return False
+        return all(kind in _SCANNED_PAGE_KINDS for kind in page_classifications.values())
+
+    def _get_converter(self, do_ocr: bool = False, force_full_page: bool = False):
+        cache_key = (do_ocr, do_ocr and force_full_page)
+        if cache_key in self._converters:
+            return self._converters[cache_key]
 
         # Environment isolation guards for Windows & CPU-only deployment
         os.environ["USE_TF"] = "0"
@@ -197,7 +208,7 @@ class DoclingAdapter:
                 # benchmarks/results/ocr_quality_report.json).
                 pipeline_options.ocr_options = EasyOcrOptions(
                     lang=self._ocr_languages,
-                    force_full_page_ocr=self._force_full_page_ocr,
+                    force_full_page_ocr=force_full_page,
                 )
             elif self._ocr_engine == "rapidocr":
                 pipeline_options.ocr_options = RapidOcrOptions(lang=self._ocr_languages)
@@ -205,7 +216,7 @@ class DoclingAdapter:
         converter = DocumentConverter(
             format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)}
         )
-        self._converters[do_ocr] = converter
+        self._converters[cache_key] = converter
         return converter
 
     def _normalize_page_rotation(
@@ -240,7 +251,10 @@ class DoclingAdapter:
                 tmp_path = Path(tmp_file.name)
 
             try:
-                converter = self._get_converter(do_ocr=do_ocr)
+                converter = self._get_converter(
+                    do_ocr=do_ocr,
+                    force_full_page=self._force_full_page_for(page_classifications),
+                )
                 res = converter.convert(tmp_path)
                 doc = res.document
             finally:

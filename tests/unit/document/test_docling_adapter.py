@@ -77,9 +77,25 @@ def test_docling_adapter_converter_cache_separation():
     adapter = DoclingAdapter()
     c_no_ocr = adapter._get_converter(do_ocr=False)
     c_ocr = adapter._get_converter(do_ocr=True)
-    assert c_no_ocr is not c_ocr
-    assert False in adapter._converters
-    assert True in adapter._converters
+    c_full_page = adapter._get_converter(do_ocr=True, force_full_page=True)
+    assert len({id(c_no_ocr), id(c_ocr), id(c_full_page)}) == 3
+    assert adapter._get_converter(do_ocr=True) is c_ocr
+
+
+def test_full_page_ocr_is_forced_only_when_every_page_is_scanned():
+    adapter = DoclingAdapter(
+        ocr_engine="easyocr", ocr_languages=["vi"], ocr_dpi=200, force_full_page_ocr=True
+    )
+    assert adapter._force_full_page_for({0: "scanned", 1: "scanned"}) is True
+    # A mixed PDF keeps its exact text layer: re-OCRing a digital page replaced the
+    # printed invoice series on CASE-09 with a misread one.
+    assert adapter._force_full_page_for({0: "digital", 1: "scanned"}) is False
+    assert adapter._force_full_page_for(None) is False
+
+    disabled = DoclingAdapter(
+        ocr_engine="easyocr", ocr_languages=["vi"], ocr_dpi=200, force_full_page_ocr=False
+    )
+    assert disabled._force_full_page_for({0: "scanned"}) is False
 
 
 def test_docling_adapter_defaults_ocr_engine_from_settings():
@@ -108,6 +124,11 @@ def test_docling_adapter_builds_easyocr_pipeline_options():
 
     assert isinstance(pdf_opts.ocr_options, EasyOcrOptions)
     assert pdf_opts.ocr_options.lang == ["vi", "en"]
+    assert pdf_opts.ocr_options.force_full_page_ocr is False
+
+    forced = adapter._get_converter(do_ocr=True, force_full_page=True)
+    forced_opts = forced.format_to_options[InputFormat.PDF].pipeline_options
+    assert forced_opts.ocr_options.force_full_page_ocr is True
 
 
 def test_docling_adapter_empty_document_fallback():

@@ -503,8 +503,8 @@ async def test_3_4_concurrent_duplicate_invoices_database_level_uniqueness(pg_en
         )
 
 
-async def test_3_1_redis_broker_connectivity():
-    """3.1: Live Redis broker verification on port 6379."""
+async def test_3_1_redis_broker_connectivity(pg_env):
+    """3.1: Live Redis broker verification; runs with the rest of the live-infrastructure suite."""
     settings = get_settings()
     redis = Redis.from_url(settings.REDIS_URL)
     pong = await redis.ping()
