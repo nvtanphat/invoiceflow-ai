@@ -311,7 +311,12 @@ async def approve_invoice(
             status_code=status.HTTP_428_PRECONDITION_REQUIRED,
             detail="Header 'If-Match' is required for approval.",
         )
-    expected_revision = int(if_match.strip('"'))
+    try:
+        expected_revision = int(if_match.strip('"'))
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid If-Match header."
+        )
 
     review_service = ReviewService(session)
     try:
@@ -330,6 +335,12 @@ async def approve_invoice(
         }
     except ConcurrencyConflictError as e:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
+    except PermissionError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    except ValueError as e:
+        if "not found" in str(e).lower():
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 @router.post("/{invoice_id}/reject")
@@ -345,7 +356,12 @@ async def reject_invoice(
             status_code=status.HTTP_428_PRECONDITION_REQUIRED,
             detail="Header 'If-Match' is required for rejection.",
         )
-    expected_revision = int(if_match.strip('"'))
+    try:
+        expected_revision = int(if_match.strip('"'))
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid If-Match header."
+        )
 
     review_service = ReviewService(session)
     try:
@@ -364,3 +380,9 @@ async def reject_invoice(
         }
     except ConcurrencyConflictError as e:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
+    except PermissionError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    except ValueError as e:
+        if "not found" in str(e).lower():
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
