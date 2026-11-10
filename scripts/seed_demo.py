@@ -45,6 +45,7 @@ async def seed_all(db_manager: DatabaseSessionManager) -> None:
         if not t2:
             t2 = TenantORM(id=t2_id, name="Tập đoàn Phân phối Quốc tế Beta")
             session.add(t2)
+        await session.flush()
 
         # 2. Users & Memberships
         default_pwd_hash = hash_password("DemoPassword@123")
@@ -73,25 +74,36 @@ async def seed_all(db_manager: DatabaseSessionManager) -> None:
             ),
         ]
 
+        users_to_add = []
+        memberships_to_add = []
         for u_id, email, name, role, tenant_id in users_meta:
             stmt = select(UserORM).where(UserORM.email == email)
             existing_user = (await session.execute(stmt)).scalar_one_or_none()
             if not existing_user:
-                user = UserORM(
-                    id=u_id,
-                    email=email,
-                    hashed_password=default_pwd_hash,
-                    full_name=name,
-                    is_active=True,
+                users_to_add.append(
+                    UserORM(
+                        id=u_id,
+                        email=email,
+                        hashed_password=default_pwd_hash,
+                        full_name=name,
+                        is_active=True,
+                    )
                 )
-                session.add(user)
-                membership = MembershipORM(
-                    id=str(uuid.uuid4()),
-                    tenant_id=tenant_id,
-                    user_id=u_id,
-                    role=role,
+                memberships_to_add.append(
+                    MembershipORM(
+                        id=str(uuid.uuid4()),
+                        tenant_id=tenant_id,
+                        user_id=u_id,
+                        role=role,
+                    )
                 )
-                session.add(membership)
+
+        if users_to_add:
+            session.add_all(users_to_add)
+            await session.flush()
+        if memberships_to_add:
+            session.add_all(memberships_to_add)
+            await session.flush()
 
         # 3. Tolerance Policies
         p1 = (
@@ -170,6 +182,7 @@ async def seed_all(db_manager: DatabaseSessionManager) -> None:
                 line_total=Decimal("12000000.0000"),
             )
             session.add(line2)
+        await session.flush()
 
         # 5. Goods Receipts (GRN)
         grn1_id = "grn-2026-001"
@@ -192,6 +205,7 @@ async def seed_all(db_manager: DatabaseSessionManager) -> None:
                 rejected_qty=Decimal("0.0000"),
             )
             session.add(grn_line1)
+        await session.flush()
 
         # 6. Sample Documents and Invoices
         doc1_id = "doc-demo-xml-001"
@@ -209,6 +223,7 @@ async def seed_all(db_manager: DatabaseSessionManager) -> None:
                 page_count=1,
             )
             session.add(doc1)
+            await session.flush()
 
             inv1 = InvoiceORM(
                 id="inv-demo-001",
@@ -233,6 +248,7 @@ async def seed_all(db_manager: DatabaseSessionManager) -> None:
                 tax_authority_status="verified",
             )
             session.add(inv1)
+            await session.flush()
 
             inv_line1 = InvoiceLineORM(
                 id="inv-line-001",
@@ -276,6 +292,7 @@ async def seed_all(db_manager: DatabaseSessionManager) -> None:
                 page_count=1,
             )
             session.add(doc2)
+            await session.flush()
 
             inv2 = InvoiceORM(
                 id="inv-demo-002",
@@ -300,6 +317,7 @@ async def seed_all(db_manager: DatabaseSessionManager) -> None:
                 tax_authority_status="not_checked",
             )
             session.add(inv2)
+            await session.flush()
 
             inv_line2 = InvoiceLineORM(
                 id="inv-line-002",
@@ -355,6 +373,7 @@ async def seed_all(db_manager: DatabaseSessionManager) -> None:
                 page_count=1,
             )
             session.add(doc3)
+            await session.flush()
 
             inv3 = InvoiceORM(
                 id="inv-demo-003",
@@ -379,6 +398,7 @@ async def seed_all(db_manager: DatabaseSessionManager) -> None:
                 tax_authority_status="not_checked",
             )
             session.add(inv3)
+            await session.flush()
 
             inv_line3 = InvoiceLineORM(
                 id="inv-line-003",

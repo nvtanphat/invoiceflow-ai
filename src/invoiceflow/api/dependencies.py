@@ -26,7 +26,14 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
     global _db_manager
     if _db_manager is None:
         settings = get_settings()
-        _db_manager = DatabaseSessionManager(settings.DATABASE_URL)
+        _db_manager = DatabaseSessionManager(
+            settings.DATABASE_URL,
+            pool_size=settings.DB_POOL_SIZE,
+            max_overflow=settings.DB_MAX_OVERFLOW,
+            pool_timeout=settings.DB_POOL_TIMEOUT,
+            pool_recycle=settings.DB_POOL_RECYCLE,
+            pool_pre_ping=settings.DB_POOL_PRE_PING,
+        )
     async with _db_manager.session() as session:
         yield session
 

@@ -1,5 +1,5 @@
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator
+from typing import Any, AsyncGenerator
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -10,11 +10,33 @@ from invoiceflow.infrastructure.database.base import Base
 
 
 class DatabaseSessionManager:
-    def __init__(self, database_url: str, echo: bool = False):
+    def __init__(
+        self,
+        database_url: str,
+        echo: bool = False,
+        pool_size: int = 10,
+        max_overflow: int = 20,
+        pool_timeout: float = 30.0,
+        pool_recycle: int = 1800,
+        pool_pre_ping: bool = True,
+    ):
+        engine_kwargs: dict[str, Any] = {
+            "echo": echo,
+            "future": True,
+        }
+        if "sqlite" not in database_url:
+            engine_kwargs.update(
+                {
+                    "pool_size": pool_size,
+                    "max_overflow": max_overflow,
+                    "pool_timeout": pool_timeout,
+                    "pool_recycle": pool_recycle,
+                    "pool_pre_ping": pool_pre_ping,
+                }
+            )
         self._engine: AsyncEngine = create_async_engine(
             database_url,
-            echo=echo,
-            future=True,
+            **engine_kwargs,
         )
         self._sessionmaker = async_sessionmaker(
             bind=self._engine,

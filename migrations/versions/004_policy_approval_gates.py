@@ -22,9 +22,7 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     op.add_column(
         "tolerance_policies",
-        sa.Column(
-            "auto_approval_enabled", sa.Boolean(), server_default=sa.false(), nullable=False
-        ),
+        sa.Column("auto_approval_enabled", sa.Boolean(), server_default=sa.false(), nullable=False),
     )
     op.add_column(
         "tolerance_policies",
@@ -32,9 +30,7 @@ def upgrade() -> None:
     )
     op.add_column(
         "tolerance_policies",
-        sa.Column(
-            "goods_receipt_required", sa.Boolean(), server_default=sa.true(), nullable=False
-        ),
+        sa.Column("goods_receipt_required", sa.Boolean(), server_default=sa.true(), nullable=False),
     )
 
 

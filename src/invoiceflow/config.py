@@ -35,6 +35,11 @@ class Settings(BaseSettings):
         default="postgresql+asyncpg://postgres:postgres@localhost:5432/invoiceflow",
         description="Async SQLAlchemy database connection URL",
     )
+    DB_POOL_SIZE: int = 10
+    DB_MAX_OVERFLOW: int = 20
+    DB_POOL_TIMEOUT: float = 30.0
+    DB_POOL_RECYCLE: int = 1800
+    DB_POOL_PRE_PING: bool = True
     REDIS_URL: str = "redis://localhost:6379/0"
 
     STORAGE_KIND: Literal["local", "s3"] = "local"
