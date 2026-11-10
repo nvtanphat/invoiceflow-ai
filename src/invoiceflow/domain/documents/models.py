@@ -107,39 +107,73 @@ class CanonicalDocument(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
     def reading_order_text(self) -> str:
-        """All recognised text, table rows included, top-to-bottom per page.
+        """All recognised text as visual lines, top-to-bottom and left-to-right per page.
 
-        Layout analysis moves table regions out of the text elements; totals and labels
-        printed inside such regions must still be visible to text-based field extraction.
+        Layout analysis moves table regions out of the text elements, and OCR often splits a
+        label and its amount into separate blocks on the same printed line. Text-based field
+        extraction needs both back together, so table cells and text blocks are merged into
+        visual lines; text elements inside a table region are skipped as duplicates.
         """
-        blocks: list[tuple[int, float, float, str]] = []
+        regions = [region for table in self.tables if (region := _table_region(table))]
+        blocks: list[tuple[int, Optional[BoundingBox], str]] = []
         for element in self.elements:
-            if element.text.strip():
-                blocks.append(_block_key(element.page_index, element.bbox, element.text))
+            if element.text.strip() and not _inside_any(element.bbox, regions):
+                blocks.append((element.page_index, element.bbox, element.text.strip()))
         for table in self.tables:
-            rows: dict[int, list[DocumentCell]] = {}
             seen: set[int] = set()
-            for cell in table.cells:
-                if id(cell) in seen or not cell.text.strip():
-                    continue
-                seen.add(id(cell))
-                rows.setdefault(cell.row_index, []).append(cell)
-            for cells in rows.values():
-                cells.sort(key=lambda c: c.col_index)
-                anchor = min(
-                    (c for c in cells if c.bbox is not None),
-                    key=lambda c: (c.bbox.y0, c.bbox.x0) if c.bbox else (0.0, 0.0),
-                    default=None,
-                )
-                text = " ".join(c.text.strip() for c in cells)
-                blocks.append(_block_key(table.page_index, anchor.bbox if anchor else None, text))
-        blocks.sort(key=lambda block: block[:3])
-        return "\n".join(block[3] for block in blocks)
+            for cell in sorted(table.cells, key=lambda c: (c.row_index, c.col_index)):
+                if id(cell) not in seen and cell.text.strip():
+                    seen.add(id(cell))
+                    page = cell.bbox.page_index if cell.bbox else table.page_index
+                    blocks.append((page, cell.bbox, cell.text.strip()))
+        return "\n".join(_visual_lines(blocks))
 
 
-def _block_key(
-    page_index: int, bbox: Optional[BoundingBox], text: str
-) -> tuple[int, float, float, str]:
+# A block joins a visual line when its vertical centre falls inside the line's band.
+def _visual_lines(blocks: list[tuple[int, Optional[BoundingBox], str]]) -> list[str]:
+    placed = sorted(
+        ((page, bbox, text) for page, bbox, text in blocks if bbox is not None),
+        key=lambda b: (b[0], (b[1].y0 + b[1].y1) / 2),
+    )
+    lines: list[tuple[int, float, float, list[tuple[float, str]]]] = []
+    for page, bbox, text in placed:
+        centre = (bbox.y0 + bbox.y1) / 2
+        if lines and lines[-1][0] == page and lines[-1][1] <= centre <= lines[-1][2]:
+            line_page, top, bottom, words = lines[-1]
+            words.append((bbox.x0, text))
+            lines[-1] = (line_page, min(top, bbox.y0), max(bottom, bbox.y1), words)
+        else:
+            lines.append((page, bbox.y0, bbox.y1, [(bbox.x0, text)]))
+    rendered = [
+        (page, " ".join(text for _, text in sorted(words, key=lambda w: w[0])))
+        for page, _, _, words in lines
+    ]
+    unplaced = [(page, text) for page, bbox, text in blocks if bbox is None]
+    ordered = sorted(rendered + unplaced, key=lambda item: item[0])
+    return [text for _, text in ordered]
+
+
+def _table_region(table: DocumentTable) -> Optional[BoundingBox]:
+    if table.bbox is not None:
+        return table.bbox
+    boxes = [cell.bbox for cell in table.cells if cell.bbox is not None]
+    if not boxes:
+        return None
+    return boxes[0].model_copy(
+        update={
+            "x0": min(b.x0 for b in boxes),
+            "y0": min(b.y0 for b in boxes),
+            "x1": max(b.x1 for b in boxes),
+            "y1": max(b.y1 for b in boxes),
+        }
+    )
+
+
+def _inside_any(bbox: Optional[BoundingBox], regions: list[BoundingBox]) -> bool:
     if bbox is None:
-        return page_index, 0.0, 0.0, text.strip()
-    return page_index, bbox.y0, bbox.x0, text.strip()
+        return False
+    cx, cy = (bbox.x0 + bbox.x1) / 2, (bbox.y0 + bbox.y1) / 2
+    return any(
+        r.page_index == bbox.page_index and r.x0 <= cx <= r.x1 and r.y0 <= cy <= r.y1
+        for r in regions
+    )

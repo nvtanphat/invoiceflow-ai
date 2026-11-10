@@ -132,3 +132,77 @@ def test_reading_order_text_interleaves_table_rows_with_text_by_position():
 
     # Totals printed inside a detected table must reach text-based field extraction.
     assert doc.reading_order_text() == "Receipt\nNasi 10.000\nSubtotal 81.000\nThank you"
+
+
+def _reading_doc(elements, tables=()):
+    import uuid
+
+    from invoiceflow.domain.documents.models import CanonicalDocument
+
+    return CanonicalDocument(
+        document_id=uuid.uuid4(),
+        tenant_id=uuid.uuid4(),
+        source_format="pdf",
+        parser_name="docling",
+        parser_version="2",
+        config_hash="h",
+        page_count=1,
+        elements=list(elements),
+        tables=list(tables),
+    )
+
+
+def _element(text, x0, y0, x1, y1):
+    from invoiceflow.domain.documents.models import BoundingBox, DocumentElement
+
+    return DocumentElement(
+        id=text,
+        page_index=0,
+        text=text,
+        bbox=BoundingBox(page_index=0, x0=x0, y0=y0, x1=x1, y1=y1),
+    )
+
+
+def test_blocks_on_one_visual_line_are_joined_left_to_right():
+    # OCR returns label and amount as separate blocks, the amount slightly higher.
+    doc = _reading_doc(
+        [
+            _element("63,636", 200, 99, 260, 111),
+            _element("SubTotal:", 10, 100, 80, 112),
+            _element("5,409", 200, 129, 250, 141),
+            _element("PB1:", 10, 130, 50, 142),
+        ]
+    )
+
+    assert doc.reading_order_text() == "SubTotal: 63,636\nPB1: 5,409"
+
+
+def test_text_inside_a_table_region_is_not_repeated():
+    from invoiceflow.domain.documents.models import BoundingBox, DocumentCell, DocumentTable
+
+    table = DocumentTable(
+        id="t",
+        page_index=0,
+        row_count=1,
+        column_count=2,
+        bbox=BoundingBox(page_index=0, x0=0, y0=40, x1=300, y1=60),
+        cells=[
+            DocumentCell(
+                row_index=0,
+                col_index=0,
+                text="Total",
+                bbox=BoundingBox(page_index=0, x0=10, y0=42, x1=60, y1=55),
+            ),
+            DocumentCell(
+                row_index=0,
+                col_index=1,
+                text="23.000",
+                bbox=BoundingBox(page_index=0, x0=200, y0=42, x1=260, y1=55),
+            ),
+        ],
+    )
+    doc = _reading_doc(
+        [_element("Receipt", 10, 0, 90, 12), _element("Total", 10, 42, 60, 55)], [table]
+    )
+
+    assert doc.reading_order_text() == "Receipt\nTotal 23.000"
