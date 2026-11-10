@@ -215,7 +215,7 @@ class RealWorldEvaluator:
         blockers = automation_blockers(agg)
         requires_review = (len(blockers) > 0) or (len(agg.parser_issues) > 0)
         pipeline_approved = not requires_review
-        has_gt_mismatch = (header_em_score < 1.0 or fin_em_score < 1.0 or f1 < 1.0)
+        has_gt_mismatch = header_em_score < 1.0 or fin_em_score < 1.0 or f1 < 1.0
         false_auto_accept = pipeline_approved and has_gt_mismatch
 
         # Classify Failures into 12 Categories based on true evidence diffs
@@ -330,7 +330,9 @@ def main():
     )
     for idx, case in enumerate(cases, start=1):
         cat_name = case.get("dataset_category", case.get("category"))
-        print(f"[{idx}/{len(cases)}] Running {case['case_id']} ({cat_name} - {case['difficulty']})...")
+        print(
+            f"[{idx}/{len(cases)}] Running {case['case_id']} ({cat_name} - {case['difficulty']})..."
+        )
         res = evaluator.evaluate_case(case)
         results.append(res)
         print(

@@ -75,8 +75,7 @@ BUYER_COMPANIES = [
 
 # Ensure Buyer MSTs are Mod-11 valid
 BUYER_COMPANIES = [
-    (name, calculate_mod11_mst(mst[:9]), city)
-    for name, mst, city in BUYER_COMPANIES
+    (name, calculate_mod11_mst(mst[:9]), city) for name, mst, city in BUYER_COMPANIES
 ]
 
 
@@ -109,14 +108,26 @@ def render_invoice_to_image(
 
     # 1. Header Box & Frame
     margin = 60
-    draw.rectangle([margin, margin, width - margin, height - margin], outline=(50, 80, 140), width=2)
-    draw.rectangle([margin + 4, margin + 4, width - margin - 4, height - margin - 4], outline=(180, 200, 230), width=1)
+    draw.rectangle(
+        [margin, margin, width - margin, height - margin], outline=(50, 80, 140), width=2
+    )
+    draw.rectangle(
+        [margin + 4, margin + 4, width - margin - 4, height - margin - 4],
+        outline=(180, 200, 230),
+        width=1,
+    )
 
     # 2. Title & Metadata
     y = margin + 30
     draw.text((width // 2, y), title, fill=(20, 50, 120), font=f_title, anchor="mm")
     y += 35
-    draw.text((width // 2, y), "(Bản thể hiện của hóa đơn điện tử khởi tạo từ máy tính tiền)", fill=(100, 100, 100), font=f_small, anchor="mm")
+    draw.text(
+        (width // 2, y),
+        "(Bản thể hiện của hóa đơn điện tử khởi tạo từ máy tính tiền)",
+        fill=(100, 100, 100),
+        font=f_small,
+        anchor="mm",
+    )
     y += 30
     y_str = issue_date.split("-")
     date_str = f"Ngày {y_str[2]} tháng {y_str[1]} năm {y_str[0]}"
@@ -135,9 +146,19 @@ def render_invoice_to_image(
     y += 28
     draw.text((margin + 20, y), f"Mã số thuế: {supplier_tax_id}", fill=(0, 0, 0), font=f_body)
     y += 28
-    draw.text((margin + 20, y), "Địa chỉ: Số 123 Đường Trần Phú, Quận Ba Đình, Hà Nội", fill=(60, 60, 60), font=f_body)
+    draw.text(
+        (margin + 20, y),
+        "Địa chỉ: Số 123 Đường Trần Phú, Quận Ba Đình, Hà Nội",
+        fill=(60, 60, 60),
+        font=f_body,
+    )
     y += 28
-    draw.text((margin + 20, y), "Điện thoại: 024.3825.6888     Số tài khoản: 112000034567 tại Vietcombank CN Hà Nội", fill=(60, 60, 60), font=f_body)
+    draw.text(
+        (margin + 20, y),
+        "Điện thoại: 024.3825.6888     Số tài khoản: 112000034567 tại Vietcombank CN Hà Nội",
+        fill=(60, 60, 60),
+        font=f_body,
+    )
 
     # 4. Buyer Section
     y += 35
@@ -147,9 +168,19 @@ def render_invoice_to_image(
     y += 28
     draw.text((margin + 20, y), f"Mã số thuế: {buyer_tax_id}", fill=(0, 0, 0), font=f_body)
     y += 28
-    draw.text((margin + 20, y), "Địa chỉ: Khu Công nghệ Cao Láng Hòa Lạc, Thạch Thất, Hà Nội", fill=(60, 60, 60), font=f_body)
+    draw.text(
+        (margin + 20, y),
+        "Địa chỉ: Khu Công nghệ Cao Láng Hòa Lạc, Thạch Thất, Hà Nội",
+        fill=(60, 60, 60),
+        font=f_body,
+    )
     y += 28
-    draw.text((margin + 20, y), "Hình thức thanh toán: Chuyển khoản (TM/CK)     Đồng tiền: VND", fill=(60, 60, 60), font=f_body)
+    draw.text(
+        (margin + 20, y),
+        "Hình thức thanh toán: Chuyển khoản (TM/CK)     Đồng tiền: VND",
+        fill=(60, 60, 60),
+        font=f_body,
+    )
 
     # 5. Table Header
     y += 35
@@ -178,33 +209,67 @@ def render_invoice_to_image(
             desc = f"{desc} [{line['sku']}]"
         draw.text((cols[1][2] + 8, y + 8), desc, fill=(0, 0, 0), font=f_body)
         draw.text((cols[2][2] + 10, y + 8), line.get("unit", "Bộ"), fill=(60, 60, 60), font=f_body)
-        draw.text((cols[3][2] + 20, y + 8), f"{float(line['qty']):,.0f}", fill=(0, 0, 0), font=f_body)
-        draw.text((cols[4][2] + 20, y + 8), f"{float(line['unit_price']):,.0f}", fill=(0, 0, 0), font=f_body)
-        draw.text((cols[5][2] + 10, y + 8), f"{float(line['tax_rate']):.0f}%", fill=(0, 0, 0), font=f_body)
-        draw.text((cols[6][2] + 20, y + 8), f"{float(line['line_amount']):,.0f}", fill=(0, 0, 0), font=f_bold)
+        draw.text(
+            (cols[3][2] + 20, y + 8), f"{float(line['qty']):,.0f}", fill=(0, 0, 0), font=f_body
+        )
+        draw.text(
+            (cols[4][2] + 20, y + 8),
+            f"{float(line['unit_price']):,.0f}",
+            fill=(0, 0, 0),
+            font=f_body,
+        )
+        draw.text(
+            (cols[5][2] + 10, y + 8), f"{float(line['tax_rate']):.0f}%", fill=(0, 0, 0), font=f_body
+        )
+        draw.text(
+            (cols[6][2] + 20, y + 8),
+            f"{float(line['line_amount']):,.0f}",
+            fill=(0, 0, 0),
+            font=f_bold,
+        )
         y += row_h
 
     # 6. Totals Section
     y += 10
-    draw.rectangle([margin, y, width - margin, y + 115], fill=(250, 252, 255), outline=(180, 200, 230))
+    draw.rectangle(
+        [margin, y, width - margin, y + 115], fill=(250, 252, 255), outline=(180, 200, 230)
+    )
     draw.text((margin + 20, y + 12), "Cộng tiền hàng (Subtotal):", fill=(50, 50, 50), font=f_body)
     draw.text((width - margin - 220, y + 12), f"{subtotal:,.0f} VND", fill=(0, 0, 0), font=f_bold)
 
     draw.text((margin + 20, y + 42), "Tiền thuế GTGT (VAT):", fill=(50, 50, 50), font=f_body)
     draw.text((width - margin - 220, y + 42), f"{tax_total:,.0f} VND", fill=(0, 0, 0), font=f_bold)
 
-    draw.text((margin + 20, y + 74), "Tổng cộng tiền thanh toán (Total):", fill=(20, 50, 120), font=f_bold)
+    draw.text(
+        (margin + 20, y + 74), "Tổng cộng tiền thanh toán (Total):", fill=(20, 50, 120), font=f_bold
+    )
     draw.text((width - margin - 220, y + 74), f"{total:,.0f} VND", fill=(200, 20, 20), font=f_title)
 
     # 7. Signature stamp & QR mock
     y += 140
-    draw.text((margin + 80, y), "Người mua hàng\n(Ký, ghi rõ họ tên)", fill=(100, 100, 100), font=f_sub, align="center")
-    draw.text((width - margin - 250, y), "Người bán hàng\n(Ký điện tử bởi doanh nghiệp)", fill=(100, 100, 100), font=f_sub, align="center")
+    draw.text(
+        (margin + 80, y),
+        "Người mua hàng\n(Ký, ghi rõ họ tên)",
+        fill=(100, 100, 100),
+        font=f_sub,
+        align="center",
+    )
+    draw.text(
+        (width - margin - 250, y),
+        "Người bán hàng\n(Ký điện tử bởi doanh nghiệp)",
+        fill=(100, 100, 100),
+        font=f_sub,
+        align="center",
+    )
 
     # Render digital stamp circle
     stamp_x, stamp_y = width - margin - 180, y + 75
-    draw.ellipse([stamp_x - 55, stamp_y - 55, stamp_x + 55, stamp_y + 55], outline=(220, 50, 50), width=2)
-    draw.text((stamp_x, stamp_y - 15), "ĐÃ KÝ ĐIỆN TỬ", fill=(220, 50, 50), font=f_small, anchor="mm")
+    draw.ellipse(
+        [stamp_x - 55, stamp_y - 55, stamp_x + 55, stamp_y + 55], outline=(220, 50, 50), width=2
+    )
+    draw.text(
+        (stamp_x, stamp_y - 15), "ĐÃ KÝ ĐIỆN TỬ", fill=(220, 50, 50), font=f_small, anchor="mm"
+    )
     draw.text((stamp_x, stamp_y + 10), date_str, fill=(220, 50, 50), font=f_small, anchor="mm")
 
     # Build comprehensive reference text reflecting all printed text for exact CER/WER computation
@@ -231,15 +296,17 @@ def render_invoice_to_image(
         ref_lines.append(
             f"{idx} {desc} {line_item.get('unit', 'Bộ')} {float(line_item['qty']):,.0f} {float(line_item['unit_price']):,.0f} {float(line_item['tax_rate']):.0f}% {float(line_item['line_amount']):,.0f}"
         )
-    ref_lines.extend([
-        f"Cộng tiền hàng (Subtotal): {subtotal:,.0f} VND",
-        f"Tiền thuế GTGT (VAT): {tax_total:,.0f} VND",
-        f"Tổng cộng tiền thanh toán (Total): {total:,.0f} VND",
-        "Người mua hàng (Ký, ghi rõ họ tên)",
-        "Người bán hàng (Ký điện tử bởi doanh nghiệp)",
-        "ĐÃ KÝ ĐIỆN TỬ",
-        date_str,
-    ])
+    ref_lines.extend(
+        [
+            f"Cộng tiền hàng (Subtotal): {subtotal:,.0f} VND",
+            f"Tiền thuế GTGT (VAT): {tax_total:,.0f} VND",
+            f"Tổng cộng tiền thanh toán (Total): {total:,.0f} VND",
+            "Người mua hàng (Ký, ghi rõ họ tên)",
+            "Người bán hàng (Ký điện tử bởi doanh nghiệp)",
+            "ĐÃ KÝ ĐIỆN TỬ",
+            date_str,
+        ]
+    )
     ref_text = "\n".join(ref_lines)
 
     return img, ref_text
@@ -248,7 +315,9 @@ def render_invoice_to_image(
 def apply_scanned_distortion(img: Image.Image, angle_deg: float = 0.6) -> Image.Image:
     """Applies realistic optical scanning distortions: subtle skew, grain, contrast jitter."""
     # Slight rotation with bilinear interpolation and white border fill
-    rotated = img.rotate(angle_deg, resample=Image.Resampling.BICUBIC, expand=False, fillcolor=(255, 255, 255))
+    rotated = img.rotate(
+        angle_deg, resample=Image.Resampling.BICUBIC, expand=False, fillcolor=(255, 255, 255)
+    )
 
     # Add scanner noise/grain
     np_img = np.array(rotated)
@@ -271,7 +340,14 @@ def apply_mobile_distortion(img: Image.Image, warp_intensity: float = 0.04) -> I
     dx = int(w * warp_intensity)
     dy = int(h * warp_intensity * 0.6)
     pts1 = np.float32([[0, 0], [w, 0], [w, h], [0, h]])
-    pts2 = np.float32([[dx, dy], [w - int(dx * 0.7), int(dy * 1.2)], [w - int(dx * 0.3), h - dy], [int(dx * 0.8), h - int(dy * 0.5)]])
+    pts2 = np.float32(
+        [
+            [dx, dy],
+            [w - int(dx * 0.7), int(dy * 1.2)],
+            [w - int(dx * 0.3), h - dy],
+            [int(dx * 0.8), h - int(dy * 0.5)],
+        ]
+    )
 
     matrix = cv2.getPerspectiveTransform(pts1, pts2)
     warped = cv2.warpPerspective(cv_img, matrix, (w, h), borderValue=(45, 40, 35))
@@ -281,7 +357,9 @@ def apply_mobile_distortion(img: Image.Image, warp_intensity: float = 0.04) -> I
     dist_from_corner = np.sqrt(X**2 + Y**2)
     gradient = 1.05 - (dist_from_corner / np.sqrt(w**2 + h**2)) * 0.25
     gradient = np.clip(gradient, 0.75, 1.15)
-    shaded = np.clip(warped.astype(np.float32) * gradient[:, :, np.newaxis], 0, 255).astype(np.uint8)
+    shaded = np.clip(warped.astype(np.float32) * gradient[:, :, np.newaxis], 0, 255).astype(
+        np.uint8
+    )
 
     return Image.fromarray(cv2.cvtColor(shaded, cv2.COLOR_BGR2RGB))
 
@@ -331,21 +409,25 @@ def main():
         ]
 
         for line_idx in range(num_lines):
-            desc, sku, base_qty, unit_p, vat_rate = item_templates[(i + line_idx) % len(item_templates)]
+            desc, sku, base_qty, unit_p, vat_rate = item_templates[
+                (i + line_idx) % len(item_templates)
+            ]
             qty = base_qty * (1 + (i % 3))
             line_amt = qty * unit_p
             vat_amt = int(round(line_amt * (vat_rate / 100.0)))
 
             subtotal += line_amt
             tax_total += vat_amt
-            lines.append({
-                "sku": sku,
-                "description": desc,
-                "qty": f"{qty:.4f}",
-                "unit_price": f"{unit_p:.4f}",
-                "tax_rate": f"{vat_rate:.2f}",
-                "line_amount": f"{line_amt:.4f}",
-            })
+            lines.append(
+                {
+                    "sku": sku,
+                    "description": desc,
+                    "qty": f"{qty:.4f}",
+                    "unit_price": f"{unit_p:.4f}",
+                    "tax_rate": f"{vat_rate:.2f}",
+                    "line_amount": f"{line_amt:.4f}",
+                }
+            )
 
         total = subtotal + tax_total
 
@@ -380,7 +462,12 @@ def main():
             # Insert invisible searchable text layer with Unicode TrueType font
             pdf_page.insert_font(fontname="ArialVN", fontfile=FONT_PATH)
             pdf_page.insert_text(
-                fitz.Point(60, 100), ref_text, fontname="ArialVN", fontsize=10, color=(1, 1, 1), render_mode=3
+                fitz.Point(60, 100),
+                ref_text,
+                fontname="ArialVN",
+                fontsize=10,
+                color=(1, 1, 1),
+                render_mode=3,
             )
             pdf.save(filepath, garbage=4, deflate=True)
             pdf.close()
@@ -445,7 +532,9 @@ def main():
             "reference_text": ref_text,
         }
         cases.append(case_entry)
-        print(f"Generated [{i:02d}/30] {filename} ({category}) - MST {supplier_tax_id} -> {buyer_tax_id}")
+        print(
+            f"Generated [{i:02d}/30] {filename} ({category}) - MST {supplier_tax_id} -> {buyer_tax_id}"
+        )
 
     with open(MANIFEST_PATH, "w", encoding="utf-8") as f:
         json.dump(cases, f, indent=2, ensure_ascii=False)

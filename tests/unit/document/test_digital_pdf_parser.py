@@ -111,4 +111,3 @@ def test_digital_parser_normalizes_soft_hyphens_in_dates_and_skus():
     assert res.issue_date == "2026-03-01"
     assert len(res.lines) == 1
     assert res.lines[0].sku == "ELEC-TIER-1"
-

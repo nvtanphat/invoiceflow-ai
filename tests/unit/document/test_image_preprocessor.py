@@ -178,6 +178,33 @@ def test_deskew_correction():
     assert deskewed.shape == rotated.shape
 
 
+def _straight_page_with_diagonal_strokes() -> np.ndarray:
+    img = np.full((1200, 900), 255, np.uint8)
+    for y in range(100, 1100, 40):
+        cv2.line(img, (60, y), (840, y), 0, 2)
+    # A signature-like diagonal stroke must not drive the skew estimate.
+    cv2.line(img, (600, 900), (800, 928), 0, 3)
+    cv2.line(img, (600, 960), (800, 988), 0, 3)
+    return img
+
+
+def test_deskew_leaves_straight_page_with_diagonal_strokes_unrotated():
+    deskewed, angle = ImagePreprocessor.estimate_and_correct_skew(
+        _straight_page_with_diagonal_strokes()
+    )
+    assert angle == 0.0
+
+
+def test_deskew_accepts_flat_hough_segment_array(monkeypatch):
+    # OpenCV builds disagree on HoughLinesP output: (N, 1, 4) or (N, 4).
+    flat_segments = np.array([[0, 0, 400, 21], [0, 100, 400, 121]], dtype=np.int32)
+    monkeypatch.setattr(cv2, "HoughLinesP", lambda *args, **kwargs: flat_segments)
+
+    _, angle = ImagePreprocessor.estimate_and_correct_skew(np.full((300, 500), 255, np.uint8))
+
+    assert abs(angle - 3.0) < 0.1
+
+
 def test_deskew_correction_on_real_skewed_lowlight_image():
     from pathlib import Path
 

@@ -93,8 +93,12 @@ class RealisticBenchmarkEvaluator:
                 "sku": line_item.sku_ref or "",
                 "description": line_item.description or "",
                 "qty": str(line_item.qty) if line_item.qty is not None else None,
-                "unit_price": str(line_item.unit_price) if line_item.unit_price is not None else None,
-                "line_amount": str(line_item.line_amount) if line_item.line_amount is not None else None,
+                "unit_price": str(line_item.unit_price)
+                if line_item.unit_price is not None
+                else None,
+                "line_amount": str(line_item.line_amount)
+                if line_item.line_amount is not None
+                else None,
             }
             for line_item in agg.lines
         ]
@@ -160,7 +164,7 @@ class RealisticBenchmarkEvaluator:
         blockers = automation_blockers(agg)
         requires_review = (len(blockers) > 0) or (len(agg.parser_issues) > 0)
         pipeline_approved = not requires_review
-        has_gt_mismatch = (header_em_score < 1.0 or fin_em_score < 1.0 or f1 < 1.0)
+        has_gt_mismatch = header_em_score < 1.0 or fin_em_score < 1.0 or f1 < 1.0
         false_auto_accept = pipeline_approved and has_gt_mismatch
 
         return {
@@ -209,7 +213,9 @@ def main():
     print(f"\nEvaluating {len(cases)} cases across Digital PDF, Scanned PDF & Mobile Photos...\n")
     for idx, case in enumerate(cases, start=1):
         cat = case["dataset_category"]
-        print(f"[{idx:02d}/{len(cases)}] Running {case['case_id']} ({cat} - {case['difficulty']})...")
+        print(
+            f"[{idx:02d}/{len(cases)}] Running {case['case_id']} ({cat} - {case['difficulty']})..."
+        )
         res = evaluator.evaluate_case(case)
         results.append(res)
         print(
@@ -227,25 +233,47 @@ def main():
         category_summary[cat] = {
             "count": len(cat_cases),
             "avg_latency_ms": round(sum(r["latency_ms"] for r in cat_cases) / len(cat_cases), 1),
-            "p95_latency_ms": round(float(np.percentile([r["latency_ms"] for r in cat_cases], 95)), 1),
+            "p95_latency_ms": round(
+                float(np.percentile([r["latency_ms"] for r in cat_cases], 95)), 1
+            ),
             "peak_ram_mb": max(r["peak_ram_mb"] for r in cat_cases),
             "avg_cer": round(sum(r["cer"] for r in cat_cases) / len(cat_cases), 4),
-            "avg_cer_unaccented": round(sum(r["cer_unaccented"] for r in cat_cases) / len(cat_cases), 4),
-            "header_exact_match": round(sum(r["header_exact_match"] for r in cat_cases) / len(cat_cases), 4),
-            "financial_field_accuracy": round(sum(r["financial_field_accuracy"] for r in cat_cases) / len(cat_cases), 4),
+            "avg_cer_unaccented": round(
+                sum(r["cer_unaccented"] for r in cat_cases) / len(cat_cases), 4
+            ),
+            "header_exact_match": round(
+                sum(r["header_exact_match"] for r in cat_cases) / len(cat_cases), 4
+            ),
+            "financial_field_accuracy": round(
+                sum(r["financial_field_accuracy"] for r in cat_cases) / len(cat_cases), 4
+            ),
             "line_items_f1": round(sum(r["line_items_f1"] for r in cat_cases) / len(cat_cases), 4),
-            "table_extraction_f1": round(sum(r["table_extraction_f1"] for r in cat_cases) / len(cat_cases), 4),
-            "human_review_rate": round(sum(1 for r in cat_cases if r["requires_human_review"]) / len(cat_cases), 4),
-            "false_auto_accept_rate": round(sum(1 for r in cat_cases if r["false_auto_accept"]) / len(cat_cases), 4),
+            "table_extraction_f1": round(
+                sum(r["table_extraction_f1"] for r in cat_cases) / len(cat_cases), 4
+            ),
+            "human_review_rate": round(
+                sum(1 for r in cat_cases if r["requires_human_review"]) / len(cat_cases), 4
+            ),
+            "false_auto_accept_rate": round(
+                sum(1 for r in cat_cases if r["false_auto_accept"]) / len(cat_cases), 4
+            ),
         }
 
     try:
-        git_sha = subprocess.check_output(["git", "rev-parse", "HEAD"], stderr=subprocess.DEVNULL).decode().strip()
+        git_sha = (
+            subprocess.check_output(["git", "rev-parse", "HEAD"], stderr=subprocess.DEVNULL)
+            .decode()
+            .strip()
+        )
     except Exception:
         git_sha = "unknown"
 
     try:
-        git_dirty = bool(subprocess.check_output(["git", "status", "--porcelain"], stderr=subprocess.DEVNULL).strip())
+        git_dirty = bool(
+            subprocess.check_output(
+                ["git", "status", "--porcelain"], stderr=subprocess.DEVNULL
+            ).strip()
+        )
     except Exception:
         git_dirty = False
 
@@ -279,16 +307,30 @@ def main():
         "case_count": len(results),
         "overall_summary": {
             "avg_latency_ms": round(sum(r["latency_ms"] for r in results) / len(results), 1),
-            "p95_latency_ms": round(float(np.percentile([r["latency_ms"] for r in results], 95)), 1),
+            "p95_latency_ms": round(
+                float(np.percentile([r["latency_ms"] for r in results], 95)), 1
+            ),
             "max_peak_ram_mb": max(r["peak_ram_mb"] for r in results),
             "overall_cer": round(sum(r["cer"] for r in results) / len(results), 4),
-            "overall_cer_unaccented": round(sum(r["cer_unaccented"] for r in results) / len(results), 4),
-            "header_exact_match": round(sum(r["header_exact_match"] for r in results) / len(results), 4),
-            "financial_field_accuracy": round(sum(r["financial_field_accuracy"] for r in results) / len(results), 4),
+            "overall_cer_unaccented": round(
+                sum(r["cer_unaccented"] for r in results) / len(results), 4
+            ),
+            "header_exact_match": round(
+                sum(r["header_exact_match"] for r in results) / len(results), 4
+            ),
+            "financial_field_accuracy": round(
+                sum(r["financial_field_accuracy"] for r in results) / len(results), 4
+            ),
             "line_items_f1": round(sum(r["line_items_f1"] for r in results) / len(results), 4),
-            "table_extraction_f1": round(sum(r["table_extraction_f1"] for r in results) / len(results), 4),
-            "false_auto_accept_rate": round(sum(1 for r in results if r["false_auto_accept"]) / len(results), 4),
-            "human_review_rate": round(sum(1 for r in results if r["requires_human_review"]) / len(results), 4),
+            "table_extraction_f1": round(
+                sum(r["table_extraction_f1"] for r in results) / len(results), 4
+            ),
+            "false_auto_accept_rate": round(
+                sum(1 for r in results if r["false_auto_accept"]) / len(results), 4
+            ),
+            "human_review_rate": round(
+                sum(1 for r in results if r["requires_human_review"]) / len(results), 4
+            ),
         },
         "by_dataset_category": category_summary,
         "case_evaluations": results,

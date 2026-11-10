@@ -230,10 +230,12 @@ class ImagePreprocessor:
         )
         angles: list[float] = []
         if lines is not None:
-            for line_segment in lines:
-                x1, y1, x2, y2 = line_segment[0]
+            # OpenCV builds return either (N, 1, 4) or (N, 4).
+            for x1, y1, x2, y2 in np.asarray(lines).reshape(-1, 4):
                 a = float(np.degrees(np.arctan2(y2 - y1, x2 - x1)))
-                if -45.0 < a < 45.0 and abs(a) >= 0.5:
+                # Already-level rules and baselines must vote too; dropping them lets a few
+                # signature or stamp strokes decide the angle of a straight page.
+                if -45.0 < a < 45.0:
                     angles.append(a)
 
         if angles:
