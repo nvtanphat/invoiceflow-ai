@@ -46,6 +46,9 @@ htmlcov/
 data/
 uploads/
 .local/
+benchmarks/fixtures/realistic_eval/
+benchmarks/results/casebook_qa_baseline.json
+benchmarks/results/realistic_benchmark_report.json
 
 # Node & Frontend
 node_modules/

@@ -51,8 +51,10 @@ def test_printed_dates_and_tax_ids_normalise_across_formats():
     from invoiceflow.domain.documents.value_parsing import normalize_tax_id, parse_printed_date
 
     assert parse_printed_date("2026-03-20") == date(2026, 3, 20)
+    assert parse_printed_date("2026\u00ad03\u00ad01") == date(2026, 3, 1)
     assert parse_printed_date("20/03/2026") == date(2026, 3, 20)
     assert parse_printed_date("Ngày 20 tháng 03 năm 2026") == date(2026, 3, 20)
     assert parse_printed_date("32/13/2026") is None
     assert normalize_tax_id("0101 234 567") == "0101234567"
     assert normalize_tax_id("0101234567 - 001") == "0101234567-001"
+    assert normalize_tax_id("0101234567\u00ad001") == "0101234567-001"

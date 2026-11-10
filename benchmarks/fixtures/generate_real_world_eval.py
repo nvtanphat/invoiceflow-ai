@@ -745,7 +745,7 @@ def main():
         # --- PUBLIC SAMPLES ---
         {
             "case_id": "PUB-01-EVN",
-            "dataset_category": "public_sample",
+            "dataset_category": "synthetic_rendered",
             "difficulty": "easy",
             "format": "pdf",
             "filename": "pub_01_evn.pdf",
@@ -805,7 +805,7 @@ def main():
         },
         {
             "case_id": "PUB-02-VNPT",
-            "dataset_category": "public_sample",
+            "dataset_category": "synthetic_rendered",
             "difficulty": "easy",
             "format": "pdf",
             "filename": "pub_02_vnpt.pdf",
@@ -856,7 +856,7 @@ def main():
         },
         {
             "case_id": "PUB-03-PETROLIMEX",
-            "dataset_category": "public_sample",
+            "dataset_category": "synthetic_rendered",
             "difficulty": "medium",
             "format": "pdf",
             "filename": "pub_03_petrolimex.pdf",

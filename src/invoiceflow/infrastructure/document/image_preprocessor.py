@@ -223,16 +223,33 @@ class ImagePreprocessor:
         else:
             gray = image
 
-        _, thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
-        coords = np.column_stack(np.where(thresh > 0))
-        if len(coords) < 100:
-            return image, 0.0
+        # 1. Primary: Probabilistic Hough Line Transform on edge map to detect text line tilt
+        edges = cv2.Canny(gray, 50, 150, apertureSize=3)
+        lines = cv2.HoughLinesP(
+            edges, 1, np.pi / 180, threshold=80, minLineLength=50, maxLineGap=10
+        )
+        angles: list[float] = []
+        if lines is not None:
+            for line_segment in lines:
+                x1, y1, x2, y2 = line_segment[0]
+                a = float(np.degrees(np.arctan2(y2 - y1, x2 - x1)))
+                if -45.0 < a < 45.0 and abs(a) >= 0.5:
+                    angles.append(a)
 
-        angle = cv2.minAreaRect(coords)[-1]
-        if angle < -45:
-            angle = -(90 + angle)
+        if angles:
+            angle = float(np.median(angles))
         else:
-            angle = -angle
+            # 2. Fallback: minAreaRect on binary text mask
+            _, thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+            coords = np.column_stack(np.where(thresh > 0))
+            if len(coords) < 100:
+                return image, 0.0
+
+            angle = cv2.minAreaRect(coords)[-1]
+            if angle < -45:
+                angle = -(90 + angle)
+            else:
+                angle = -angle
 
         # Only deskew if small noticeable skew between 0.5 and 15 degrees
         if abs(angle) < 0.5 or abs(angle) > 15.0:

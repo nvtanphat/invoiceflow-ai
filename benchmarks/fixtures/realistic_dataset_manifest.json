@@ -1,0 +1,1492 @@
+[
+  {
+    "case_id": "REAL-01-ENERGY",
+    "dataset_category": "digital_pdf",
+    "difficulty": "easy",
+    "format": "pdf",
+    "filename": "real_01_energy.pdf",
+    "description": "Hóa đơn Tổng công ty Điện lực TP Hà Nội (Digital Pdf)",
+    "distortions": [],
+    "vendor_domain": "energy",
+    "header": {
+      "supplier_tax_id": "0100100079",
+      "supplier_name": "Tổng công ty Điện lực TP Hà Nội",
+      "buyer_tax_id": "0109998883",
+      "buyer_name": "Công ty TNHH Giải pháp Phần mềm Tiên Phong",
+      "invoice_number": "0000001",
+      "invoice_series": "1C26TBC",
+      "issue_date": "2026-03-02",
+      "currency": "VND",
+      "subtotal": "24670000.0000",
+      "tax_total": "2153600.0000",
+      "amount_payable": "26823600.0000"
+    },
+    "lines": [
+      {
+        "sku": "NET-TRANSIT",
+        "description": "Băng thông quốc tế Dedicated IP Transit 100Mbps",
+        "qty": "2.0000",
+        "unit_price": "4500000.0000",
+        "tax_rate": "10.00",
+        "line_amount": "9000000.0000"
+      },
+      {
+        "sku": "RON95-V",
+        "description": "Xăng RON 95-V tiêu chuẩn khí thải Euro 5",
+        "qty": "300.0000",
+        "unit_price": "24500.0000",
+        "tax_rate": "8.00",
+        "line_amount": "7350000.0000"
+      },
+      {
+        "sku": "DO-005S",
+        "description": "Dầu Diesel DO 0.05S-II công nghiệp",
+        "qty": "400.0000",
+        "unit_price": "20800.0000",
+        "tax_rate": "8.00",
+        "line_amount": "8320000.0000"
+      }
+    ],
+    "reference_text": "HÓA ĐƠN GIÁ TRỊ GIA TĂNG\n(Bản thể hiện của hóa đơn điện tử khởi tạo từ máy tính tiền)\nNgày 02 tháng 03 năm 2026\nKý hiệu: 1C26TBC\nSố: 0000001\nĐơn vị bán hàng: Tổng công ty Điện lực TP Hà Nội\nMã số thuế: 0100100079\nĐịa chỉ: Số 123 Đường Trần Phú, Quận Ba Đình, Hà Nội\nĐiện thoại: 024.3825.6888     Số tài khoản: 112000034567 tại Vietcombank CN Hà Nội\nTên đơn vị mua: Công ty TNHH Giải pháp Phần mềm Tiên Phong\nMã số thuế: 0109998883\nĐịa chỉ: Khu Công nghệ Cao Láng Hòa Lạc, Thạch Thất, Hà Nội\nHình thức thanh toán: Chuyển khoản (TM/CK)     Đồng tiền: VND\nSTT Tên hàng hóa, dịch vụ ĐVT Số lượng Đơn giá Thuế Thành tiền (VND)\n1 Băng thông quốc tế Dedicated IP Transit 100Mbps [NET-TRANSIT] Bộ 2 4,500,000 10% 9,000,000\n2 Xăng RON 95-V tiêu chuẩn khí thải Euro 5 [RON95-V] Bộ 300 24,500 8% 7,350,000\n3 Dầu Diesel DO 0.05S-II công nghiệp [DO-005S] Bộ 400 20,800 8% 8,320,000\nCộng tiền hàng (Subtotal): 24,670,000 VND\nTiền thuế GTGT (VAT): 2,153,600 VND\nTổng cộng tiền thanh toán (Total): 26,823,600 VND\nNgười mua hàng (Ký, ghi rõ họ tên)\nNgười bán hàng (Ký điện tử bởi doanh nghiệp)\nĐÃ KÝ ĐIỆN TỬ\nNgày 02 tháng 03 năm 2026"
+  },
+  {
+    "case_id": "REAL-02-TELECOM",
+    "dataset_category": "digital_pdf",
+    "difficulty": "easy",
+    "format": "pdf",
+    "filename": "real_02_telecom.pdf",
+    "description": "Hóa đơn Tổng công ty Viễn thông Viettel (Digital Pdf)",
+    "distortions": [],
+    "vendor_domain": "telecom",
+    "header": {
+      "supplier_tax_id": "0100109106",
+      "supplier_name": "Tổng công ty Viễn thông Viettel",
+      "buyer_tax_id": "0312456782",
+      "buyer_name": "Công ty Cổ phần Công nghệ An Phú",
+      "invoice_number": "0000002",
+      "invoice_series": "1C26TCE",
+      "issue_date": "2026-03-03",
+      "currency": "VND",
+      "subtotal": "27757500.0000",
+      "tax_total": "2220600.0000",
+      "amount_payable": "29978100.0000"
+    },
+    "lines": [
+      {
+        "sku": "RON95-V",
+        "description": "Xăng RON 95-V tiêu chuẩn khí thải Euro 5",
+        "qty": "450.0000",
+        "unit_price": "24500.0000",
+        "tax_rate": "8.00",
+        "line_amount": "11025000.0000"
+      },
+      {
+        "sku": "DO-005S",
+        "description": "Dầu Diesel DO 0.05S-II công nghiệp",
+        "qty": "600.0000",
+        "unit_price": "20800.0000",
+        "tax_rate": "8.00",
+        "line_amount": "12480000.0000"
+      },
+      {
+        "sku": "ELEC-PEAK",
+        "description": "Điện năng kinh doanh thương mại giờ cao điểm",
+        "qty": "1350.0000",
+        "unit_price": "3150.0000",
+        "tax_rate": "8.00",
+        "line_amount": "4252500.0000"
+      }
+    ],
+    "reference_text": "HÓA ĐƠN GIÁ TRỊ GIA TĂNG\n(Bản thể hiện của hóa đơn điện tử khởi tạo từ máy tính tiền)\nNgày 03 tháng 03 năm 2026\nKý hiệu: 1C26TCE\nSố: 0000002\nĐơn vị bán hàng: Tổng công ty Viễn thông Viettel\nMã số thuế: 0100109106\nĐịa chỉ: Số 123 Đường Trần Phú, Quận Ba Đình, Hà Nội\nĐiện thoại: 024.3825.6888     Số tài khoản: 112000034567 tại Vietcombank CN Hà Nội\nTên đơn vị mua: Công ty Cổ phần Công nghệ An Phú\nMã số thuế: 0312456782\nĐịa chỉ: Khu Công nghệ Cao Láng Hòa Lạc, Thạch Thất, Hà Nội\nHình thức thanh toán: Chuyển khoản (TM/CK)     Đồng tiền: VND\nSTT Tên hàng hóa, dịch vụ ĐVT Số lượng Đơn giá Thuế Thành tiền (VND)\n1 Xăng RON 95-V tiêu chuẩn khí thải Euro 5 [RON95-V] Bộ 450 24,500 8% 11,025,000\n2 Dầu Diesel DO 0.05S-II công nghiệp [DO-005S] Bộ 600 20,800 8% 12,480,000\n3 Điện năng kinh doanh thương mại giờ cao điểm [ELEC-PEAK] Bộ 1,350 3,150 8% 4,252,500\nCộng tiền hàng (Subtotal): 27,757,500 VND\nTiền thuế GTGT (VAT): 2,220,600 VND\nTổng cộng tiền thanh toán (Total): 29,978,100 VND\nNgười mua hàng (Ký, ghi rõ họ tên)\nNgười bán hàng (Ký điện tử bởi doanh nghiệp)\nĐÃ KÝ ĐIỆN TỬ\nNgày 03 tháng 03 năm 2026"
+  },
+  {
+    "case_id": "REAL-03-CLOUD",
+    "dataset_category": "digital_pdf",
+    "difficulty": "easy",
+    "format": "pdf",
+    "filename": "real_03_cloud.pdf",
+    "description": "Hóa đơn Công ty Cổ phần Viễn thông FPT (Digital Pdf)",
+    "distortions": [],
+    "vendor_domain": "cloud",
+    "header": {
+      "supplier_tax_id": "0101778163",
+      "supplier_name": "Công ty Cổ phần Viễn thông FPT",
+      "buyer_tax_id": "0108877660",
+      "buyer_name": "Công ty TNHH Thương mại Dịch vụ Nam Long",
+      "invoice_number": "0000003",
+      "invoice_series": "1C26TDG",
+      "issue_date": "2026-03-04",
+      "currency": "VND",
+      "subtotal": "5577500.0000",
+      "tax_total": "446200.0000",
+      "amount_payable": "6023700.0000"
+    },
+    "lines": [
+      {
+        "sku": "DO-005S",
+        "description": "Dầu Diesel DO 0.05S-II công nghiệp",
+        "qty": "200.0000",
+        "unit_price": "20800.0000",
+        "tax_rate": "8.00",
+        "line_amount": "4160000.0000"
+      },
+      {
+        "sku": "ELEC-PEAK",
+        "description": "Điện năng kinh doanh thương mại giờ cao điểm",
+        "qty": "450.0000",
+        "unit_price": "3150.0000",
+        "tax_rate": "8.00",
+        "line_amount": "1417500.0000"
+      }
+    ],
+    "reference_text": "HÓA ĐƠN GIÁ TRỊ GIA TĂNG\n(Bản thể hiện của hóa đơn điện tử khởi tạo từ máy tính tiền)\nNgày 04 tháng 03 năm 2026\nKý hiệu: 1C26TDG\nSố: 0000003\nĐơn vị bán hàng: Công ty Cổ phần Viễn thông FPT\nMã số thuế: 0101778163\nĐịa chỉ: Số 123 Đường Trần Phú, Quận Ba Đình, Hà Nội\nĐiện thoại: 024.3825.6888     Số tài khoản: 112000034567 tại Vietcombank CN Hà Nội\nTên đơn vị mua: Công ty TNHH Thương mại Dịch vụ Nam Long\nMã số thuế: 0108877660\nĐịa chỉ: Khu Công nghệ Cao Láng Hòa Lạc, Thạch Thất, Hà Nội\nHình thức thanh toán: Chuyển khoản (TM/CK)     Đồng tiền: VND\nSTT Tên hàng hóa, dịch vụ ĐVT Số lượng Đơn giá Thuế Thành tiền (VND)\n1 Dầu Diesel DO 0.05S-II công nghiệp [DO-005S] Bộ 200 20,800 8% 4,160,000\n2 Điện năng kinh doanh thương mại giờ cao điểm [ELEC-PEAK] Bộ 450 3,150 8% 1,417,500\nCộng tiền hàng (Subtotal): 5,577,500 VND\nTiền thuế GTGT (VAT): 446,200 VND\nTổng cộng tiền thanh toán (Total): 6,023,700 VND\nNgười mua hàng (Ký, ghi rõ họ tên)\nNgười bán hàng (Ký điện tử bởi doanh nghiệp)\nĐÃ KÝ ĐIỆN TỬ\nNgày 04 tháng 03 năm 2026"
+  },
+  {
+    "case_id": "REAL-04-FUEL",
+    "dataset_category": "digital_pdf",
+    "difficulty": "easy",
+    "format": "pdf",
+    "filename": "real_04_fuel.pdf",
+    "description": "Hóa đơn Tập đoàn Xăng dầu Việt Nam (Petrolimex) (Digital Pdf)",
+    "distortions": [],
+    "vendor_domain": "fuel",
+    "header": {
+      "supplier_tax_id": "0100107613",
+      "supplier_name": "Tập đoàn Xăng dầu Việt Nam (Petrolimex)",
+      "buyer_tax_id": "0315544331",
+      "buyer_name": "Công ty Cổ phần Kỹ thuật Số Hưng Phát",
+      "invoice_number": "0000004",
+      "invoice_series": "1C26TEI",
+      "issue_date": "2026-03-05",
+      "currency": "VND",
+      "subtotal": "12387000.0000",
+      "tax_total": "1071600.0000",
+      "amount_payable": "13458600.0000"
+    },
+    "lines": [
+      {
+        "sku": "ELEC-PEAK",
+        "description": "Điện năng kinh doanh thương mại giờ cao điểm",
+        "qty": "900.0000",
+        "unit_price": "3150.0000",
+        "tax_rate": "8.00",
+        "line_amount": "2835000.0000"
+      },
+      {
+        "sku": "MILK-1000ML",
+        "description": "Sữa tươi tiệt trùng Vinamilk 100% hộp 1L",
+        "qty": "160.0000",
+        "unit_price": "34500.0000",
+        "tax_rate": "8.00",
+        "line_amount": "5520000.0000"
+      },
+      {
+        "sku": "STEEL-D18",
+        "description": "Thép thanh vằn Hòa Phát phi 18 mác CB400V",
+        "qty": "24.0000",
+        "unit_price": "168000.0000",
+        "tax_rate": "10.00",
+        "line_amount": "4032000.0000"
+      }
+    ],
+    "reference_text": "HÓA ĐƠN GIÁ TRỊ GIA TĂNG\n(Bản thể hiện của hóa đơn điện tử khởi tạo từ máy tính tiền)\nNgày 05 tháng 03 năm 2026\nKý hiệu: 1C26TEI\nSố: 0000004\nĐơn vị bán hàng: Tập đoàn Xăng dầu Việt Nam (Petrolimex)\nMã số thuế: 0100107613\nĐịa chỉ: Số 123 Đường Trần Phú, Quận Ba Đình, Hà Nội\nĐiện thoại: 024.3825.6888     Số tài khoản: 112000034567 tại Vietcombank CN Hà Nội\nTên đơn vị mua: Công ty Cổ phần Kỹ thuật Số Hưng Phát\nMã số thuế: 0315544331\nĐịa chỉ: Khu Công nghệ Cao Láng Hòa Lạc, Thạch Thất, Hà Nội\nHình thức thanh toán: Chuyển khoản (TM/CK)     Đồng tiền: VND\nSTT Tên hàng hóa, dịch vụ ĐVT Số lượng Đơn giá Thuế Thành tiền (VND)\n1 Điện năng kinh doanh thương mại giờ cao điểm [ELEC-PEAK] Bộ 900 3,150 8% 2,835,000\n2 Sữa tươi tiệt trùng Vinamilk 100% hộp 1L [MILK-1000ML] Bộ 160 34,500 8% 5,520,000\n3 Thép thanh vằn Hòa Phát phi 18 mác CB400V [STEEL-D18] Bộ 24 168,000 10% 4,032,000\nCộng tiền hàng (Subtotal): 12,387,000 VND\nTiền thuế GTGT (VAT): 1,071,600 VND\nTổng cộng tiền thanh toán (Total): 13,458,600 VND\nNgười mua hàng (Ký, ghi rõ họ tên)\nNgười bán hàng (Ký điện tử bởi doanh nghiệp)\nĐÃ KÝ ĐIỆN TỬ\nNgày 05 tháng 03 năm 2026"
+  },
+  {
+    "case_id": "REAL-05-FOOD",
+    "dataset_category": "digital_pdf",
+    "difficulty": "easy",
+    "format": "pdf",
+    "filename": "real_05_food.pdf",
+    "description": "Hóa đơn Công ty Cổ phần Sữa Việt Nam (Vinamilk) (Digital Pdf)",
+    "distortions": [],
+    "vendor_domain": "food",
+    "header": {
+      "supplier_tax_id": "0300588569",
+      "supplier_name": "Công ty Cổ phần Sữa Việt Nam (Vinamilk)",
+      "buyer_tax_id": "3702112239",
+      "buyer_name": "Công ty TNHH Tư vấn & Phát triển Vĩnh Thuận",
+      "invoice_number": "0000005",
+      "invoice_series": "1C26TFK",
+      "issue_date": "2026-03-06",
+      "currency": "VND",
+      "subtotal": "21003000.0000",
+      "tax_total": "1934700.0000",
+      "amount_payable": "22937700.0000"
+    },
+    "lines": [
+      {
+        "sku": "MILK-1000ML",
+        "description": "Sữa tươi tiệt trùng Vinamilk 100% hộp 1L",
+        "qty": "240.0000",
+        "unit_price": "34500.0000",
+        "tax_rate": "8.00",
+        "line_amount": "8280000.0000"
+      },
+      {
+        "sku": "STEEL-D18",
+        "description": "Thép thanh vằn Hòa Phát phi 18 mác CB400V",
+        "qty": "36.0000",
+        "unit_price": "168000.0000",
+        "tax_rate": "10.00",
+        "line_amount": "6048000.0000"
+      },
+      {
+        "sku": "PVC-D90",
+        "description": "Ống nhựa uPVC Tiền Phong đường kính D90 dày 3mm",
+        "qty": "75.0000",
+        "unit_price": "89000.0000",
+        "tax_rate": "10.00",
+        "line_amount": "6675000.0000"
+      }
+    ],
+    "reference_text": "HÓA ĐƠN GIÁ TRỊ GIA TĂNG\n(Bản thể hiện của hóa đơn điện tử khởi tạo từ máy tính tiền)\nNgày 06 tháng 03 năm 2026\nKý hiệu: 1C26TFK\nSố: 0000005\nĐơn vị bán hàng: Công ty Cổ phần Sữa Việt Nam (Vinamilk)\nMã số thuế: 0300588569\nĐịa chỉ: Số 123 Đường Trần Phú, Quận Ba Đình, Hà Nội\nĐiện thoại: 024.3825.6888     Số tài khoản: 112000034567 tại Vietcombank CN Hà Nội\nTên đơn vị mua: Công ty TNHH Tư vấn & Phát triển Vĩnh Thuận\nMã số thuế: 3702112239\nĐịa chỉ: Khu Công nghệ Cao Láng Hòa Lạc, Thạch Thất, Hà Nội\nHình thức thanh toán: Chuyển khoản (TM/CK)     Đồng tiền: VND\nSTT Tên hàng hóa, dịch vụ ĐVT Số lượng Đơn giá Thuế Thành tiền (VND)\n1 Sữa tươi tiệt trùng Vinamilk 100% hộp 1L [MILK-1000ML] Bộ 240 34,500 8% 8,280,000\n2 Thép thanh vằn Hòa Phát phi 18 mác CB400V [STEEL-D18] Bộ 36 168,000 10% 6,048,000\n3 Ống nhựa uPVC Tiền Phong đường kính D90 dày 3mm [PVC-D90] Bộ 75 89,000 10% 6,675,000\nCộng tiền hàng (Subtotal): 21,003,000 VND\nTiền thuế GTGT (VAT): 1,934,700 VND\nTổng cộng tiền thanh toán (Total): 22,937,700 VND\nNgười mua hàng (Ký, ghi rõ họ tên)\nNgười bán hàng (Ký điện tử bởi doanh nghiệp)\nĐÃ KÝ ĐIỆN TỬ\nNgày 06 tháng 03 năm 2026"
+  },
+  {
+    "case_id": "REAL-06-MANUFACTURING",
+    "dataset_category": "digital_pdf",
+    "difficulty": "easy",
+    "format": "pdf",
+    "filename": "real_06_manufacturing.pdf",
+    "description": "Hóa đơn Tập đoàn Hòa Phát (Digital Pdf)",
+    "distortions": [],
+    "vendor_domain": "manufacturing",
+    "header": {
+      "supplier_tax_id": "0900189284",
+      "supplier_name": "Tập đoàn Hòa Phát",
+      "buyer_tax_id": "0109998883",
+      "buyer_name": "Công ty TNHH Giải pháp Phần mềm Tiên Phong",
+      "invoice_number": "0000006",
+      "invoice_series": "1C26TGM",
+      "issue_date": "2026-03-07",
+      "currency": "VND",
+      "subtotal": "4241000.0000",
+      "tax_total": "424100.0000",
+      "amount_payable": "4665100.0000"
+    },
+    "lines": [
+      {
+        "sku": "STEEL-D18",
+        "description": "Thép thanh vằn Hòa Phát phi 18 mác CB400V",
+        "qty": "12.0000",
+        "unit_price": "168000.0000",
+        "tax_rate": "10.00",
+        "line_amount": "2016000.0000"
+      },
+      {
+        "sku": "PVC-D90",
+        "description": "Ống nhựa uPVC Tiền Phong đường kính D90 dày 3mm",
+        "qty": "25.0000",
+        "unit_price": "89000.0000",
+        "tax_rate": "10.00",
+        "line_amount": "2225000.0000"
+      }
+    ],
+    "reference_text": "HÓA ĐƠN GIÁ TRỊ GIA TĂNG\n(Bản thể hiện của hóa đơn điện tử khởi tạo từ máy tính tiền)\nNgày 07 tháng 03 năm 2026\nKý hiệu: 1C26TGM\nSố: 0000006\nĐơn vị bán hàng: Tập đoàn Hòa Phát\nMã số thuế: 0900189284\nĐịa chỉ: Số 123 Đường Trần Phú, Quận Ba Đình, Hà Nội\nĐiện thoại: 024.3825.6888     Số tài khoản: 112000034567 tại Vietcombank CN Hà Nội\nTên đơn vị mua: Công ty TNHH Giải pháp Phần mềm Tiên Phong\nMã số thuế: 0109998883\nĐịa chỉ: Khu Công nghệ Cao Láng Hòa Lạc, Thạch Thất, Hà Nội\nHình thức thanh toán: Chuyển khoản (TM/CK)     Đồng tiền: VND\nSTT Tên hàng hóa, dịch vụ ĐVT Số lượng Đơn giá Thuế Thành tiền (VND)\n1 Thép thanh vằn Hòa Phát phi 18 mác CB400V [STEEL-D18] Bộ 12 168,000 10% 2,016,000\n2 Ống nhựa uPVC Tiền Phong đường kính D90 dày 3mm [PVC-D90] Bộ 25 89,000 10% 2,225,000\nCộng tiền hàng (Subtotal): 4,241,000 VND\nTiền thuế GTGT (VAT): 424,100 VND\nTổng cộng tiền thanh toán (Total): 4,665,100 VND\nNgười mua hàng (Ký, ghi rõ họ tên)\nNgười bán hàng (Ký điện tử bởi doanh nghiệp)\nĐÃ KÝ ĐIỆN TỬ\nNgày 07 tháng 03 năm 2026"
+  },
+  {
+    "case_id": "REAL-07-RETAIL",
+    "dataset_category": "digital_pdf",
+    "difficulty": "medium",
+    "format": "pdf",
+    "filename": "real_07_retail.pdf",
+    "description": "Hóa đơn Công ty Cổ phần Bán lẻ Kỹ thuật số FPT (Digital Pdf)",
+    "distortions": [],
+    "vendor_domain": "retail",
+    "header": {
+      "supplier_tax_id": "0105777650",
+      "supplier_name": "Công ty Cổ phần Bán lẻ Kỹ thuật số FPT",
+      "buyer_tax_id": "0312456782",
+      "buyer_name": "Công ty Cổ phần Công nghệ An Phú",
+      "invoice_number": "0000007",
+      "invoice_series": "1C26THO",
+      "issue_date": "2026-03-08",
+      "currency": "VND",
+      "subtotal": "31250000.0000",
+      "tax_total": "3101000.0000",
+      "amount_payable": "34351000.0000"
+    },
+    "lines": [
+      {
+        "sku": "PVC-D90",
+        "description": "Ống nhựa uPVC Tiền Phong đường kính D90 dày 3mm",
+        "qty": "50.0000",
+        "unit_price": "89000.0000",
+        "tax_rate": "10.00",
+        "line_amount": "4450000.0000"
+      },
+      {
+        "sku": "EXPRESS-DOM",
+        "description": "Dịch vụ chuyển phát hỏa tốc bưu phẩm nội địa",
+        "qty": "10.0000",
+        "unit_price": "120000.0000",
+        "tax_rate": "8.00",
+        "line_amount": "1200000.0000"
+      },
+      {
+        "sku": "MS365-BUS",
+        "description": "Gói bản quyền phần mềm văn phòng Microsoft 365",
+        "qty": "8.0000",
+        "unit_price": "3200000.0000",
+        "tax_rate": "10.00",
+        "line_amount": "25600000.0000"
+      }
+    ],
+    "reference_text": "HÓA ĐƠN GIÁ TRỊ GIA TĂNG\n(Bản thể hiện của hóa đơn điện tử khởi tạo từ máy tính tiền)\nNgày 08 tháng 03 năm 2026\nKý hiệu: 1C26THO\nSố: 0000007\nĐơn vị bán hàng: Công ty Cổ phần Bán lẻ Kỹ thuật số FPT\nMã số thuế: 0105777650\nĐịa chỉ: Số 123 Đường Trần Phú, Quận Ba Đình, Hà Nội\nĐiện thoại: 024.3825.6888     Số tài khoản: 112000034567 tại Vietcombank CN Hà Nội\nTên đơn vị mua: Công ty Cổ phần Công nghệ An Phú\nMã số thuế: 0312456782\nĐịa chỉ: Khu Công nghệ Cao Láng Hòa Lạc, Thạch Thất, Hà Nội\nHình thức thanh toán: Chuyển khoản (TM/CK)     Đồng tiền: VND\nSTT Tên hàng hóa, dịch vụ ĐVT Số lượng Đơn giá Thuế Thành tiền (VND)\n1 Ống nhựa uPVC Tiền Phong đường kính D90 dày 3mm [PVC-D90] Bộ 50 89,000 10% 4,450,000\n2 Dịch vụ chuyển phát hỏa tốc bưu phẩm nội địa [EXPRESS-DOM] Bộ 10 120,000 8% 1,200,000\n3 Gói bản quyền phần mềm văn phòng Microsoft 365 [MS365-BUS] Bộ 8 3,200,000 10% 25,600,000\nCộng tiền hàng (Subtotal): 31,250,000 VND\nTiền thuế GTGT (VAT): 3,101,000 VND\nTổng cộng tiền thanh toán (Total): 34,351,000 VND\nNgười mua hàng (Ký, ghi rõ họ tên)\nNgười bán hàng (Ký điện tử bởi doanh nghiệp)\nĐÃ KÝ ĐIỆN TỬ\nNgày 08 tháng 03 năm 2026"
+  },
+  {
+    "case_id": "REAL-08-ELECTRONICS",
+    "dataset_category": "digital_pdf",
+    "difficulty": "medium",
+    "format": "pdf",
+    "filename": "real_08_electronics.pdf",
+    "description": "Hóa đơn Công ty Cổ phần Đầu tư Thế Giới Di Động (Digital Pdf)",
+    "distortions": [],
+    "vendor_domain": "electronics",
+    "header": {
+      "supplier_tax_id": "0303217354",
+      "supplier_name": "Công ty Cổ phần Đầu tư Thế Giới Di Động",
+      "buyer_tax_id": "0108877660",
+      "buyer_name": "Công ty TNHH Thương mại Dịch vụ Nam Long",
+      "invoice_number": "0000008",
+      "invoice_series": "1C26TIQ",
+      "issue_date": "2026-03-09",
+      "currency": "VND",
+      "subtotal": "51300000.0000",
+      "tax_total": "5094000.0000",
+      "amount_payable": "56394000.0000"
+    },
+    "lines": [
+      {
+        "sku": "EXPRESS-DOM",
+        "description": "Dịch vụ chuyển phát hỏa tốc bưu phẩm nội địa",
+        "qty": "15.0000",
+        "unit_price": "120000.0000",
+        "tax_rate": "8.00",
+        "line_amount": "1800000.0000"
+      },
+      {
+        "sku": "MS365-BUS",
+        "description": "Gói bản quyền phần mềm văn phòng Microsoft 365",
+        "qty": "12.0000",
+        "unit_price": "3200000.0000",
+        "tax_rate": "10.00",
+        "line_amount": "38400000.0000"
+      },
+      {
+        "sku": "CLOUD-VCPU8",
+        "description": "Dịch vụ điện toán đám mây Cloud Compute vCPU-8",
+        "qty": "6.0000",
+        "unit_price": "1850000.0000",
+        "tax_rate": "10.00",
+        "line_amount": "11100000.0000"
+      }
+    ],
+    "reference_text": "HÓA ĐƠN GIÁ TRỊ GIA TĂNG\n(Bản thể hiện của hóa đơn điện tử khởi tạo từ máy tính tiền)\nNgày 09 tháng 03 năm 2026\nKý hiệu: 1C26TIQ\nSố: 0000008\nĐơn vị bán hàng: Công ty Cổ phần Đầu tư Thế Giới Di Động\nMã số thuế: 0303217354\nĐịa chỉ: Số 123 Đường Trần Phú, Quận Ba Đình, Hà Nội\nĐiện thoại: 024.3825.6888     Số tài khoản: 112000034567 tại Vietcombank CN Hà Nội\nTên đơn vị mua: Công ty TNHH Thương mại Dịch vụ Nam Long\nMã số thuế: 0108877660\nĐịa chỉ: Khu Công nghệ Cao Láng Hòa Lạc, Thạch Thất, Hà Nội\nHình thức thanh toán: Chuyển khoản (TM/CK)     Đồng tiền: VND\nSTT Tên hàng hóa, dịch vụ ĐVT Số lượng Đơn giá Thuế Thành tiền (VND)\n1 Dịch vụ chuyển phát hỏa tốc bưu phẩm nội địa [EXPRESS-DOM] Bộ 15 120,000 8% 1,800,000\n2 Gói bản quyền phần mềm văn phòng Microsoft 365 [MS365-BUS] Bộ 12 3,200,000 10% 38,400,000\n3 Dịch vụ điện toán đám mây Cloud Compute vCPU-8 [CLOUD-VCPU8] Bộ 6 1,850,000 10% 11,100,000\nCộng tiền hàng (Subtotal): 51,300,000 VND\nTiền thuế GTGT (VAT): 5,094,000 VND\nTổng cộng tiền thanh toán (Total): 56,394,000 VND\nNgười mua hàng (Ký, ghi rõ họ tên)\nNgười bán hàng (Ký điện tử bởi doanh nghiệp)\nĐÃ KÝ ĐIỆN TỬ\nNgày 09 tháng 03 năm 2026"
+  },
+  {
+    "case_id": "REAL-09-LOGISTICS",
+    "dataset_category": "digital_pdf",
+    "difficulty": "medium",
+    "format": "pdf",
+    "filename": "real_09_logistics.pdf",
+    "description": "Hóa đơn Tổng công ty Bưu điện Việt Nam (VNPost) (Digital Pdf)",
+    "distortions": [],
+    "vendor_domain": "logistics",
+    "header": {
+      "supplier_tax_id": "0102604674",
+      "supplier_name": "Tổng công ty Bưu điện Việt Nam (VNPost)",
+      "buyer_tax_id": "0315544331",
+      "buyer_name": "Công ty Cổ phần Kỹ thuật Số Hưng Phát",
+      "invoice_number": "0000009",
+      "invoice_series": "1C26TJS",
+      "issue_date": "2026-03-10",
+      "currency": "VND",
+      "subtotal": "16500000.0000",
+      "tax_total": "1650000.0000",
+      "amount_payable": "18150000.0000"
+    },
+    "lines": [
+      {
+        "sku": "MS365-BUS",
+        "description": "Gói bản quyền phần mềm văn phòng Microsoft 365",
+        "qty": "4.0000",
+        "unit_price": "3200000.0000",
+        "tax_rate": "10.00",
+        "line_amount": "12800000.0000"
+      },
+      {
+        "sku": "CLOUD-VCPU8",
+        "description": "Dịch vụ điện toán đám mây Cloud Compute vCPU-8",
+        "qty": "2.0000",
+        "unit_price": "1850000.0000",
+        "tax_rate": "10.00",
+        "line_amount": "3700000.0000"
+      }
+    ],
+    "reference_text": "HÓA ĐƠN GIÁ TRỊ GIA TĂNG\n(Bản thể hiện của hóa đơn điện tử khởi tạo từ máy tính tiền)\nNgày 10 tháng 03 năm 2026\nKý hiệu: 1C26TJS\nSố: 0000009\nĐơn vị bán hàng: Tổng công ty Bưu điện Việt Nam (VNPost)\nMã số thuế: 0102604674\nĐịa chỉ: Số 123 Đường Trần Phú, Quận Ba Đình, Hà Nội\nĐiện thoại: 024.3825.6888     Số tài khoản: 112000034567 tại Vietcombank CN Hà Nội\nTên đơn vị mua: Công ty Cổ phần Kỹ thuật Số Hưng Phát\nMã số thuế: 0315544331\nĐịa chỉ: Khu Công nghệ Cao Láng Hòa Lạc, Thạch Thất, Hà Nội\nHình thức thanh toán: Chuyển khoản (TM/CK)     Đồng tiền: VND\nSTT Tên hàng hóa, dịch vụ ĐVT Số lượng Đơn giá Thuế Thành tiền (VND)\n1 Gói bản quyền phần mềm văn phòng Microsoft 365 [MS365-BUS] Bộ 4 3,200,000 10% 12,800,000\n2 Dịch vụ điện toán đám mây Cloud Compute vCPU-8 [CLOUD-VCPU8] Bộ 2 1,850,000 10% 3,700,000\nCộng tiền hàng (Subtotal): 16,500,000 VND\nTiền thuế GTGT (VAT): 1,650,000 VND\nTổng cộng tiền thanh toán (Total): 18,150,000 VND\nNgười mua hàng (Ký, ghi rõ họ tên)\nNgười bán hàng (Ký điện tử bởi doanh nghiệp)\nĐÃ KÝ ĐIỆN TỬ\nNgày 10 tháng 03 năm 2026"
+  },
+  {
+    "case_id": "REAL-10-SOFTWARE",
+    "dataset_category": "digital_pdf",
+    "difficulty": "medium",
+    "format": "pdf",
+    "filename": "real_10_software.pdf",
+    "description": "Hóa đơn Công ty TNHH Phần mềm FPT (Digital Pdf)",
+    "distortions": [],
+    "vendor_domain": "software",
+    "header": {
+      "supplier_tax_id": "0101258904",
+      "supplier_name": "Công ty TNHH Phần mềm FPT",
+      "buyer_tax_id": "3702112239",
+      "buyer_name": "Công ty TNHH Tư vấn & Phát triển Vĩnh Thuận",
+      "invoice_number": "0000010",
+      "invoice_series": "1C26TKU",
+      "issue_date": "2026-03-11",
+      "currency": "VND",
+      "subtotal": "23750000.0000",
+      "tax_total": "2228000.0000",
+      "amount_payable": "25978000.0000"
+    },
+    "lines": [
+      {
+        "sku": "CLOUD-VCPU8",
+        "description": "Dịch vụ điện toán đám mây Cloud Compute vCPU-8",
+        "qty": "4.0000",
+        "unit_price": "1850000.0000",
+        "tax_rate": "10.00",
+        "line_amount": "7400000.0000"
+      },
+      {
+        "sku": "NET-TRANSIT",
+        "description": "Băng thông quốc tế Dedicated IP Transit 100Mbps",
+        "qty": "2.0000",
+        "unit_price": "4500000.0000",
+        "tax_rate": "10.00",
+        "line_amount": "9000000.0000"
+      },
+      {
+        "sku": "RON95-V",
+        "description": "Xăng RON 95-V tiêu chuẩn khí thải Euro 5",
+        "qty": "300.0000",
+        "unit_price": "24500.0000",
+        "tax_rate": "8.00",
+        "line_amount": "7350000.0000"
+      }
+    ],
+    "reference_text": "HÓA ĐƠN GIÁ TRỊ GIA TĂNG\n(Bản thể hiện của hóa đơn điện tử khởi tạo từ máy tính tiền)\nNgày 11 tháng 03 năm 2026\nKý hiệu: 1C26TKU\nSố: 0000010\nĐơn vị bán hàng: Công ty TNHH Phần mềm FPT\nMã số thuế: 0101258904\nĐịa chỉ: Số 123 Đường Trần Phú, Quận Ba Đình, Hà Nội\nĐiện thoại: 024.3825.6888     Số tài khoản: 112000034567 tại Vietcombank CN Hà Nội\nTên đơn vị mua: Công ty TNHH Tư vấn & Phát triển Vĩnh Thuận\nMã số thuế: 3702112239\nĐịa chỉ: Khu Công nghệ Cao Láng Hòa Lạc, Thạch Thất, Hà Nội\nHình thức thanh toán: Chuyển khoản (TM/CK)     Đồng tiền: VND\nSTT Tên hàng hóa, dịch vụ ĐVT Số lượng Đơn giá Thuế Thành tiền (VND)\n1 Dịch vụ điện toán đám mây Cloud Compute vCPU-8 [CLOUD-VCPU8] Bộ 4 1,850,000 10% 7,400,000\n2 Băng thông quốc tế Dedicated IP Transit 100Mbps [NET-TRANSIT] Bộ 2 4,500,000 10% 9,000,000\n3 Xăng RON 95-V tiêu chuẩn khí thải Euro 5 [RON95-V] Bộ 300 24,500 8% 7,350,000\nCộng tiền hàng (Subtotal): 23,750,000 VND\nTiền thuế GTGT (VAT): 2,228,000 VND\nTổng cộng tiền thanh toán (Total): 25,978,000 VND\nNgười mua hàng (Ký, ghi rõ họ tên)\nNgười bán hàng (Ký điện tử bởi doanh nghiệp)\nĐÃ KÝ ĐIỆN TỬ\nNgày 11 tháng 03 năm 2026"
+  },
+  {
+    "case_id": "REAL-11-PHARMA",
+    "dataset_category": "scanned_pdf",
+    "difficulty": "medium",
+    "format": "pdf",
+    "filename": "real_11_pharma_scan.pdf",
+    "description": "Hóa đơn Công ty Cổ phần Dược Hậu Giang (Scanned Pdf)",
+    "distortions": [
+      "scanner_rotation",
+      "scanner_noise"
+    ],
+    "vendor_domain": "pharma",
+    "header": {
+      "supplier_tax_id": "1800156801",
+      "supplier_name": "Công ty Cổ phần Dược Hậu Giang",
+      "buyer_tax_id": "0109998883",
+      "buyer_name": "Công ty TNHH Giải pháp Phần mềm Tiên Phong",
+      "invoice_number": "0000011",
+      "invoice_series": "1C26TLW",
+      "issue_date": "2026-03-12",
+      "currency": "VND",
+      "subtotal": "37005000.0000",
+      "tax_total": "3230400.0000",
+      "amount_payable": "40235400.0000"
+    },
+    "lines": [
+      {
+        "sku": "NET-TRANSIT",
+        "description": "Băng thông quốc tế Dedicated IP Transit 100Mbps",
+        "qty": "3.0000",
+        "unit_price": "4500000.0000",
+        "tax_rate": "10.00",
+        "line_amount": "13500000.0000"
+      },
+      {
+        "sku": "RON95-V",
+        "description": "Xăng RON 95-V tiêu chuẩn khí thải Euro 5",
+        "qty": "450.0000",
+        "unit_price": "24500.0000",
+        "tax_rate": "8.00",
+        "line_amount": "11025000.0000"
+      },
+      {
+        "sku": "DO-005S",
+        "description": "Dầu Diesel DO 0.05S-II công nghiệp",
+        "qty": "600.0000",
+        "unit_price": "20800.0000",
+        "tax_rate": "8.00",
+        "line_amount": "12480000.0000"
+      }
+    ],
+    "reference_text": "HÓA ĐƠN GIÁ TRỊ GIA TĂNG\n(Bản thể hiện của hóa đơn điện tử khởi tạo từ máy tính tiền)\nNgày 12 tháng 03 năm 2026\nKý hiệu: 1C26TLW\nSố: 0000011\nĐơn vị bán hàng: Công ty Cổ phần Dược Hậu Giang\nMã số thuế: 1800156801\nĐịa chỉ: Số 123 Đường Trần Phú, Quận Ba Đình, Hà Nội\nĐiện thoại: 024.3825.6888     Số tài khoản: 112000034567 tại Vietcombank CN Hà Nội\nTên đơn vị mua: Công ty TNHH Giải pháp Phần mềm Tiên Phong\nMã số thuế: 0109998883\nĐịa chỉ: Khu Công nghệ Cao Láng Hòa Lạc, Thạch Thất, Hà Nội\nHình thức thanh toán: Chuyển khoản (TM/CK)     Đồng tiền: VND\nSTT Tên hàng hóa, dịch vụ ĐVT Số lượng Đơn giá Thuế Thành tiền (VND)\n1 Băng thông quốc tế Dedicated IP Transit 100Mbps [NET-TRANSIT] Bộ 3 4,500,000 10% 13,500,000\n2 Xăng RON 95-V tiêu chuẩn khí thải Euro 5 [RON95-V] Bộ 450 24,500 8% 11,025,000\n3 Dầu Diesel DO 0.05S-II công nghiệp [DO-005S] Bộ 600 20,800 8% 12,480,000\nCộng tiền hàng (Subtotal): 37,005,000 VND\nTiền thuế GTGT (VAT): 3,230,400 VND\nTổng cộng tiền thanh toán (Total): 40,235,400 VND\nNgười mua hàng (Ký, ghi rõ họ tên)\nNgười bán hàng (Ký điện tử bởi doanh nghiệp)\nĐÃ KÝ ĐIỆN TỬ\nNgày 12 tháng 03 năm 2026"
+  },
+  {
+    "case_id": "REAL-12-INDUSTRIAL",
+    "dataset_category": "scanned_pdf",
+    "difficulty": "medium",
+    "format": "pdf",
+    "filename": "real_12_industrial_scan.pdf",
+    "description": "Hóa đơn Công ty Cổ phần Nhựa Thiếu niên Tiền Phong (Scanned Pdf)",
+    "distortions": [
+      "scanner_rotation",
+      "scanner_noise"
+    ],
+    "vendor_domain": "industrial",
+    "header": {
+      "supplier_tax_id": "0200115590",
+      "supplier_name": "Công ty Cổ phần Nhựa Thiếu niên Tiền Phong",
+      "buyer_tax_id": "0312456782",
+      "buyer_name": "Công ty Cổ phần Công nghệ An Phú",
+      "invoice_number": "0000012",
+      "invoice_series": "1C26TMY",
+      "issue_date": "2026-03-13",
+      "currency": "VND",
+      "subtotal": "7835000.0000",
+      "tax_total": "626800.0000",
+      "amount_payable": "8461800.0000"
+    },
+    "lines": [
+      {
+        "sku": "RON95-V",
+        "description": "Xăng RON 95-V tiêu chuẩn khí thải Euro 5",
+        "qty": "150.0000",
+        "unit_price": "24500.0000",
+        "tax_rate": "8.00",
+        "line_amount": "3675000.0000"
+      },
+      {
+        "sku": "DO-005S",
+        "description": "Dầu Diesel DO 0.05S-II công nghiệp",
+        "qty": "200.0000",
+        "unit_price": "20800.0000",
+        "tax_rate": "8.00",
+        "line_amount": "4160000.0000"
+      }
+    ],
+    "reference_text": "HÓA ĐƠN GIÁ TRỊ GIA TĂNG\n(Bản thể hiện của hóa đơn điện tử khởi tạo từ máy tính tiền)\nNgày 13 tháng 03 năm 2026\nKý hiệu: 1C26TMY\nSố: 0000012\nĐơn vị bán hàng: Công ty Cổ phần Nhựa Thiếu niên Tiền Phong\nMã số thuế: 0200115590\nĐịa chỉ: Số 123 Đường Trần Phú, Quận Ba Đình, Hà Nội\nĐiện thoại: 024.3825.6888     Số tài khoản: 112000034567 tại Vietcombank CN Hà Nội\nTên đơn vị mua: Công ty Cổ phần Công nghệ An Phú\nMã số thuế: 0312456782\nĐịa chỉ: Khu Công nghệ Cao Láng Hòa Lạc, Thạch Thất, Hà Nội\nHình thức thanh toán: Chuyển khoản (TM/CK)     Đồng tiền: VND\nSTT Tên hàng hóa, dịch vụ ĐVT Số lượng Đơn giá Thuế Thành tiền (VND)\n1 Xăng RON 95-V tiêu chuẩn khí thải Euro 5 [RON95-V] Bộ 150 24,500 8% 3,675,000\n2 Dầu Diesel DO 0.05S-II công nghiệp [DO-005S] Bộ 200 20,800 8% 4,160,000\nCộng tiền hàng (Subtotal): 7,835,000 VND\nTiền thuế GTGT (VAT): 626,800 VND\nTổng cộng tiền thanh toán (Total): 8,461,800 VND\nNgười mua hàng (Ký, ghi rõ họ tên)\nNgười bán hàng (Ký điện tử bởi doanh nghiệp)\nĐÃ KÝ ĐIỆN TỬ\nNgày 13 tháng 03 năm 2026"
+  },
+  {
+    "case_id": "REAL-13-BEVERAGE",
+    "dataset_category": "scanned_pdf",
+    "difficulty": "medium",
+    "format": "pdf",
+    "filename": "real_13_beverage_scan.pdf",
+    "description": "Hóa đơn Công ty TNHH Nước Giải khát Suntory PepsiCo VN (Scanned Pdf)",
+    "distortions": [
+      "scanner_rotation",
+      "scanner_noise"
+    ],
+    "vendor_domain": "beverage",
+    "header": {
+      "supplier_tax_id": "0300816663",
+      "supplier_name": "Công ty TNHH Nước Giải khát Suntory PepsiCo VN",
+      "buyer_tax_id": "0108877660",
+      "buyer_name": "Công ty TNHH Thương mại Dịch vụ Nam Long",
+      "invoice_number": "0000013",
+      "invoice_series": "1C26TNA",
+      "issue_date": "2026-03-14",
+      "currency": "VND",
+      "subtotal": "16675000.0000",
+      "tax_total": "1334000.0000",
+      "amount_payable": "18009000.0000"
+    },
+    "lines": [
+      {
+        "sku": "DO-005S",
+        "description": "Dầu Diesel DO 0.05S-II công nghiệp",
+        "qty": "400.0000",
+        "unit_price": "20800.0000",
+        "tax_rate": "8.00",
+        "line_amount": "8320000.0000"
+      },
+      {
+        "sku": "ELEC-PEAK",
+        "description": "Điện năng kinh doanh thương mại giờ cao điểm",
+        "qty": "900.0000",
+        "unit_price": "3150.0000",
+        "tax_rate": "8.00",
+        "line_amount": "2835000.0000"
+      },
+      {
+        "sku": "MILK-1000ML",
+        "description": "Sữa tươi tiệt trùng Vinamilk 100% hộp 1L",
+        "qty": "160.0000",
+        "unit_price": "34500.0000",
+        "tax_rate": "8.00",
+        "line_amount": "5520000.0000"
+      }
+    ],
+    "reference_text": "HÓA ĐƠN GIÁ TRỊ GIA TĂNG\n(Bản thể hiện của hóa đơn điện tử khởi tạo từ máy tính tiền)\nNgày 14 tháng 03 năm 2026\nKý hiệu: 1C26TNA\nSố: 0000013\nĐơn vị bán hàng: Công ty TNHH Nước Giải khát Suntory PepsiCo VN\nMã số thuế: 0300816663\nĐịa chỉ: Số 123 Đường Trần Phú, Quận Ba Đình, Hà Nội\nĐiện thoại: 024.3825.6888     Số tài khoản: 112000034567 tại Vietcombank CN Hà Nội\nTên đơn vị mua: Công ty TNHH Thương mại Dịch vụ Nam Long\nMã số thuế: 0108877660\nĐịa chỉ: Khu Công nghệ Cao Láng Hòa Lạc, Thạch Thất, Hà Nội\nHình thức thanh toán: Chuyển khoản (TM/CK)     Đồng tiền: VND\nSTT Tên hàng hóa, dịch vụ ĐVT Số lượng Đơn giá Thuế Thành tiền (VND)\n1 Dầu Diesel DO 0.05S-II công nghiệp [DO-005S] Bộ 400 20,800 8% 8,320,000\n2 Điện năng kinh doanh thương mại giờ cao điểm [ELEC-PEAK] Bộ 900 3,150 8% 2,835,000\n3 Sữa tươi tiệt trùng Vinamilk 100% hộp 1L [MILK-1000ML] Bộ 160 34,500 8% 5,520,000\nCộng tiền hàng (Subtotal): 16,675,000 VND\nTiền thuế GTGT (VAT): 1,334,000 VND\nTổng cộng tiền thanh toán (Total): 18,009,000 VND\nNgười mua hàng (Ký, ghi rõ họ tên)\nNgười bán hàng (Ký điện tử bởi doanh nghiệp)\nĐÃ KÝ ĐIỆN TỬ\nNgày 14 tháng 03 năm 2026"
+  },
+  {
+    "case_id": "REAL-14-CONSUMER",
+    "dataset_category": "scanned_pdf",
+    "difficulty": "medium",
+    "format": "pdf",
+    "filename": "real_14_consumer_scan.pdf",
+    "description": "Hóa đơn Công ty Cổ phần Tập đoàn Masan (Scanned Pdf)",
+    "distortions": [
+      "scanner_rotation",
+      "scanner_noise"
+    ],
+    "vendor_domain": "consumer",
+    "header": {
+      "supplier_tax_id": "0303576603",
+      "supplier_name": "Công ty Cổ phần Tập đoàn Masan",
+      "buyer_tax_id": "0315544331",
+      "buyer_name": "Công ty Cổ phần Kỹ thuật Số Hưng Phát",
+      "invoice_number": "0000014",
+      "invoice_series": "1C26TOC",
+      "issue_date": "2026-03-15",
+      "currency": "VND",
+      "subtotal": "18580500.0000",
+      "tax_total": "1607400.0000",
+      "amount_payable": "20187900.0000"
+    },
+    "lines": [
+      {
+        "sku": "ELEC-PEAK",
+        "description": "Điện năng kinh doanh thương mại giờ cao điểm",
+        "qty": "1350.0000",
+        "unit_price": "3150.0000",
+        "tax_rate": "8.00",
+        "line_amount": "4252500.0000"
+      },
+      {
+        "sku": "MILK-1000ML",
+        "description": "Sữa tươi tiệt trùng Vinamilk 100% hộp 1L",
+        "qty": "240.0000",
+        "unit_price": "34500.0000",
+        "tax_rate": "8.00",
+        "line_amount": "8280000.0000"
+      },
+      {
+        "sku": "STEEL-D18",
+        "description": "Thép thanh vằn Hòa Phát phi 18 mác CB400V",
+        "qty": "36.0000",
+        "unit_price": "168000.0000",
+        "tax_rate": "10.00",
+        "line_amount": "6048000.0000"
+      }
+    ],
+    "reference_text": "HÓA ĐƠN GIÁ TRỊ GIA TĂNG\n(Bản thể hiện của hóa đơn điện tử khởi tạo từ máy tính tiền)\nNgày 15 tháng 03 năm 2026\nKý hiệu: 1C26TOC\nSố: 0000014\nĐơn vị bán hàng: Công ty Cổ phần Tập đoàn Masan\nMã số thuế: 0303576603\nĐịa chỉ: Số 123 Đường Trần Phú, Quận Ba Đình, Hà Nội\nĐiện thoại: 024.3825.6888     Số tài khoản: 112000034567 tại Vietcombank CN Hà Nội\nTên đơn vị mua: Công ty Cổ phần Kỹ thuật Số Hưng Phát\nMã số thuế: 0315544331\nĐịa chỉ: Khu Công nghệ Cao Láng Hòa Lạc, Thạch Thất, Hà Nội\nHình thức thanh toán: Chuyển khoản (TM/CK)     Đồng tiền: VND\nSTT Tên hàng hóa, dịch vụ ĐVT Số lượng Đơn giá Thuế Thành tiền (VND)\n1 Điện năng kinh doanh thương mại giờ cao điểm [ELEC-PEAK] Bộ 1,350 3,150 8% 4,252,500\n2 Sữa tươi tiệt trùng Vinamilk 100% hộp 1L [MILK-1000ML] Bộ 240 34,500 8% 8,280,000\n3 Thép thanh vằn Hòa Phát phi 18 mác CB400V [STEEL-D18] Bộ 36 168,000 10% 6,048,000\nCộng tiền hàng (Subtotal): 18,580,500 VND\nTiền thuế GTGT (VAT): 1,607,400 VND\nTổng cộng tiền thanh toán (Total): 20,187,900 VND\nNgười mua hàng (Ký, ghi rõ họ tên)\nNgười bán hàng (Ký điện tử bởi doanh nghiệp)\nĐÃ KÝ ĐIỆN TỬ\nNgày 15 tháng 03 năm 2026"
+  },
+  {
+    "case_id": "REAL-15-SHIPPING",
+    "dataset_category": "scanned_pdf",
+    "difficulty": "medium",
+    "format": "pdf",
+    "filename": "real_15_shipping_scan.pdf",
+    "description": "Hóa đơn Công ty Cổ phần Vận tải và Xếp dỡ Hải An (Scanned Pdf)",
+    "distortions": [
+      "scanner_rotation",
+      "scanner_noise"
+    ],
+    "vendor_domain": "shipping",
+    "header": {
+      "supplier_tax_id": "0200874982",
+      "supplier_name": "Công ty Cổ phần Vận tải và Xếp dỡ Hải An",
+      "buyer_tax_id": "3702112239",
+      "buyer_name": "Công ty TNHH Tư vấn & Phát triển Vĩnh Thuận",
+      "invoice_number": "0000015",
+      "invoice_series": "1C26TPE",
+      "issue_date": "2026-03-16",
+      "currency": "VND",
+      "subtotal": "4776000.0000",
+      "tax_total": "422400.0000",
+      "amount_payable": "5198400.0000"
+    },
+    "lines": [
+      {
+        "sku": "MILK-1000ML",
+        "description": "Sữa tươi tiệt trùng Vinamilk 100% hộp 1L",
+        "qty": "80.0000",
+        "unit_price": "34500.0000",
+        "tax_rate": "8.00",
+        "line_amount": "2760000.0000"
+      },
+      {
+        "sku": "STEEL-D18",
+        "description": "Thép thanh vằn Hòa Phát phi 18 mác CB400V",
+        "qty": "12.0000",
+        "unit_price": "168000.0000",
+        "tax_rate": "10.00",
+        "line_amount": "2016000.0000"
+      }
+    ],
+    "reference_text": "HÓA ĐƠN GIÁ TRỊ GIA TĂNG\n(Bản thể hiện của hóa đơn điện tử khởi tạo từ máy tính tiền)\nNgày 16 tháng 03 năm 2026\nKý hiệu: 1C26TPE\nSố: 0000015\nĐơn vị bán hàng: Công ty Cổ phần Vận tải và Xếp dỡ Hải An\nMã số thuế: 0200874982\nĐịa chỉ: Số 123 Đường Trần Phú, Quận Ba Đình, Hà Nội\nĐiện thoại: 024.3825.6888     Số tài khoản: 112000034567 tại Vietcombank CN Hà Nội\nTên đơn vị mua: Công ty TNHH Tư vấn & Phát triển Vĩnh Thuận\nMã số thuế: 3702112239\nĐịa chỉ: Khu Công nghệ Cao Láng Hòa Lạc, Thạch Thất, Hà Nội\nHình thức thanh toán: Chuyển khoản (TM/CK)     Đồng tiền: VND\nSTT Tên hàng hóa, dịch vụ ĐVT Số lượng Đơn giá Thuế Thành tiền (VND)\n1 Sữa tươi tiệt trùng Vinamilk 100% hộp 1L [MILK-1000ML] Bộ 80 34,500 8% 2,760,000\n2 Thép thanh vằn Hòa Phát phi 18 mác CB400V [STEEL-D18] Bộ 12 168,000 10% 2,016,000\nCộng tiền hàng (Subtotal): 4,776,000 VND\nTiền thuế GTGT (VAT): 422,400 VND\nTổng cộng tiền thanh toán (Total): 5,198,400 VND\nNgười mua hàng (Ký, ghi rõ họ tên)\nNgười bán hàng (Ký điện tử bởi doanh nghiệp)\nĐÃ KÝ ĐIỆN TỬ\nNgày 16 tháng 03 năm 2026"
+  },
+  {
+    "case_id": "REAL-16-ENERGY",
+    "dataset_category": "scanned_pdf",
+    "difficulty": "hard",
+    "format": "pdf",
+    "filename": "real_16_energy_scan.pdf",
+    "description": "Hóa đơn Tổng công ty Điện lực TP Hà Nội (Scanned Pdf)",
+    "distortions": [
+      "scanner_rotation",
+      "scanner_noise"
+    ],
+    "vendor_domain": "energy",
+    "header": {
+      "supplier_tax_id": "0100100079",
+      "supplier_name": "Tổng công ty Điện lực TP Hà Nội",
+      "buyer_tax_id": "0109998883",
+      "buyer_name": "Công ty TNHH Giải pháp Phần mềm Tiên Phong",
+      "invoice_number": "0000016",
+      "invoice_series": "1C26TQG",
+      "issue_date": "2026-03-17",
+      "currency": "VND",
+      "subtotal": "9682000.0000",
+      "tax_total": "944200.0000",
+      "amount_payable": "10626200.0000"
+    },
+    "lines": [
+      {
+        "sku": "STEEL-D18",
+        "description": "Thép thanh vằn Hòa Phát phi 18 mác CB400V",
+        "qty": "24.0000",
+        "unit_price": "168000.0000",
+        "tax_rate": "10.00",
+        "line_amount": "4032000.0000"
+      },
+      {
+        "sku": "PVC-D90",
+        "description": "Ống nhựa uPVC Tiền Phong đường kính D90 dày 3mm",
+        "qty": "50.0000",
+        "unit_price": "89000.0000",
+        "tax_rate": "10.00",
+        "line_amount": "4450000.0000"
+      },
+      {
+        "sku": "EXPRESS-DOM",
+        "description": "Dịch vụ chuyển phát hỏa tốc bưu phẩm nội địa",
+        "qty": "10.0000",
+        "unit_price": "120000.0000",
+        "tax_rate": "8.00",
+        "line_amount": "1200000.0000"
+      }
+    ],
+    "reference_text": "HÓA ĐƠN GIÁ TRỊ GIA TĂNG\n(Bản thể hiện của hóa đơn điện tử khởi tạo từ máy tính tiền)\nNgày 17 tháng 03 năm 2026\nKý hiệu: 1C26TQG\nSố: 0000016\nĐơn vị bán hàng: Tổng công ty Điện lực TP Hà Nội\nMã số thuế: 0100100079\nĐịa chỉ: Số 123 Đường Trần Phú, Quận Ba Đình, Hà Nội\nĐiện thoại: 024.3825.6888     Số tài khoản: 112000034567 tại Vietcombank CN Hà Nội\nTên đơn vị mua: Công ty TNHH Giải pháp Phần mềm Tiên Phong\nMã số thuế: 0109998883\nĐịa chỉ: Khu Công nghệ Cao Láng Hòa Lạc, Thạch Thất, Hà Nội\nHình thức thanh toán: Chuyển khoản (TM/CK)     Đồng tiền: VND\nSTT Tên hàng hóa, dịch vụ ĐVT Số lượng Đơn giá Thuế Thành tiền (VND)\n1 Thép thanh vằn Hòa Phát phi 18 mác CB400V [STEEL-D18] Bộ 24 168,000 10% 4,032,000\n2 Ống nhựa uPVC Tiền Phong đường kính D90 dày 3mm [PVC-D90] Bộ 50 89,000 10% 4,450,000\n3 Dịch vụ chuyển phát hỏa tốc bưu phẩm nội địa [EXPRESS-DOM] Bộ 10 120,000 8% 1,200,000\nCộng tiền hàng (Subtotal): 9,682,000 VND\nTiền thuế GTGT (VAT): 944,200 VND\nTổng cộng tiền thanh toán (Total): 10,626,200 VND\nNgười mua hàng (Ký, ghi rõ họ tên)\nNgười bán hàng (Ký điện tử bởi doanh nghiệp)\nĐÃ KÝ ĐIỆN TỬ\nNgày 17 tháng 03 năm 2026"
+  },
+  {
+    "case_id": "REAL-17-TELECOM",
+    "dataset_category": "scanned_pdf",
+    "difficulty": "hard",
+    "format": "pdf",
+    "filename": "real_17_telecom_scan.pdf",
+    "description": "Hóa đơn Tổng công ty Viễn thông Viettel (Scanned Pdf)",
+    "distortions": [
+      "scanner_rotation",
+      "scanner_noise"
+    ],
+    "vendor_domain": "telecom",
+    "header": {
+      "supplier_tax_id": "0100109106",
+      "supplier_name": "Tổng công ty Viễn thông Viettel",
+      "buyer_tax_id": "0312456782",
+      "buyer_name": "Công ty Cổ phần Công nghệ An Phú",
+      "invoice_number": "0000017",
+      "invoice_series": "1C26TRI",
+      "issue_date": "2026-03-18",
+      "currency": "VND",
+      "subtotal": "46875000.0000",
+      "tax_total": "4651500.0000",
+      "amount_payable": "51526500.0000"
+    },
+    "lines": [
+      {
+        "sku": "PVC-D90",
+        "description": "Ống nhựa uPVC Tiền Phong đường kính D90 dày 3mm",
+        "qty": "75.0000",
+        "unit_price": "89000.0000",
+        "tax_rate": "10.00",
+        "line_amount": "6675000.0000"
+      },
+      {
+        "sku": "EXPRESS-DOM",
+        "description": "Dịch vụ chuyển phát hỏa tốc bưu phẩm nội địa",
+        "qty": "15.0000",
+        "unit_price": "120000.0000",
+        "tax_rate": "8.00",
+        "line_amount": "1800000.0000"
+      },
+      {
+        "sku": "MS365-BUS",
+        "description": "Gói bản quyền phần mềm văn phòng Microsoft 365",
+        "qty": "12.0000",
+        "unit_price": "3200000.0000",
+        "tax_rate": "10.00",
+        "line_amount": "38400000.0000"
+      }
+    ],
+    "reference_text": "HÓA ĐƠN GIÁ TRỊ GIA TĂNG\n(Bản thể hiện của hóa đơn điện tử khởi tạo từ máy tính tiền)\nNgày 18 tháng 03 năm 2026\nKý hiệu: 1C26TRI\nSố: 0000017\nĐơn vị bán hàng: Tổng công ty Viễn thông Viettel\nMã số thuế: 0100109106\nĐịa chỉ: Số 123 Đường Trần Phú, Quận Ba Đình, Hà Nội\nĐiện thoại: 024.3825.6888     Số tài khoản: 112000034567 tại Vietcombank CN Hà Nội\nTên đơn vị mua: Công ty Cổ phần Công nghệ An Phú\nMã số thuế: 0312456782\nĐịa chỉ: Khu Công nghệ Cao Láng Hòa Lạc, Thạch Thất, Hà Nội\nHình thức thanh toán: Chuyển khoản (TM/CK)     Đồng tiền: VND\nSTT Tên hàng hóa, dịch vụ ĐVT Số lượng Đơn giá Thuế Thành tiền (VND)\n1 Ống nhựa uPVC Tiền Phong đường kính D90 dày 3mm [PVC-D90] Bộ 75 89,000 10% 6,675,000\n2 Dịch vụ chuyển phát hỏa tốc bưu phẩm nội địa [EXPRESS-DOM] Bộ 15 120,000 8% 1,800,000\n3 Gói bản quyền phần mềm văn phòng Microsoft 365 [MS365-BUS] Bộ 12 3,200,000 10% 38,400,000\nCộng tiền hàng (Subtotal): 46,875,000 VND\nTiền thuế GTGT (VAT): 4,651,500 VND\nTổng cộng tiền thanh toán (Total): 51,526,500 VND\nNgười mua hàng (Ký, ghi rõ họ tên)\nNgười bán hàng (Ký điện tử bởi doanh nghiệp)\nĐÃ KÝ ĐIỆN TỬ\nNgày 18 tháng 03 năm 2026"
+  },
+  {
+    "case_id": "REAL-18-CLOUD",
+    "dataset_category": "scanned_pdf",
+    "difficulty": "hard",
+    "format": "pdf",
+    "filename": "real_18_cloud_scan.pdf",
+    "description": "Hóa đơn Công ty Cổ phần Viễn thông FPT (Scanned Pdf)",
+    "distortions": [
+      "scanner_rotation",
+      "scanner_noise"
+    ],
+    "vendor_domain": "cloud",
+    "header": {
+      "supplier_tax_id": "0101778163",
+      "supplier_name": "Công ty Cổ phần Viễn thông FPT",
+      "buyer_tax_id": "0108877660",
+      "buyer_name": "Công ty TNHH Thương mại Dịch vụ Nam Long",
+      "invoice_number": "0000018",
+      "invoice_series": "1C26TSK",
+      "issue_date": "2026-03-19",
+      "currency": "VND",
+      "subtotal": "13400000.0000",
+      "tax_total": "1328000.0000",
+      "amount_payable": "14728000.0000"
+    },
+    "lines": [
+      {
+        "sku": "EXPRESS-DOM",
+        "description": "Dịch vụ chuyển phát hỏa tốc bưu phẩm nội địa",
+        "qty": "5.0000",
+        "unit_price": "120000.0000",
+        "tax_rate": "8.00",
+        "line_amount": "600000.0000"
+      },
+      {
+        "sku": "MS365-BUS",
+        "description": "Gói bản quyền phần mềm văn phòng Microsoft 365",
+        "qty": "4.0000",
+        "unit_price": "3200000.0000",
+        "tax_rate": "10.00",
+        "line_amount": "12800000.0000"
+      }
+    ],
+    "reference_text": "HÓA ĐƠN GIÁ TRỊ GIA TĂNG\n(Bản thể hiện của hóa đơn điện tử khởi tạo từ máy tính tiền)\nNgày 19 tháng 03 năm 2026\nKý hiệu: 1C26TSK\nSố: 0000018\nĐơn vị bán hàng: Công ty Cổ phần Viễn thông FPT\nMã số thuế: 0101778163\nĐịa chỉ: Số 123 Đường Trần Phú, Quận Ba Đình, Hà Nội\nĐiện thoại: 024.3825.6888     Số tài khoản: 112000034567 tại Vietcombank CN Hà Nội\nTên đơn vị mua: Công ty TNHH Thương mại Dịch vụ Nam Long\nMã số thuế: 0108877660\nĐịa chỉ: Khu Công nghệ Cao Láng Hòa Lạc, Thạch Thất, Hà Nội\nHình thức thanh toán: Chuyển khoản (TM/CK)     Đồng tiền: VND\nSTT Tên hàng hóa, dịch vụ ĐVT Số lượng Đơn giá Thuế Thành tiền (VND)\n1 Dịch vụ chuyển phát hỏa tốc bưu phẩm nội địa [EXPRESS-DOM] Bộ 5 120,000 8% 600,000\n2 Gói bản quyền phần mềm văn phòng Microsoft 365 [MS365-BUS] Bộ 4 3,200,000 10% 12,800,000\nCộng tiền hàng (Subtotal): 13,400,000 VND\nTiền thuế GTGT (VAT): 1,328,000 VND\nTổng cộng tiền thanh toán (Total): 14,728,000 VND\nNgười mua hàng (Ký, ghi rõ họ tên)\nNgười bán hàng (Ký điện tử bởi doanh nghiệp)\nĐÃ KÝ ĐIỆN TỬ\nNgày 19 tháng 03 năm 2026"
+  },
+  {
+    "case_id": "REAL-19-FUEL",
+    "dataset_category": "scanned_pdf",
+    "difficulty": "hard",
+    "format": "pdf",
+    "filename": "real_19_fuel_scan.pdf",
+    "description": "Hóa đơn Tập đoàn Xăng dầu Việt Nam (Petrolimex) (Scanned Pdf)",
+    "distortions": [
+      "scanner_rotation",
+      "scanner_noise"
+    ],
+    "vendor_domain": "fuel",
+    "header": {
+      "supplier_tax_id": "0100107613",
+      "supplier_name": "Tập đoàn Xăng dầu Việt Nam (Petrolimex)",
+      "buyer_tax_id": "0315544331",
+      "buyer_name": "Công ty Cổ phần Kỹ thuật Số Hưng Phát",
+      "invoice_number": "0000019",
+      "invoice_series": "1C26TTM",
+      "issue_date": "2026-03-20",
+      "currency": "VND",
+      "subtotal": "42000000.0000",
+      "tax_total": "4200000.0000",
+      "amount_payable": "46200000.0000"
+    },
+    "lines": [
+      {
+        "sku": "MS365-BUS",
+        "description": "Gói bản quyền phần mềm văn phòng Microsoft 365",
+        "qty": "8.0000",
+        "unit_price": "3200000.0000",
+        "tax_rate": "10.00",
+        "line_amount": "25600000.0000"
+      },
+      {
+        "sku": "CLOUD-VCPU8",
+        "description": "Dịch vụ điện toán đám mây Cloud Compute vCPU-8",
+        "qty": "4.0000",
+        "unit_price": "1850000.0000",
+        "tax_rate": "10.00",
+        "line_amount": "7400000.0000"
+      },
+      {
+        "sku": "NET-TRANSIT",
+        "description": "Băng thông quốc tế Dedicated IP Transit 100Mbps",
+        "qty": "2.0000",
+        "unit_price": "4500000.0000",
+        "tax_rate": "10.00",
+        "line_amount": "9000000.0000"
+      }
+    ],
+    "reference_text": "HÓA ĐƠN GIÁ TRỊ GIA TĂNG\n(Bản thể hiện của hóa đơn điện tử khởi tạo từ máy tính tiền)\nNgày 20 tháng 03 năm 2026\nKý hiệu: 1C26TTM\nSố: 0000019\nĐơn vị bán hàng: Tập đoàn Xăng dầu Việt Nam (Petrolimex)\nMã số thuế: 0100107613\nĐịa chỉ: Số 123 Đường Trần Phú, Quận Ba Đình, Hà Nội\nĐiện thoại: 024.3825.6888     Số tài khoản: 112000034567 tại Vietcombank CN Hà Nội\nTên đơn vị mua: Công ty Cổ phần Kỹ thuật Số Hưng Phát\nMã số thuế: 0315544331\nĐịa chỉ: Khu Công nghệ Cao Láng Hòa Lạc, Thạch Thất, Hà Nội\nHình thức thanh toán: Chuyển khoản (TM/CK)     Đồng tiền: VND\nSTT Tên hàng hóa, dịch vụ ĐVT Số lượng Đơn giá Thuế Thành tiền (VND)\n1 Gói bản quyền phần mềm văn phòng Microsoft 365 [MS365-BUS] Bộ 8 3,200,000 10% 25,600,000\n2 Dịch vụ điện toán đám mây Cloud Compute vCPU-8 [CLOUD-VCPU8] Bộ 4 1,850,000 10% 7,400,000\n3 Băng thông quốc tế Dedicated IP Transit 100Mbps [NET-TRANSIT] Bộ 2 4,500,000 10% 9,000,000\nCộng tiền hàng (Subtotal): 42,000,000 VND\nTiền thuế GTGT (VAT): 4,200,000 VND\nTổng cộng tiền thanh toán (Total): 46,200,000 VND\nNgười mua hàng (Ký, ghi rõ họ tên)\nNgười bán hàng (Ký điện tử bởi doanh nghiệp)\nĐÃ KÝ ĐIỆN TỬ\nNgày 20 tháng 03 năm 2026"
+  },
+  {
+    "case_id": "REAL-20-FOOD",
+    "dataset_category": "scanned_pdf",
+    "difficulty": "hard",
+    "format": "pdf",
+    "filename": "real_20_food_scan.pdf",
+    "description": "Hóa đơn Công ty Cổ phần Sữa Việt Nam (Vinamilk) (Scanned Pdf)",
+    "distortions": [
+      "scanner_rotation",
+      "scanner_noise"
+    ],
+    "vendor_domain": "food",
+    "header": {
+      "supplier_tax_id": "0300588569",
+      "supplier_name": "Công ty Cổ phần Sữa Việt Nam (Vinamilk)",
+      "buyer_tax_id": "3702112239",
+      "buyer_name": "Công ty TNHH Tư vấn & Phát triển Vĩnh Thuận",
+      "invoice_number": "0000020",
+      "invoice_series": "1C26TUO",
+      "issue_date": "2026-03-21",
+      "currency": "VND",
+      "subtotal": "35625000.0000",
+      "tax_total": "3342000.0000",
+      "amount_payable": "38967000.0000"
+    },
+    "lines": [
+      {
+        "sku": "CLOUD-VCPU8",
+        "description": "Dịch vụ điện toán đám mây Cloud Compute vCPU-8",
+        "qty": "6.0000",
+        "unit_price": "1850000.0000",
+        "tax_rate": "10.00",
+        "line_amount": "11100000.0000"
+      },
+      {
+        "sku": "NET-TRANSIT",
+        "description": "Băng thông quốc tế Dedicated IP Transit 100Mbps",
+        "qty": "3.0000",
+        "unit_price": "4500000.0000",
+        "tax_rate": "10.00",
+        "line_amount": "13500000.0000"
+      },
+      {
+        "sku": "RON95-V",
+        "description": "Xăng RON 95-V tiêu chuẩn khí thải Euro 5",
+        "qty": "450.0000",
+        "unit_price": "24500.0000",
+        "tax_rate": "8.00",
+        "line_amount": "11025000.0000"
+      }
+    ],
+    "reference_text": "HÓA ĐƠN GIÁ TRỊ GIA TĂNG\n(Bản thể hiện của hóa đơn điện tử khởi tạo từ máy tính tiền)\nNgày 21 tháng 03 năm 2026\nKý hiệu: 1C26TUO\nSố: 0000020\nĐơn vị bán hàng: Công ty Cổ phần Sữa Việt Nam (Vinamilk)\nMã số thuế: 0300588569\nĐịa chỉ: Số 123 Đường Trần Phú, Quận Ba Đình, Hà Nội\nĐiện thoại: 024.3825.6888     Số tài khoản: 112000034567 tại Vietcombank CN Hà Nội\nTên đơn vị mua: Công ty TNHH Tư vấn & Phát triển Vĩnh Thuận\nMã số thuế: 3702112239\nĐịa chỉ: Khu Công nghệ Cao Láng Hòa Lạc, Thạch Thất, Hà Nội\nHình thức thanh toán: Chuyển khoản (TM/CK)     Đồng tiền: VND\nSTT Tên hàng hóa, dịch vụ ĐVT Số lượng Đơn giá Thuế Thành tiền (VND)\n1 Dịch vụ điện toán đám mây Cloud Compute vCPU-8 [CLOUD-VCPU8] Bộ 6 1,850,000 10% 11,100,000\n2 Băng thông quốc tế Dedicated IP Transit 100Mbps [NET-TRANSIT] Bộ 3 4,500,000 10% 13,500,000\n3 Xăng RON 95-V tiêu chuẩn khí thải Euro 5 [RON95-V] Bộ 450 24,500 8% 11,025,000\nCộng tiền hàng (Subtotal): 35,625,000 VND\nTiền thuế GTGT (VAT): 3,342,000 VND\nTổng cộng tiền thanh toán (Total): 38,967,000 VND\nNgười mua hàng (Ký, ghi rõ họ tên)\nNgười bán hàng (Ký điện tử bởi doanh nghiệp)\nĐÃ KÝ ĐIỆN TỬ\nNgày 21 tháng 03 năm 2026"
+  },
+  {
+    "case_id": "REAL-21-MANUFACTURING",
+    "dataset_category": "mobile_photo",
+    "difficulty": "hard",
+    "format": "png",
+    "filename": "real_21_manufacturing_photo.png",
+    "description": "Hóa đơn Tập đoàn Hòa Phát (Mobile Photo)",
+    "distortions": [
+      "perspective_warp",
+      "shadow_gradient",
+      "table_structure"
+    ],
+    "vendor_domain": "manufacturing",
+    "header": {
+      "supplier_tax_id": "0900189284",
+      "supplier_name": "Tập đoàn Hòa Phát",
+      "buyer_tax_id": "0109998883",
+      "buyer_name": "Công ty TNHH Giải pháp Phần mềm Tiên Phong",
+      "invoice_number": "0000021",
+      "invoice_series": "1C26TVQ",
+      "issue_date": "2026-03-22",
+      "currency": "VND",
+      "subtotal": "8175000.0000",
+      "tax_total": "744000.0000",
+      "amount_payable": "8919000.0000"
+    },
+    "lines": [
+      {
+        "sku": "NET-TRANSIT",
+        "description": "Băng thông quốc tế Dedicated IP Transit 100Mbps",
+        "qty": "1.0000",
+        "unit_price": "4500000.0000",
+        "tax_rate": "10.00",
+        "line_amount": "4500000.0000"
+      },
+      {
+        "sku": "RON95-V",
+        "description": "Xăng RON 95-V tiêu chuẩn khí thải Euro 5",
+        "qty": "150.0000",
+        "unit_price": "24500.0000",
+        "tax_rate": "8.00",
+        "line_amount": "3675000.0000"
+      }
+    ],
+    "reference_text": "HÓA ĐƠN GIÁ TRỊ GIA TĂNG\n(Bản thể hiện của hóa đơn điện tử khởi tạo từ máy tính tiền)\nNgày 22 tháng 03 năm 2026\nKý hiệu: 1C26TVQ\nSố: 0000021\nĐơn vị bán hàng: Tập đoàn Hòa Phát\nMã số thuế: 0900189284\nĐịa chỉ: Số 123 Đường Trần Phú, Quận Ba Đình, Hà Nội\nĐiện thoại: 024.3825.6888     Số tài khoản: 112000034567 tại Vietcombank CN Hà Nội\nTên đơn vị mua: Công ty TNHH Giải pháp Phần mềm Tiên Phong\nMã số thuế: 0109998883\nĐịa chỉ: Khu Công nghệ Cao Láng Hòa Lạc, Thạch Thất, Hà Nội\nHình thức thanh toán: Chuyển khoản (TM/CK)     Đồng tiền: VND\nSTT Tên hàng hóa, dịch vụ ĐVT Số lượng Đơn giá Thuế Thành tiền (VND)\n1 Băng thông quốc tế Dedicated IP Transit 100Mbps [NET-TRANSIT] Bộ 1 4,500,000 10% 4,500,000\n2 Xăng RON 95-V tiêu chuẩn khí thải Euro 5 [RON95-V] Bộ 150 24,500 8% 3,675,000\nCộng tiền hàng (Subtotal): 8,175,000 VND\nTiền thuế GTGT (VAT): 744,000 VND\nTổng cộng tiền thanh toán (Total): 8,919,000 VND\nNgười mua hàng (Ký, ghi rõ họ tên)\nNgười bán hàng (Ký điện tử bởi doanh nghiệp)\nĐÃ KÝ ĐIỆN TỬ\nNgày 22 tháng 03 năm 2026"
+  },
+  {
+    "case_id": "REAL-22-RETAIL",
+    "dataset_category": "mobile_photo",
+    "difficulty": "hard",
+    "format": "png",
+    "filename": "real_22_retail_photo.png",
+    "description": "Hóa đơn Công ty Cổ phần Bán lẻ Kỹ thuật số FPT (Mobile Photo)",
+    "distortions": [
+      "perspective_warp",
+      "shadow_gradient",
+      "table_structure"
+    ],
+    "vendor_domain": "retail",
+    "header": {
+      "supplier_tax_id": "0105777650",
+      "supplier_name": "Công ty Cổ phần Bán lẻ Kỹ thuật số FPT",
+      "buyer_tax_id": "0312456782",
+      "buyer_name": "Công ty Cổ phần Công nghệ An Phú",
+      "invoice_number": "0000022",
+      "invoice_series": "1C26TWS",
+      "issue_date": "2026-03-23",
+      "currency": "VND",
+      "subtotal": "18505000.0000",
+      "tax_total": "1480400.0000",
+      "amount_payable": "19985400.0000"
+    },
+    "lines": [
+      {
+        "sku": "RON95-V",
+        "description": "Xăng RON 95-V tiêu chuẩn khí thải Euro 5",
+        "qty": "300.0000",
+        "unit_price": "24500.0000",
+        "tax_rate": "8.00",
+        "line_amount": "7350000.0000"
+      },
+      {
+        "sku": "DO-005S",
+        "description": "Dầu Diesel DO 0.05S-II công nghiệp",
+        "qty": "400.0000",
+        "unit_price": "20800.0000",
+        "tax_rate": "8.00",
+        "line_amount": "8320000.0000"
+      },
+      {
+        "sku": "ELEC-PEAK",
+        "description": "Điện năng kinh doanh thương mại giờ cao điểm",
+        "qty": "900.0000",
+        "unit_price": "3150.0000",
+        "tax_rate": "8.00",
+        "line_amount": "2835000.0000"
+      }
+    ],
+    "reference_text": "HÓA ĐƠN GIÁ TRỊ GIA TĂNG\n(Bản thể hiện của hóa đơn điện tử khởi tạo từ máy tính tiền)\nNgày 23 tháng 03 năm 2026\nKý hiệu: 1C26TWS\nSố: 0000022\nĐơn vị bán hàng: Công ty Cổ phần Bán lẻ Kỹ thuật số FPT\nMã số thuế: 0105777650\nĐịa chỉ: Số 123 Đường Trần Phú, Quận Ba Đình, Hà Nội\nĐiện thoại: 024.3825.6888     Số tài khoản: 112000034567 tại Vietcombank CN Hà Nội\nTên đơn vị mua: Công ty Cổ phần Công nghệ An Phú\nMã số thuế: 0312456782\nĐịa chỉ: Khu Công nghệ Cao Láng Hòa Lạc, Thạch Thất, Hà Nội\nHình thức thanh toán: Chuyển khoản (TM/CK)     Đồng tiền: VND\nSTT Tên hàng hóa, dịch vụ ĐVT Số lượng Đơn giá Thuế Thành tiền (VND)\n1 Xăng RON 95-V tiêu chuẩn khí thải Euro 5 [RON95-V] Bộ 300 24,500 8% 7,350,000\n2 Dầu Diesel DO 0.05S-II công nghiệp [DO-005S] Bộ 400 20,800 8% 8,320,000\n3 Điện năng kinh doanh thương mại giờ cao điểm [ELEC-PEAK] Bộ 900 3,150 8% 2,835,000\nCộng tiền hàng (Subtotal): 18,505,000 VND\nTiền thuế GTGT (VAT): 1,480,400 VND\nTổng cộng tiền thanh toán (Total): 19,985,400 VND\nNgười mua hàng (Ký, ghi rõ họ tên)\nNgười bán hàng (Ký điện tử bởi doanh nghiệp)\nĐÃ KÝ ĐIỆN TỬ\nNgày 23 tháng 03 năm 2026"
+  },
+  {
+    "case_id": "REAL-23-ELECTRONICS",
+    "dataset_category": "mobile_photo",
+    "difficulty": "hard",
+    "format": "png",
+    "filename": "real_23_electronics_photo.png",
+    "description": "Hóa đơn Công ty Cổ phần Đầu tư Thế Giới Di Động (Mobile Photo)",
+    "distortions": [
+      "perspective_warp",
+      "shadow_gradient",
+      "table_structure"
+    ],
+    "vendor_domain": "electronics",
+    "header": {
+      "supplier_tax_id": "0303217354",
+      "supplier_name": "Công ty Cổ phần Đầu tư Thế Giới Di Động",
+      "buyer_tax_id": "0108877660",
+      "buyer_name": "Công ty TNHH Thương mại Dịch vụ Nam Long",
+      "invoice_number": "0000023",
+      "invoice_series": "1C26TXU",
+      "issue_date": "2026-03-24",
+      "currency": "VND",
+      "subtotal": "25012500.0000",
+      "tax_total": "2001000.0000",
+      "amount_payable": "27013500.0000"
+    },
+    "lines": [
+      {
+        "sku": "DO-005S",
+        "description": "Dầu Diesel DO 0.05S-II công nghiệp",
+        "qty": "600.0000",
+        "unit_price": "20800.0000",
+        "tax_rate": "8.00",
+        "line_amount": "12480000.0000"
+      },
+      {
+        "sku": "ELEC-PEAK",
+        "description": "Điện năng kinh doanh thương mại giờ cao điểm",
+        "qty": "1350.0000",
+        "unit_price": "3150.0000",
+        "tax_rate": "8.00",
+        "line_amount": "4252500.0000"
+      },
+      {
+        "sku": "MILK-1000ML",
+        "description": "Sữa tươi tiệt trùng Vinamilk 100% hộp 1L",
+        "qty": "240.0000",
+        "unit_price": "34500.0000",
+        "tax_rate": "8.00",
+        "line_amount": "8280000.0000"
+      }
+    ],
+    "reference_text": "HÓA ĐƠN GIÁ TRỊ GIA TĂNG\n(Bản thể hiện của hóa đơn điện tử khởi tạo từ máy tính tiền)\nNgày 24 tháng 03 năm 2026\nKý hiệu: 1C26TXU\nSố: 0000023\nĐơn vị bán hàng: Công ty Cổ phần Đầu tư Thế Giới Di Động\nMã số thuế: 0303217354\nĐịa chỉ: Số 123 Đường Trần Phú, Quận Ba Đình, Hà Nội\nĐiện thoại: 024.3825.6888     Số tài khoản: 112000034567 tại Vietcombank CN Hà Nội\nTên đơn vị mua: Công ty TNHH Thương mại Dịch vụ Nam Long\nMã số thuế: 0108877660\nĐịa chỉ: Khu Công nghệ Cao Láng Hòa Lạc, Thạch Thất, Hà Nội\nHình thức thanh toán: Chuyển khoản (TM/CK)     Đồng tiền: VND\nSTT Tên hàng hóa, dịch vụ ĐVT Số lượng Đơn giá Thuế Thành tiền (VND)\n1 Dầu Diesel DO 0.05S-II công nghiệp [DO-005S] Bộ 600 20,800 8% 12,480,000\n2 Điện năng kinh doanh thương mại giờ cao điểm [ELEC-PEAK] Bộ 1,350 3,150 8% 4,252,500\n3 Sữa tươi tiệt trùng Vinamilk 100% hộp 1L [MILK-1000ML] Bộ 240 34,500 8% 8,280,000\nCộng tiền hàng (Subtotal): 25,012,500 VND\nTiền thuế GTGT (VAT): 2,001,000 VND\nTổng cộng tiền thanh toán (Total): 27,013,500 VND\nNgười mua hàng (Ký, ghi rõ họ tên)\nNgười bán hàng (Ký điện tử bởi doanh nghiệp)\nĐÃ KÝ ĐIỆN TỬ\nNgày 24 tháng 03 năm 2026"
+  },
+  {
+    "case_id": "REAL-24-LOGISTICS",
+    "dataset_category": "mobile_photo",
+    "difficulty": "hard",
+    "format": "png",
+    "filename": "real_24_logistics_photo.png",
+    "description": "Hóa đơn Tổng công ty Bưu điện Việt Nam (VNPost) (Mobile Photo)",
+    "distortions": [
+      "perspective_warp",
+      "shadow_gradient",
+      "table_structure"
+    ],
+    "vendor_domain": "logistics",
+    "header": {
+      "supplier_tax_id": "0102604674",
+      "supplier_name": "Tổng công ty Bưu điện Việt Nam (VNPost)",
+      "buyer_tax_id": "0315544331",
+      "buyer_name": "Công ty Cổ phần Kỹ thuật Số Hưng Phát",
+      "invoice_number": "0000024",
+      "invoice_series": "1C26TYW",
+      "issue_date": "2026-03-25",
+      "currency": "VND",
+      "subtotal": "4177500.0000",
+      "tax_total": "334200.0000",
+      "amount_payable": "4511700.0000"
+    },
+    "lines": [
+      {
+        "sku": "ELEC-PEAK",
+        "description": "Điện năng kinh doanh thương mại giờ cao điểm",
+        "qty": "450.0000",
+        "unit_price": "3150.0000",
+        "tax_rate": "8.00",
+        "line_amount": "1417500.0000"
+      },
+      {
+        "sku": "MILK-1000ML",
+        "description": "Sữa tươi tiệt trùng Vinamilk 100% hộp 1L",
+        "qty": "80.0000",
+        "unit_price": "34500.0000",
+        "tax_rate": "8.00",
+        "line_amount": "2760000.0000"
+      }
+    ],
+    "reference_text": "HÓA ĐƠN GIÁ TRỊ GIA TĂNG\n(Bản thể hiện của hóa đơn điện tử khởi tạo từ máy tính tiền)\nNgày 25 tháng 03 năm 2026\nKý hiệu: 1C26TYW\nSố: 0000024\nĐơn vị bán hàng: Tổng công ty Bưu điện Việt Nam (VNPost)\nMã số thuế: 0102604674\nĐịa chỉ: Số 123 Đường Trần Phú, Quận Ba Đình, Hà Nội\nĐiện thoại: 024.3825.6888     Số tài khoản: 112000034567 tại Vietcombank CN Hà Nội\nTên đơn vị mua: Công ty Cổ phần Kỹ thuật Số Hưng Phát\nMã số thuế: 0315544331\nĐịa chỉ: Khu Công nghệ Cao Láng Hòa Lạc, Thạch Thất, Hà Nội\nHình thức thanh toán: Chuyển khoản (TM/CK)     Đồng tiền: VND\nSTT Tên hàng hóa, dịch vụ ĐVT Số lượng Đơn giá Thuế Thành tiền (VND)\n1 Điện năng kinh doanh thương mại giờ cao điểm [ELEC-PEAK] Bộ 450 3,150 8% 1,417,500\n2 Sữa tươi tiệt trùng Vinamilk 100% hộp 1L [MILK-1000ML] Bộ 80 34,500 8% 2,760,000\nCộng tiền hàng (Subtotal): 4,177,500 VND\nTiền thuế GTGT (VAT): 334,200 VND\nTổng cộng tiền thanh toán (Total): 4,511,700 VND\nNgười mua hàng (Ký, ghi rõ họ tên)\nNgười bán hàng (Ký điện tử bởi doanh nghiệp)\nĐÃ KÝ ĐIỆN TỬ\nNgày 25 tháng 03 năm 2026"
+  },
+  {
+    "case_id": "REAL-25-SOFTWARE",
+    "dataset_category": "mobile_photo",
+    "difficulty": "hard",
+    "format": "png",
+    "filename": "real_25_software_photo.png",
+    "description": "Hóa đơn Công ty TNHH Phần mềm FPT (Mobile Photo)",
+    "distortions": [
+      "perspective_warp",
+      "shadow_gradient",
+      "table_structure"
+    ],
+    "vendor_domain": "software",
+    "header": {
+      "supplier_tax_id": "0101258904",
+      "supplier_name": "Công ty TNHH Phần mềm FPT",
+      "buyer_tax_id": "3702112239",
+      "buyer_name": "Công ty TNHH Tư vấn & Phát triển Vĩnh Thuận",
+      "invoice_number": "0000025",
+      "invoice_series": "1C26TZY",
+      "issue_date": "2026-03-26",
+      "currency": "VND",
+      "subtotal": "14002000.0000",
+      "tax_total": "1289800.0000",
+      "amount_payable": "15291800.0000"
+    },
+    "lines": [
+      {
+        "sku": "MILK-1000ML",
+        "description": "Sữa tươi tiệt trùng Vinamilk 100% hộp 1L",
+        "qty": "160.0000",
+        "unit_price": "34500.0000",
+        "tax_rate": "8.00",
+        "line_amount": "5520000.0000"
+      },
+      {
+        "sku": "STEEL-D18",
+        "description": "Thép thanh vằn Hòa Phát phi 18 mác CB400V",
+        "qty": "24.0000",
+        "unit_price": "168000.0000",
+        "tax_rate": "10.00",
+        "line_amount": "4032000.0000"
+      },
+      {
+        "sku": "PVC-D90",
+        "description": "Ống nhựa uPVC Tiền Phong đường kính D90 dày 3mm",
+        "qty": "50.0000",
+        "unit_price": "89000.0000",
+        "tax_rate": "10.00",
+        "line_amount": "4450000.0000"
+      }
+    ],
+    "reference_text": "HÓA ĐƠN GIÁ TRỊ GIA TĂNG\n(Bản thể hiện của hóa đơn điện tử khởi tạo từ máy tính tiền)\nNgày 26 tháng 03 năm 2026\nKý hiệu: 1C26TZY\nSố: 0000025\nĐơn vị bán hàng: Công ty TNHH Phần mềm FPT\nMã số thuế: 0101258904\nĐịa chỉ: Số 123 Đường Trần Phú, Quận Ba Đình, Hà Nội\nĐiện thoại: 024.3825.6888     Số tài khoản: 112000034567 tại Vietcombank CN Hà Nội\nTên đơn vị mua: Công ty TNHH Tư vấn & Phát triển Vĩnh Thuận\nMã số thuế: 3702112239\nĐịa chỉ: Khu Công nghệ Cao Láng Hòa Lạc, Thạch Thất, Hà Nội\nHình thức thanh toán: Chuyển khoản (TM/CK)     Đồng tiền: VND\nSTT Tên hàng hóa, dịch vụ ĐVT Số lượng Đơn giá Thuế Thành tiền (VND)\n1 Sữa tươi tiệt trùng Vinamilk 100% hộp 1L [MILK-1000ML] Bộ 160 34,500 8% 5,520,000\n2 Thép thanh vằn Hòa Phát phi 18 mác CB400V [STEEL-D18] Bộ 24 168,000 10% 4,032,000\n3 Ống nhựa uPVC Tiền Phong đường kính D90 dày 3mm [PVC-D90] Bộ 50 89,000 10% 4,450,000\nCộng tiền hàng (Subtotal): 14,002,000 VND\nTiền thuế GTGT (VAT): 1,289,800 VND\nTổng cộng tiền thanh toán (Total): 15,291,800 VND\nNgười mua hàng (Ký, ghi rõ họ tên)\nNgười bán hàng (Ký điện tử bởi doanh nghiệp)\nĐÃ KÝ ĐIỆN TỬ\nNgày 26 tháng 03 năm 2026"
+  },
+  {
+    "case_id": "REAL-26-PHARMA",
+    "dataset_category": "mobile_photo",
+    "difficulty": "hard",
+    "format": "png",
+    "filename": "real_26_pharma_photo.png",
+    "description": "Hóa đơn Công ty Cổ phần Dược Hậu Giang (Mobile Photo)",
+    "distortions": [
+      "perspective_warp",
+      "shadow_gradient",
+      "table_structure"
+    ],
+    "vendor_domain": "pharma",
+    "header": {
+      "supplier_tax_id": "1800156801",
+      "supplier_name": "Công ty Cổ phần Dược Hậu Giang",
+      "buyer_tax_id": "0109998883",
+      "buyer_name": "Công ty TNHH Giải pháp Phần mềm Tiên Phong",
+      "invoice_number": "0000026",
+      "invoice_series": "1C26TAA",
+      "issue_date": "2026-03-27",
+      "currency": "VND",
+      "subtotal": "14523000.0000",
+      "tax_total": "1416300.0000",
+      "amount_payable": "15939300.0000"
+    },
+    "lines": [
+      {
+        "sku": "STEEL-D18",
+        "description": "Thép thanh vằn Hòa Phát phi 18 mác CB400V",
+        "qty": "36.0000",
+        "unit_price": "168000.0000",
+        "tax_rate": "10.00",
+        "line_amount": "6048000.0000"
+      },
+      {
+        "sku": "PVC-D90",
+        "description": "Ống nhựa uPVC Tiền Phong đường kính D90 dày 3mm",
+        "qty": "75.0000",
+        "unit_price": "89000.0000",
+        "tax_rate": "10.00",
+        "line_amount": "6675000.0000"
+      },
+      {
+        "sku": "EXPRESS-DOM",
+        "description": "Dịch vụ chuyển phát hỏa tốc bưu phẩm nội địa",
+        "qty": "15.0000",
+        "unit_price": "120000.0000",
+        "tax_rate": "8.00",
+        "line_amount": "1800000.0000"
+      }
+    ],
+    "reference_text": "HÓA ĐƠN GIÁ TRỊ GIA TĂNG\n(Bản thể hiện của hóa đơn điện tử khởi tạo từ máy tính tiền)\nNgày 27 tháng 03 năm 2026\nKý hiệu: 1C26TAA\nSố: 0000026\nĐơn vị bán hàng: Công ty Cổ phần Dược Hậu Giang\nMã số thuế: 1800156801\nĐịa chỉ: Số 123 Đường Trần Phú, Quận Ba Đình, Hà Nội\nĐiện thoại: 024.3825.6888     Số tài khoản: 112000034567 tại Vietcombank CN Hà Nội\nTên đơn vị mua: Công ty TNHH Giải pháp Phần mềm Tiên Phong\nMã số thuế: 0109998883\nĐịa chỉ: Khu Công nghệ Cao Láng Hòa Lạc, Thạch Thất, Hà Nội\nHình thức thanh toán: Chuyển khoản (TM/CK)     Đồng tiền: VND\nSTT Tên hàng hóa, dịch vụ ĐVT Số lượng Đơn giá Thuế Thành tiền (VND)\n1 Thép thanh vằn Hòa Phát phi 18 mác CB400V [STEEL-D18] Bộ 36 168,000 10% 6,048,000\n2 Ống nhựa uPVC Tiền Phong đường kính D90 dày 3mm [PVC-D90] Bộ 75 89,000 10% 6,675,000\n3 Dịch vụ chuyển phát hỏa tốc bưu phẩm nội địa [EXPRESS-DOM] Bộ 15 120,000 8% 1,800,000\nCộng tiền hàng (Subtotal): 14,523,000 VND\nTiền thuế GTGT (VAT): 1,416,300 VND\nTổng cộng tiền thanh toán (Total): 15,939,300 VND\nNgười mua hàng (Ký, ghi rõ họ tên)\nNgười bán hàng (Ký điện tử bởi doanh nghiệp)\nĐÃ KÝ ĐIỆN TỬ\nNgày 27 tháng 03 năm 2026"
+  },
+  {
+    "case_id": "REAL-27-INDUSTRIAL",
+    "dataset_category": "mobile_photo",
+    "difficulty": "hard",
+    "format": "png",
+    "filename": "real_27_industrial_photo.png",
+    "description": "Hóa đơn Công ty Cổ phần Nhựa Thiếu niên Tiền Phong (Mobile Photo)",
+    "distortions": [
+      "perspective_warp",
+      "shadow_gradient",
+      "table_structure"
+    ],
+    "vendor_domain": "industrial",
+    "header": {
+      "supplier_tax_id": "0200115590",
+      "supplier_name": "Công ty Cổ phần Nhựa Thiếu niên Tiền Phong",
+      "buyer_tax_id": "0312456782",
+      "buyer_name": "Công ty Cổ phần Công nghệ An Phú",
+      "invoice_number": "0000027",
+      "invoice_series": "1C26TBC",
+      "issue_date": "2026-03-28",
+      "currency": "VND",
+      "subtotal": "2825000.0000",
+      "tax_total": "270500.0000",
+      "amount_payable": "3095500.0000"
+    },
+    "lines": [
+      {
+        "sku": "PVC-D90",
+        "description": "Ống nhựa uPVC Tiền Phong đường kính D90 dày 3mm",
+        "qty": "25.0000",
+        "unit_price": "89000.0000",
+        "tax_rate": "10.00",
+        "line_amount": "2225000.0000"
+      },
+      {
+        "sku": "EXPRESS-DOM",
+        "description": "Dịch vụ chuyển phát hỏa tốc bưu phẩm nội địa",
+        "qty": "5.0000",
+        "unit_price": "120000.0000",
+        "tax_rate": "8.00",
+        "line_amount": "600000.0000"
+      }
+    ],
+    "reference_text": "HÓA ĐƠN GIÁ TRỊ GIA TĂNG\n(Bản thể hiện của hóa đơn điện tử khởi tạo từ máy tính tiền)\nNgày 28 tháng 03 năm 2026\nKý hiệu: 1C26TBC\nSố: 0000027\nĐơn vị bán hàng: Công ty Cổ phần Nhựa Thiếu niên Tiền Phong\nMã số thuế: 0200115590\nĐịa chỉ: Số 123 Đường Trần Phú, Quận Ba Đình, Hà Nội\nĐiện thoại: 024.3825.6888     Số tài khoản: 112000034567 tại Vietcombank CN Hà Nội\nTên đơn vị mua: Công ty Cổ phần Công nghệ An Phú\nMã số thuế: 0312456782\nĐịa chỉ: Khu Công nghệ Cao Láng Hòa Lạc, Thạch Thất, Hà Nội\nHình thức thanh toán: Chuyển khoản (TM/CK)     Đồng tiền: VND\nSTT Tên hàng hóa, dịch vụ ĐVT Số lượng Đơn giá Thuế Thành tiền (VND)\n1 Ống nhựa uPVC Tiền Phong đường kính D90 dày 3mm [PVC-D90] Bộ 25 89,000 10% 2,225,000\n2 Dịch vụ chuyển phát hỏa tốc bưu phẩm nội địa [EXPRESS-DOM] Bộ 5 120,000 8% 600,000\nCộng tiền hàng (Subtotal): 2,825,000 VND\nTiền thuế GTGT (VAT): 270,500 VND\nTổng cộng tiền thanh toán (Total): 3,095,500 VND\nNgười mua hàng (Ký, ghi rõ họ tên)\nNgười bán hàng (Ký điện tử bởi doanh nghiệp)\nĐÃ KÝ ĐIỆN TỬ\nNgày 28 tháng 03 năm 2026"
+  },
+  {
+    "case_id": "REAL-28-BEVERAGE",
+    "dataset_category": "mobile_photo",
+    "difficulty": "hard",
+    "format": "png",
+    "filename": "real_28_beverage_photo.png",
+    "description": "Hóa đơn Công ty TNHH Nước Giải khát Suntory PepsiCo VN (Mobile Photo)",
+    "distortions": [
+      "perspective_warp",
+      "shadow_gradient",
+      "table_structure"
+    ],
+    "vendor_domain": "beverage",
+    "header": {
+      "supplier_tax_id": "0300816663",
+      "supplier_name": "Công ty TNHH Nước Giải khát Suntory PepsiCo VN",
+      "buyer_tax_id": "0108877660",
+      "buyer_name": "Công ty TNHH Thương mại Dịch vụ Nam Long",
+      "invoice_number": "0000028",
+      "invoice_series": "1C26TCE",
+      "issue_date": "2026-03-01",
+      "currency": "VND",
+      "subtotal": "34200000.0000",
+      "tax_total": "3396000.0000",
+      "amount_payable": "37596000.0000"
+    },
+    "lines": [
+      {
+        "sku": "EXPRESS-DOM",
+        "description": "Dịch vụ chuyển phát hỏa tốc bưu phẩm nội địa",
+        "qty": "10.0000",
+        "unit_price": "120000.0000",
+        "tax_rate": "8.00",
+        "line_amount": "1200000.0000"
+      },
+      {
+        "sku": "MS365-BUS",
+        "description": "Gói bản quyền phần mềm văn phòng Microsoft 365",
+        "qty": "8.0000",
+        "unit_price": "3200000.0000",
+        "tax_rate": "10.00",
+        "line_amount": "25600000.0000"
+      },
+      {
+        "sku": "CLOUD-VCPU8",
+        "description": "Dịch vụ điện toán đám mây Cloud Compute vCPU-8",
+        "qty": "4.0000",
+        "unit_price": "1850000.0000",
+        "tax_rate": "10.00",
+        "line_amount": "7400000.0000"
+      }
+    ],
+    "reference_text": "HÓA ĐƠN GIÁ TRỊ GIA TĂNG\n(Bản thể hiện của hóa đơn điện tử khởi tạo từ máy tính tiền)\nNgày 01 tháng 03 năm 2026\nKý hiệu: 1C26TCE\nSố: 0000028\nĐơn vị bán hàng: Công ty TNHH Nước Giải khát Suntory PepsiCo VN\nMã số thuế: 0300816663\nĐịa chỉ: Số 123 Đường Trần Phú, Quận Ba Đình, Hà Nội\nĐiện thoại: 024.3825.6888     Số tài khoản: 112000034567 tại Vietcombank CN Hà Nội\nTên đơn vị mua: Công ty TNHH Thương mại Dịch vụ Nam Long\nMã số thuế: 0108877660\nĐịa chỉ: Khu Công nghệ Cao Láng Hòa Lạc, Thạch Thất, Hà Nội\nHình thức thanh toán: Chuyển khoản (TM/CK)     Đồng tiền: VND\nSTT Tên hàng hóa, dịch vụ ĐVT Số lượng Đơn giá Thuế Thành tiền (VND)\n1 Dịch vụ chuyển phát hỏa tốc bưu phẩm nội địa [EXPRESS-DOM] Bộ 10 120,000 8% 1,200,000\n2 Gói bản quyền phần mềm văn phòng Microsoft 365 [MS365-BUS] Bộ 8 3,200,000 10% 25,600,000\n3 Dịch vụ điện toán đám mây Cloud Compute vCPU-8 [CLOUD-VCPU8] Bộ 4 1,850,000 10% 7,400,000\nCộng tiền hàng (Subtotal): 34,200,000 VND\nTiền thuế GTGT (VAT): 3,396,000 VND\nTổng cộng tiền thanh toán (Total): 37,596,000 VND\nNgười mua hàng (Ký, ghi rõ họ tên)\nNgười bán hàng (Ký điện tử bởi doanh nghiệp)\nĐÃ KÝ ĐIỆN TỬ\nNgày 01 tháng 03 năm 2026"
+  },
+  {
+    "case_id": "REAL-29-CONSUMER",
+    "dataset_category": "mobile_photo",
+    "difficulty": "hard",
+    "format": "png",
+    "filename": "real_29_consumer_photo.png",
+    "description": "Hóa đơn Công ty Cổ phần Tập đoàn Masan (Mobile Photo)",
+    "distortions": [
+      "perspective_warp",
+      "shadow_gradient",
+      "table_structure"
+    ],
+    "vendor_domain": "consumer",
+    "header": {
+      "supplier_tax_id": "0303576603",
+      "supplier_name": "Công ty Cổ phần Tập đoàn Masan",
+      "buyer_tax_id": "0315544331",
+      "buyer_name": "Công ty Cổ phần Kỹ thuật Số Hưng Phát",
+      "invoice_number": "0000029",
+      "invoice_series": "1C26TDG",
+      "issue_date": "2026-03-02",
+      "currency": "VND",
+      "subtotal": "63000000.0000",
+      "tax_total": "6300000.0000",
+      "amount_payable": "69300000.0000"
+    },
+    "lines": [
+      {
+        "sku": "MS365-BUS",
+        "description": "Gói bản quyền phần mềm văn phòng Microsoft 365",
+        "qty": "12.0000",
+        "unit_price": "3200000.0000",
+        "tax_rate": "10.00",
+        "line_amount": "38400000.0000"
+      },
+      {
+        "sku": "CLOUD-VCPU8",
+        "description": "Dịch vụ điện toán đám mây Cloud Compute vCPU-8",
+        "qty": "6.0000",
+        "unit_price": "1850000.0000",
+        "tax_rate": "10.00",
+        "line_amount": "11100000.0000"
+      },
+      {
+        "sku": "NET-TRANSIT",
+        "description": "Băng thông quốc tế Dedicated IP Transit 100Mbps",
+        "qty": "3.0000",
+        "unit_price": "4500000.0000",
+        "tax_rate": "10.00",
+        "line_amount": "13500000.0000"
+      }
+    ],
+    "reference_text": "HÓA ĐƠN GIÁ TRỊ GIA TĂNG\n(Bản thể hiện của hóa đơn điện tử khởi tạo từ máy tính tiền)\nNgày 02 tháng 03 năm 2026\nKý hiệu: 1C26TDG\nSố: 0000029\nĐơn vị bán hàng: Công ty Cổ phần Tập đoàn Masan\nMã số thuế: 0303576603\nĐịa chỉ: Số 123 Đường Trần Phú, Quận Ba Đình, Hà Nội\nĐiện thoại: 024.3825.6888     Số tài khoản: 112000034567 tại Vietcombank CN Hà Nội\nTên đơn vị mua: Công ty Cổ phần Kỹ thuật Số Hưng Phát\nMã số thuế: 0315544331\nĐịa chỉ: Khu Công nghệ Cao Láng Hòa Lạc, Thạch Thất, Hà Nội\nHình thức thanh toán: Chuyển khoản (TM/CK)     Đồng tiền: VND\nSTT Tên hàng hóa, dịch vụ ĐVT Số lượng Đơn giá Thuế Thành tiền (VND)\n1 Gói bản quyền phần mềm văn phòng Microsoft 365 [MS365-BUS] Bộ 12 3,200,000 10% 38,400,000\n2 Dịch vụ điện toán đám mây Cloud Compute vCPU-8 [CLOUD-VCPU8] Bộ 6 1,850,000 10% 11,100,000\n3 Băng thông quốc tế Dedicated IP Transit 100Mbps [NET-TRANSIT] Bộ 3 4,500,000 10% 13,500,000\nCộng tiền hàng (Subtotal): 63,000,000 VND\nTiền thuế GTGT (VAT): 6,300,000 VND\nTổng cộng tiền thanh toán (Total): 69,300,000 VND\nNgười mua hàng (Ký, ghi rõ họ tên)\nNgười bán hàng (Ký điện tử bởi doanh nghiệp)\nĐÃ KÝ ĐIỆN TỬ\nNgày 02 tháng 03 năm 2026"
+  },
+  {
+    "case_id": "REAL-30-SHIPPING",
+    "dataset_category": "mobile_photo",
+    "difficulty": "hard",
+    "format": "png",
+    "filename": "real_30_shipping_photo.png",
+    "description": "Hóa đơn Công ty Cổ phần Vận tải và Xếp dỡ Hải An (Mobile Photo)",
+    "distortions": [
+      "perspective_warp",
+      "shadow_gradient",
+      "table_structure"
+    ],
+    "vendor_domain": "shipping",
+    "header": {
+      "supplier_tax_id": "0200874982",
+      "supplier_name": "Công ty Cổ phần Vận tải và Xếp dỡ Hải An",
+      "buyer_tax_id": "3702112239",
+      "buyer_name": "Công ty TNHH Tư vấn & Phát triển Vĩnh Thuận",
+      "invoice_number": "0000030",
+      "invoice_series": "1C26TEI",
+      "issue_date": "2026-03-03",
+      "currency": "VND",
+      "subtotal": "8200000.0000",
+      "tax_total": "820000.0000",
+      "amount_payable": "9020000.0000"
+    },
+    "lines": [
+      {
+        "sku": "CLOUD-VCPU8",
+        "description": "Dịch vụ điện toán đám mây Cloud Compute vCPU-8",
+        "qty": "2.0000",
+        "unit_price": "1850000.0000",
+        "tax_rate": "10.00",
+        "line_amount": "3700000.0000"
+      },
+      {
+        "sku": "NET-TRANSIT",
+        "description": "Băng thông quốc tế Dedicated IP Transit 100Mbps",
+        "qty": "1.0000",
+        "unit_price": "4500000.0000",
+        "tax_rate": "10.00",
+        "line_amount": "4500000.0000"
+      }
+    ],
+    "reference_text": "HÓA ĐƠN GIÁ TRỊ GIA TĂNG\n(Bản thể hiện của hóa đơn điện tử khởi tạo từ máy tính tiền)\nNgày 03 tháng 03 năm 2026\nKý hiệu: 1C26TEI\nSố: 0000030\nĐơn vị bán hàng: Công ty Cổ phần Vận tải và Xếp dỡ Hải An\nMã số thuế: 0200874982\nĐịa chỉ: Số 123 Đường Trần Phú, Quận Ba Đình, Hà Nội\nĐiện thoại: 024.3825.6888     Số tài khoản: 112000034567 tại Vietcombank CN Hà Nội\nTên đơn vị mua: Công ty TNHH Tư vấn & Phát triển Vĩnh Thuận\nMã số thuế: 3702112239\nĐịa chỉ: Khu Công nghệ Cao Láng Hòa Lạc, Thạch Thất, Hà Nội\nHình thức thanh toán: Chuyển khoản (TM/CK)     Đồng tiền: VND\nSTT Tên hàng hóa, dịch vụ ĐVT Số lượng Đơn giá Thuế Thành tiền (VND)\n1 Dịch vụ điện toán đám mây Cloud Compute vCPU-8 [CLOUD-VCPU8] Bộ 2 1,850,000 10% 3,700,000\n2 Băng thông quốc tế Dedicated IP Transit 100Mbps [NET-TRANSIT] Bộ 1 4,500,000 10% 4,500,000\nCộng tiền hàng (Subtotal): 8,200,000 VND\nTiền thuế GTGT (VAT): 820,000 VND\nTổng cộng tiền thanh toán (Total): 9,020,000 VND\nNgười mua hàng (Ký, ghi rõ họ tên)\nNgười bán hàng (Ký điện tử bởi doanh nghiệp)\nĐÃ KÝ ĐIỆN TỬ\nNgày 03 tháng 03 năm 2026"
+  }
+]

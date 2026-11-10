@@ -63,7 +63,8 @@ class Settings(BaseSettings):
 
     MAX_UPLOAD_SIZE_BYTES: int = 25 * 1024 * 1024
     MAX_DOCUMENT_PAGES: int = 50
-    OCR_DPI: int = 150
+    OCR_DPI: int = 200
+    FORCE_FULL_PAGE_OCR: bool = True
     WORKER_CONCURRENCY: int = 4
     # A job whose status has not advanced for this long is treated as abandoned by a crashed
     # worker and may be claimed again; it must exceed the slowest expected processing stage.

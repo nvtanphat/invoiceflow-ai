@@ -96,3 +96,19 @@ def test_digital_parser_reports_totals_it_could_not_find():
     assert "SUBTOTAL_NOT_FOUND" in res.issues
     assert "TAX_TOTAL_NOT_FOUND" in res.issues
     assert "AMOUNT_PAYABLE_NOT_FOUND" not in res.issues
+
+
+def test_digital_parser_normalizes_soft_hyphens_in_dates_and_skus():
+    parser = DigitalPDFParser()
+    text = (
+        "Ky hieu: 1C26TEE So: 0045231 Ngay: 2026\u00ad03\u00ad01\n"
+        "Ben ban: Tong cong ty Dien luc MST: 0100100079\n"
+        "Hang hoa: Dien kinh doanh [ELEC\u00adTIER\u00ad1]\n"
+        "So luong: 100 Don gia: 1806 Thue: 8%\n"
+        "Tong cong: 180600\n"
+    )
+    res = parser.parse(text)
+    assert res.issue_date == "2026-03-01"
+    assert len(res.lines) == 1
+    assert res.lines[0].sku == "ELEC-TIER-1"
+

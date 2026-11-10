@@ -16,7 +16,7 @@ _VN_WORDED_DATE = re.compile(r"ngay\s*(\d{1,2})\s*thang\s*(\d{1,2})\s*nam\s*(\d{
 
 def fold_vietnamese(text: str) -> str:
     """Lowercase, accent-free form for label matching (OCR often drops diacritics)."""
-    cleaned = text.replace("đ", "d").replace("Đ", "d")
+    cleaned = text.replace("đ", "d").replace("Đ", "d").replace("\u00ad", "-")
     decomposed = unicodedata.normalize("NFKD", cleaned)
     return "".join(c for c in decomposed if not unicodedata.combining(c)).lower()
 
@@ -73,7 +73,8 @@ def _normalise_separators(s: str, is_qty: bool) -> tuple[str, Optional[str]]:
 
 def normalize_tax_id(value: str) -> str:
     """Vietnamese MST without layout characters: 10 digits, optional '-NNN' branch suffix."""
-    return re.sub(r"[^\d-]", "", value)
+    cleaned = value.replace("\u00ad", "-")
+    return re.sub(r"[^\d-]", "", cleaned)
 
 
 def parse_printed_date(value: str) -> Optional[date]:

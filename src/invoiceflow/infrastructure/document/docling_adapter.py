@@ -129,11 +129,17 @@ class DoclingAdapter:
         ocr_engine: Optional[str] = None,
         ocr_languages: Optional[List[str]] = None,
         ocr_dpi: Optional[int] = None,
+        force_full_page_ocr: Optional[bool] = None,
     ):
         self._fallback_extractor = fallback_extractor or LayoutExtractor()
         self._converters: dict[bool, Any] = {}
 
-        if ocr_engine is None or ocr_languages is None or ocr_dpi is None:
+        if (
+            ocr_engine is None
+            or ocr_languages is None
+            or ocr_dpi is None
+            or force_full_page_ocr is None
+        ):
             from invoiceflow.config import get_settings
 
             settings = get_settings()
@@ -142,9 +148,15 @@ class DoclingAdapter:
                 ocr_languages if ocr_languages is not None else list(settings.OCR_LANGUAGES)
             )
             ocr_dpi = ocr_dpi if ocr_dpi is not None else settings.OCR_DPI
+            force_full_page_ocr = (
+                force_full_page_ocr
+                if force_full_page_ocr is not None
+                else getattr(settings, "FORCE_FULL_PAGE_OCR", True)
+            )
         self._ocr_engine = ocr_engine
         self._ocr_dpi = ocr_dpi
         self._ocr_languages = ocr_languages
+        self._force_full_page_ocr = force_full_page_ocr
 
     def _get_converter(self, do_ocr: bool = False):
         if do_ocr in self._converters:
@@ -183,7 +195,10 @@ class DoclingAdapter:
                 # "Cong ty"). EasyOCR has an explicit Vietnamese character
                 # set and measurably recovers them (see
                 # benchmarks/results/ocr_quality_report.json).
-                pipeline_options.ocr_options = EasyOcrOptions(lang=self._ocr_languages)
+                pipeline_options.ocr_options = EasyOcrOptions(
+                    lang=self._ocr_languages,
+                    force_full_page_ocr=self._force_full_page_ocr,
+                )
             elif self._ocr_engine == "rapidocr":
                 pipeline_options.ocr_options = RapidOcrOptions(lang=self._ocr_languages)
 
@@ -456,6 +471,17 @@ class DoclingAdapter:
                         )
                     )
                     el_counter += 1
+
+            # Sort all elements by spatial reading order: page_index, then top-to-bottom (y0), then left-to-right (x0)
+            elements.sort(
+                key=lambda e: (
+                    e.page_index,
+                    e.bbox.y0 if e.bbox is not None else 0.0,
+                    e.bbox.x0 if e.bbox is not None else 0.0,
+                )
+            )
+            for idx, el in enumerate(elements, start=1):
+                el.reading_order = idx
 
             if not elements and not tables:
                 logger.warning(

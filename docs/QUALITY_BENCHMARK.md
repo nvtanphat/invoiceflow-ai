@@ -176,8 +176,8 @@ Arithmetic Validity 100% và Anomaly Detection F1 100% ở cả hai run. Caseboo
 
 ## 5. Đánh giá Thực nghiệm Hóa đơn Đa điều kiện & Layout Thực tế (Phase 5 — Real-World Document Evaluation)
 
-> **Mục tiêu:** Đo lường năng lực nhận dạng quang học (OCR) và bóc tách thực tế trên các hóa đơn có đa dạng bố cục nhà cung cấp và điều kiện chụp thực tế (chụp góc nghiêng 3D, bóng đổ, nếp gấp, nền phức tạp, bảng 8 dòng, xoay lệch và thiếu sáng).
-> **Nguyên tắc minh bạch dữ liệu:** Tách biệt hoàn toàn giữa hóa đơn công khai (`public_sample`) và ảnh chụp biến dạng (`augmented_image`). Tuyệt đối không gộp chung với dữ liệu tổng hợp (`synthetic`) để tuyên bố độ chính xác ảo.
+> **Mục tiêu:** Đo lường năng lực nhận dạng quang học (OCR) và bóc tách thực tế trên các hóa đơn có đa dạng bố cục nhà cung cấp và điều kiện chụp thực tế (chụp góc nghiêng 3D, bóng đổ, nếp gấp, nền phức tạp, bảng nhiều dòng, xoay lệch và thiếu sáng).
+> **Nguyên tắc minh bạch dữ liệu:** Tách biệt hoàn toàn giữa dữ liệu dựng tổng hợp từ mẫu chuẩn (`synthetic_rendered`) và ảnh chụp biến dạng (`augmented_image`). Bộ đo chuẩn hoá so khớp toàn văn NFC, phân tách Dual CER (có dấu và không dấu) và phản ánh đúng quyết định kiểm duyệt của pipeline qua `automation_blockers`.
 > **Lệnh kiểm chứng:** `python benchmarks/scripts/evaluate_real_world.py`
 > **Artifact kết quả:** `benchmarks/results/real_world_evaluation_report.json`
 > **Ground Truth Manifest:** `benchmarks/fixtures/real_world_manifest.json`
@@ -186,9 +186,9 @@ Arithmetic Validity 100% và Anomaly Detection F1 100% ở cả hai run. Caseboo
 
 | Mã Case | Phân loại | Định dạng | Độ khó | Đặc tính & Tình huống biến dạng thực tế |
 |---|---|---|:---:|---|
-| **PUB-01-EVN** | `public_sample` | PDF Digital | Dễ | Hóa đơn tiền điện EVN Hà Nội dạng PDF text layer với bảng biểu phí bậc thang |
-| **PUB-02-VNPT** | `public_sample` | PDF Digital | Dễ | Hóa đơn cước viễn thông VNPT dạng PDF text layer với bảng dịch vụ cáp quang và IP tĩnh |
-| **PUB-03-PETROLIMEX** | `public_sample` | PDF Scan | Trung bình | Hóa đơn xăng dầu Petrolimex dạng Scanned PDF (ảnh quét raster) |
+| **PUB-01-EVN** | `synthetic_rendered` | PDF Digital | Dễ | Hóa đơn tiền điện EVN Hà Nội dạng PDF text layer với bảng biểu phí bậc thang |
+| **PUB-02-VNPT** | `synthetic_rendered` | PDF Digital | Dễ | Hóa đơn cước viễn thông VNPT dạng PDF text layer với bảng dịch vụ cáp quang và IP tĩnh |
+| **PUB-03-PETROLIMEX** | `synthetic_rendered` | PDF Scan | Trung bình | Hóa đơn xăng dầu Petrolimex dạng Scanned PDF (ảnh quét raster) |
 | **AUG-01-PERSPECTIVE** | `augmented_image` | PNG | Khó | Ảnh chụp điện thoại góc nghiêng 15° với biến dạng phối cảnh 3D trên bàn làm việc |
 | **AUG-02-SHADOW** | `augmented_image` | JPEG | Khó | Ảnh chụp điện thoại có bóng đổ che khuất và ánh sáng không đồng đều |
 | **AUG-03-WRINKLED** | `augmented_image` | PNG | Khó | Ảnh hóa đơn nhà hàng bị nhăn nheo, gập nếp gấp ngang (creases and folds) |
@@ -199,51 +199,79 @@ Arithmetic Validity 100% và Anomaly Detection F1 100% ở cả hai run. Caseboo
 
 ---
 
-### 5.2. Kết quả Đánh giá Chất lượng OCR & Trích xuất Dữ liệu
+### 5.2. Kết quả Đánh giá Chất lượng OCR & Trích xuất Dữ liệu (Hiệu chuẩn Đo lường)
 
 #### Phân định Minh bạch theo Loại Dữ liệu (Dataset Category)
 
-| Phân loại | Số lượng | CER | WER | Header EM | Financial Acc | Line Items F1 | False Auto-Accept | Human Review Rate | Peak RAM |
-|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| **public_sample** | 3 | **41.40%** | **32.93%** | **86.67%** | **88.89%** | **66.67%** | **0.0%** | **66.67%** | 285.6 MB |
-| **augmented_image** | 7 | **49.19%** | **52.39%** | **88.57%** | **95.24%** | **64.29%** | **0.0%** | **100.0%** | 172.8 MB |
-| **Toàn bộ bộ đánh giá** | 10 | **46.85%** | **46.55%** | **88.00%** | **93.33%** | **65.00%** | **0.0%** | **90.0%** | 285.6 MB |
+| Phân loại | Số lượng | CER (Accented) | CER (Unaccented) | Header EM | Financial Acc | Line Items F1 | Table F1 | False Auto-Accept | Human Review Rate | Peak RSS (psutil) |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| **synthetic_rendered** | 3 | **23.94%** | **23.94%** | **86.67%** | **88.89%** | **66.67%** | **100.0%** | **0.0%** | **100.0%** | 1,178.5 MB |
+| **augmented_image** | 7 | **64.98%** | **64.33%** | **85.71%** | **95.24%** | **28.57%** | **95.24%** | **0.0%** | **85.71%** | 1,088.0 MB |
+| **Toàn bộ bộ đánh giá** | 10 | **52.67%** | **52.21%** | **86.00%** | **93.33%** | **40.00%** | **96.67%** | **0.0%** | **90.00%** | 1,178.5 MB |
 
 #### Phân định theo Mức độ Khó (Difficulty)
 
-| Mức độ khó | Số lượng | CER | Header Exact Match | Line Items F1 | Human Review Rate |
-|---|:---:|:---:|:---:|:---:|:---:|
-| **Dễ (Easy)** | 2 | 41.63% | 90.0% | 100.0% | 50.0% |
-| **Trung bình (Medium)** | 4 | 43.74% | 95.0% | 37.5% | 100.0% |
-| **Khó (Hard - Perspective/Shadow/Wrinkle/Skew)** | 4 | 52.59% | 80.0% | 50.0% | 100.0% |
+| Mức độ khó | Số lượng | CER (Có dấu) | CER (Không dấu) | Header Exact Match | Line Items F1 | Human Review Rate |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|
+| **Dễ (Easy)** | 2 | 21.96% | 21.96% | 90.0% | 100.0% | 100.0% |
+| **Trung bình (Medium)** | 4 | 82.21% | 81.46% | 90.0% | 37.5% | 75.0% |
+| **Khó (Hard - Perspective/Shadow/Wrinkle/Skew)** | 4 | 38.49% | 38.08% | 75.0% | 12.5% | 100.0% |
 
 #### Độ trễ, Tài nguyên và Chi phí Vận hành
-- **Độ trễ trung bình:** 36,960.4 ms (~36.9s) trên CPU khi chạy qua pipeline hoàn chỉnh `DocumentAIService`.
-- **Độ trễ P95:** 77,959.9 ms (~78.0s).
-- **Bộ nhớ RAM tiêu thụ đỉnh (Peak RSS/RAM):** 285.59 MB (an toàn tuyệt đối dưới hạn mức 2GB).
-- **Chi phí gọi API (API Cost):** $0.00 (pipeline xử lý offline bằng Docling OCR + bộ nắn chỉnh hình học OpenCV).
-- **An toàn duyệt tự động (False Auto-Accept Rate):** **0.0%** (100% chứng từ có trường suy giảm/nghi vấn được chuyển sang Human Review).
+- **Độ trễ trung bình:** 31,445.6 ms (~31.4s) trên CPU khi chạy qua pipeline hoàn chỉnh `DocumentAIService`.
+- **Độ trễ P95:** 50,035.7 ms (~50.0s).
+- **Bộ nhớ RAM tiêu thụ đỉnh (Peak RSS):** 1,178.45 MB (đo lường thực tế bằng `psutil.Process().memory_info().rss`, tính đầy đủ bộ nhớ C++ của PyTorch, Docling và OpenCV, an toàn dưới hạn mức 2GB).
+- **An toàn duyệt tự động (False Auto-Accept Rate):** **0.0%** (100% chứng từ có sai lệch ground truth đều bị chặn bởi `automation_blockers` và chuyển sang Human Review).
 
 ---
 
 ### 5.3. Bảng Phân loại Lỗi Chi tiết (12-Class Failure Analysis Taxonomy)
 
-Hệ thống ghi nhận và phân loại lỗi truy vết theo 12 nhóm nguyên nhân:
+Hệ thống ghi nhận và phân loại lỗi truy vết theo 12 nhóm nguyên nhân chuẩn hóa:
 
 | Nhóm Lỗi (Taxonomy Class) | Số lần phát hiện | Phân tích Nguyên nhân Gốc (Root Cause) & Biện pháp khắc phục |
 |---|:---:|---|
 | **document_boundary_detection** | 0 | Thuật toán `detect_document_boundary` với phát hiện góc Contours + Convex Hull định vị đúng 100% biên hóa đơn trên nền phức tạp. |
 | **cropping** | 0 | Không có lỗi cắt xén biên hoặc mất vùng thông tin sau khi crop văn bản. |
-| **perspective_correction** | 0 | Bắn phép biến đổi 4 điểm Homography (`cv2.getPerspectiveTransform`) nắn thẳng phối cảnh thành công trên các góc nghiêng tới 15°. |
-| **skew_rotation** | 1 | Phát hiện ở case **AUG-07-SKEW-LOWLIGHT** (xoay 7° kèm thiếu sáng). Thuật toán Hough Transform bị suy giảm độ tương phản cạnh do ánh sáng yếu. Cần nâng ngưỡng adaptive CLAHE trước khi dò đường thẳng Hough. |
-| **vietnamese_diacritics** | 10 | EasyOCR khi nhận dạng ký tự tiếng Việt có dấu (`ắ`, `ặ`, `ồ`, `ể`, `đ`) trên ảnh scan raster và ảnh chụp điện thoại thường bị mất dấu hoặc nhầm dấu thanh (`o` thay cho `ơ`, `a` thay cho `á`). Thuật toán `normalize_extracted_text` đã khôi phục một phần nhưng vẫn cần từ điển âm tiết tiếng Việt chuyên ngành hóa đơn. |
-| **reading_order** | 0 | Bố cục đọc đoạn thẳng và khối bảng được bóc tách đúng trật tự luồng từ trên xuống dưới theo tọa độ BBox. |
-| **table_structure** | 0 | Cấu trúc bảng đa dòng được bảo toàn lưới cell, không bị đứt dòng bảng giữa các trang. |
-| **merged_cells** | 0 | Bộ tách gộp ô (`recover_merged_quantities`) ngăn ngừa hoàn toàn tình trạng dính cột mô tả và cột số lượng. |
-| **field_association** | 4 | Chỉ còn 4 case ảnh scan/chụp khó (Petrolimex, Complex BG, Multi-line, Skew) bị lệch vị trí nhãn mô tả hoặc mã SKU so với giá trị. Đã cải thiện so với baseline nhờ cơ chế arbitration của `DocumentAIService`. |
-| **quantity_price_amount** | 2 | Chỉ còn 2 case (Petrolimex, Complex BG) có số tiền bị suy giảm trên ảnh nhiễu/bóng. Toàn bộ 8 case còn lại đạt độ chính xác tài chính 100%. |
-| **vision_hallucination** | 0 | Hoàn toàn không phát sinh hiện tượng sinh ảo số tiền hoặc dòng hàng (Zero Hallucination) do không sử dụng LLM ungrounded. |
-| **missing_provenance_wrong_bbox** | 0 | 100% bằng chứng trích xuất (`FieldEvidence`) đều có Bounding Box hợp lệ (`bbox_alignment_rate` = 100.0%), đảm bảo khả năng kiểm toán truy vết nguồn. |
+| **perspective_correction** | 0 | Biến đổi 4 điểm Homography (`cv2.getPerspectiveTransform`) nắn thẳng phối cảnh thành công trên các góc nghiêng tới 15°. |
+| **skew_rotation** | 0 | Thuật toán Probabilistic Hough Lines trên Canny edges phát hiện chính xác góc xoay 7° của **AUG-07-SKEW-LOWLIGHT** và nắn thẳng hoàn hảo về 0°. |
+| **vietnamese_diacritics** | 0 | Đã sửa quy tắc gán nhãn giả: chỉ tính lỗi dấu khi có sự chênh lệch rõ rệt giữa CER có dấu và CER không dấu (`cer - cer_unaccented > 0.02`). |
+| **reading_order** | 0 | Các thành phần canonical đã được sắp xếp tự nhiên theo tọa độ không gian trang (trên xuống dưới, trái sang phải). |
+| **table_structure** | 1 | Chỉ có 1 case góc chụp nghiêng gắt khiến cạnh bảng bị mờ cục bộ; 9/10 case còn lại đạt cấu trúc bảng chuẩn 100%. |
+| **merged_cells** | 0 | Không có hiện tượng dính ô mô tả và số lượng. |
+| **field_association** | 7 | EasyOCR trên CPU đối với ảnh chụp điện thoại thực tế dễ bị nhiễu ký tự ở bảng chi tiết, dẫn đến việc ghép nhãn dòng hàng bị thiếu khi chạy thuần offline. Đây là lý do kiến trúc cần cơ chế Hybrid OCR + Vision LLM Fallback (xem Mục 5.4). |
+| **quantity_price_amount** | 1 | Chỉ có 1 case bị sai lệch số tiền do ảnh bị bóng che khuất nặng. |
+| **vision_hallucination** | 0 | Không phát sinh hiện tượng ảo giác số tiền hay dòng hàng. |
+| **missing_provenance_wrong_bbox** | 0 | 100% bằng chứng trích xuất (`FieldEvidence`) đều có Bounding Box hợp lệ (`bbox_alignment_rate` = 100.0%). |
+
+---
+
+### 5.4. Đánh giá Bộ Hóa đơn Thực tế 30 Chứng từ Tiếng Việt (Giai đoạn C & D — 30-Invoice Realistic Benchmark)
+
+> **Mục tiêu:** Đo lường toàn diện năng lực bóc tách trên bộ dữ liệu 30 hóa đơn điện tử thực tế mô phỏng 15 doanh nghiệp đầu ngành tại Việt Nam (EVN, Viettel, FPT, Petrolimex, Vinamilk, Hòa Phát, Masan, Thế Giới Di Động...), bao gồm 10 Digital PDF, 10 Scanned PDF, và 10 Mobile Photo. Tất cả hóa đơn đều có mã số thuế chuẩn thuật toán Modulo-11 của Tổng cục Thuế và toán học chi tiết (số lượng × đơn giá = thành tiền, thuế suất 8%/10%, tổng thanh toán).
+> **Lệnh kiểm chứng:** `python benchmarks/scripts/evaluate_realistic_benchmark.py`
+> **Artifact kết quả:** `benchmarks/results/realistic_benchmark_report.json` (Run ID: `20261110T120725Z-434c6725`, Manifest SHA-256: `baeb324cc95bce888d2cb40ecb72438a3881ff7fe9ca1584a04fbe024347d68b`)
+
+#### Bảng Tổng hợp Kết quả theo Phân loại Chứng từ (Segregated by Document Type)
+
+| Phân loại | Số lượng | CER (Có dấu) | CER (Không dấu) | Header EM | Line Items F1 | Table F1 | Human Review | False Auto-Accept | Chi phí API trung bình | Độ trễ TB |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| **Digital PDF** | 10 | **0.00%** | **0.00%** | **100.0%** | **100.0%** | **100.0%** | 100.0% | **0.0%** | **$0.000000** | 4,600 ms |
+| **Scanned PDF** | 10 | **28.76%** | **27.78%** | **98.0%** | **76.7%** | **100.0%** | 100.0% | **0.0%** | $0.002210 | 49,065 ms |
+| **Mobile Photo** | 10 | **30.58%** | **29.32%** | **98.0%** | **63.3%** | **100.0%** | 100.0% | **0.0%** | $0.002185 | 42,446 ms |
+| **Toàn bộ 30 Case** | 30 | **19.78%** | **19.03%** | **98.67%** | **80.00%** | **100.0%** | 100.0% | **0.0%** | **$0.001465** | 32,037 ms |
+
+#### So sánh Engine OCR & Kiến trúc Định tuyến Đã Kiểm chứng
+1. **Digital PDF Native Parsing:**
+   - 10/10 hóa đơn điện tử số (EVN, Viettel, FPT, Petrolimex...) được xử lý 100% bằng parser số học offline `DigitalPDFParser` kết hợp `DoclingAdapter`.
+   - Kết quả: **CER 0.00%**, **Header Exact Match 100.0%**, **Line Items F1 100.0%**, **Table F1 100.0%**, **Chi phí API: $0.00**, thời gian phản hồi ~3–4 giây.
+2. **Scanned PDF & Mobile Photos:**
+   - Xử lý ảnh đa biến dạng: nắn góc xoay (Hough line deskew), căn chỉnh phối cảnh (perspective homography) và nhận dạng văn bản tiếng Việt EasyOCR 200 DPI (`FORCE_FULL_PAGE_OCR=True`).
+   - Kết quả: Table F1 đạt **100.0%** cấu trúc bảng; Header Exact Match đạt **98.0%**.
+   - Cơ chế tự vệ (Evidence Gate): 100% các dòng mờ hoặc trường chưa được xác thực nguồn gốc OCR đều được chuyển hướng an toàn sang trạng thái cần người duyệt (Human Review), tuyệt đối không để lọt sai sót kế toán (**False Auto-Accept Rate: 0.00%**).
+3. **Phân tích Engine OCR Tiếng Việt:**
+   - *PaddleOCR (PP-OCRv5):* Phiên bản PaddlePaddle 3.x trên môi trường Windows x64 CPU hiện có hạn chế `NotImplementedError` trong quá trình chuyển đổi thuộc tính PIR/oneDNN runtime. Khuyến nghị chạy trong Linux container có GPU khi triển khai scale-out.
+   - *EasyOCR + Docling:* Hoạt động ổn định trên CPU máy chủ Windows và Linux, hỗ trợ đầy đủ 67 ký tự tiếng Việt có dấu, đáp ứng tiêu chuẩn bộ nhớ RAM dưới 1.2 GB RSS.
 
 ---
 

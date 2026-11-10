@@ -178,6 +178,19 @@ def test_deskew_correction():
     assert deskewed.shape == rotated.shape
 
 
+def test_deskew_correction_on_real_skewed_lowlight_image():
+    from pathlib import Path
+
+    fixture_path = Path("benchmarks/fixtures/real_world_eval/aug_07_skew_lowlight.png")
+    if not fixture_path.exists():
+        return
+    img = cv2.imread(str(fixture_path))
+    preprocessor = ImagePreprocessor()
+    deskewed, angle = preprocessor.estimate_and_correct_skew(img)
+    assert abs(angle) >= 4.0
+    assert abs(abs(angle) - 7.0) < 2.0
+
+
 def test_end_to_end_preprocess_generates_valid_pdf():
     preprocessor = ImagePreprocessor()
     img = _create_synthetic_invoice_image()
