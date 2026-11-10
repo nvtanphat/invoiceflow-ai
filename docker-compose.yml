@@ -1,14 +1,21 @@
+x-app-env: &app-env
+  env_file: .env
+  environment:
+    # In-network addresses override the localhost defaults used for host-run development.
+    DATABASE_URL: postgresql+asyncpg://postgres:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/invoiceflow
+    REDIS_URL: redis://redis:6379/0
+    LOCAL_STORAGE_DIR: /app/data/storage
+
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: invoiceflow-postgres
     restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgrespassword
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
       POSTGRES_DB: invoiceflow
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -19,10 +26,9 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: invoiceflow-redis
     restart: unless-stopped
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -33,15 +39,15 @@ services:
 
   objectstore:
     image: minio/minio:RELEASE.2024-05-10T01-41-38Z
-    container_name: invoiceflow-objectstore
     restart: unless-stopped
+    profiles: ["s3"]
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadminpassword
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-invoiceflow}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD in .env}
     command: server /data --console-address ":9001"
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
     volumes:
       - minio_data:/data
     healthcheck:
@@ -50,7 +56,64 @@ services:
       timeout: 5s
       retries: 5
 
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    image: invoiceflow-api:local
+    <<: *app-env
+    command: ["alembic", "upgrade", "head"]
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    image: invoiceflow-api:local
+    restart: unless-stopped
+    <<: *app-env
+    volumes:
+      - document_storage:/app/data/storage
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    image: invoiceflow-worker:local
+    restart: unless-stopped
+    <<: *app-env
+    volumes:
+      - document_storage:/app/data/storage
+      # OCR/layout model weights are downloaded on first use; keep them across restarts.
+      - model_cache:/home/appuser/.cache
+      - easyocr_models:/home/appuser/.EasyOCR
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    image: invoiceflow-web:local
+    restart: unless-stopped
+    ports:
+      - "${WEB_PORT:-8080}:8080"
+    depends_on:
+      api:
+        condition: service_healthy
+
 volumes:
   postgres_data:
   redis_data:
   minio_data:
+  document_storage:
+  model_cache:
+  easyocr_models:

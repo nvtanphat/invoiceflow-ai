@@ -80,15 +80,26 @@ pnpm --dir apps/web dev
 
 Kiểm `http://localhost:8000/docs`, `http://localhost:8000/health/live`, `http://localhost:8000/health/ready`, web dev URL từ Vite. Trường hợp auth token/CSRF/cookie tùy cách triển khai phải đúng CORS và secure flags.
 
-### Khởi chạy qua Compose (mục tiêu sau sprint 7)
+### Khởi chạy qua Compose
+
+`docker-compose.yml` chạy toàn bộ stack: `postgres`, `redis`, `migrate` (job `alembic upgrade head` chạy một lần trước API), `api`, `worker` (Docling + EasyOCR, torch CPU), `web` (nginx phục vụ SPA và proxy `/api` sang API). MinIO chỉ bật khi dùng S3 (`--profile s3`); mặc định tài liệu nằm trên volume `document_storage` dùng chung giữa API và worker.
 
 ```powershell
+Copy-Item .env.example .env
+# Bắt buộc điền: POSTGRES_PASSWORD, JWT_SECRET (>= 32 ký tự ngẫu nhiên), APP_ENV=production, khóa LLM nếu dùng Vision.
 docker compose up --build -d
 docker compose ps
 docker compose logs -f --tail=100 api worker
+
+# Tạo quản trị viên đầu tiên (không có tự đăng ký). Mật khẩu đọc từ biến môi trường hoặc prompt, không qua tham số.
+docker compose exec api python -m invoiceflow.admin_cli create-user `
+  --email admin@congty.vn --full-name "Quản trị" --role admin --tenant-name "Công ty ABC"
+# Thêm người dùng vào tenant có sẵn: --tenant-id <id in ra ở lệnh trên> --role accountant|reviewer|viewer
 ```
 
-Không tuyên bố `docker compose up` là production deployment đầy đủ; production cần HTTPS, secrets, backups, monitoring và rate limits. **Cấm xử lý lỗi DB bằng `docker compose down -v`** vì xóa volumes dữ liệu.
+Web UI: `http://localhost:${WEB_PORT}` (mặc định 8080). Postgres/Redis/MinIO chỉ bind `127.0.0.1`. Lần OCR đầu tiên worker tải model Docling/EasyOCR (vài trăm MB, cần egress) vào volume `model_cache`/`easyocr_models`; RAM worker đo được ~5 GB RSS mỗi process OCR, chỉnh `WORKER_PROCESSES`/`WORKER_THREADS` trong `.env` (mặc định 1/1) theo RAM máy.
+
+Compose **chưa phải** production đầy đủ: còn thiếu HTTPS (đặt reverse proxy TLS trước `web`), rate limiting, backup Postgres/volume, monitoring. **Cấm xử lý lỗi DB bằng `docker compose down -v`** vì xóa volumes dữ liệu.
 
 ## 3. Runbook kiểm tra E2E bằng dữ liệu không nhạy cảm
 

@@ -4,31 +4,43 @@ WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
-    curl \
     && rm -rf /var/lib/apt/lists/*
 
-COPY pyproject.toml .
+# CPU wheels by default; override for a GPU build (e.g. .../whl/cu124).
+ARG TORCH_INDEX_URL=https://download.pytorch.org/whl/cpu
+
+# Dependencies first against a placeholder package so source edits keep this layer cached.
+# The worker runs scans and photos, so it needs the Docling/EasyOCR extra.
+COPY pyproject.toml README.md ./
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir .
+    mkdir -p src/invoiceflow && touch src/invoiceflow/__init__.py && \
+    pip install --no-cache-dir --extra-index-url "${TORCH_INDEX_URL}" ".[documents]" && \
+    rm -rf src
 
 COPY src/ ./src
+RUN pip install --no-cache-dir --no-deps --force-reinstall .
 
 FROM python:3.12-slim AS runner
 
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl \
-    libmupdf-dev \
+    libgl1 \
+    libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/* \
     && useradd -m -u 10001 -s /bin/bash appuser
 
 COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
-COPY --from=builder /app /app
 
-RUN mkdir -p /app/data/storage && chown -R appuser:appuser /app
+# Pre-created so mounted model-cache volumes inherit appuser ownership.
+RUN mkdir -p /app/data/storage /home/appuser/.cache /home/appuser/.EasyOCR \
+    && chown -R appuser:appuser /app /home/appuser
 
 USER appuser
 
-CMD ["dramatiq", "invoiceflow.workers.actors", "--processes", "2", "--threads", "4"]
+# Each OCR process holds its own Docling/EasyOCR models (~5 GB RSS measured); size to the host.
+ENV WORKER_PROCESSES=1 \
+    WORKER_THREADS=1
+
+CMD ["sh", "-c", "exec dramatiq invoiceflow.workers.actors --processes \"$WORKER_PROCESSES\" --threads \"$WORKER_THREADS\""]

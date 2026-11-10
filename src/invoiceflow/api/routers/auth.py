@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import EmailStr, BaseModel
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from invoiceflow.api.dependencies import create_access_token, get_db
 from invoiceflow.config import Settings, get_settings
@@ -30,7 +30,9 @@ async def login(
     session: AsyncSession = Depends(get_db),
     settings: Settings = Depends(get_settings),
 ):
-    stmt = select(UserORM).where(UserORM.email == req.email, UserORM.is_active.is_(True))
+    stmt = select(UserORM).where(
+        func.lower(UserORM.email) == req.email.strip().lower(), UserORM.is_active.is_(True)
+    )
     res = await session.execute(stmt)
     user = res.scalar_one_or_none()
     if not user:

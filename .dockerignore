@@ -1,0 +1,16 @@
+.git
+.github
+.venv
+.env
+**/__pycache__
+**/*.pyc
+**/node_modules
+apps/web/dist
+apps/web/tsconfig.tsbuildinfo
+data
+uploads
+benchmarks
+tests
+docs
+.agents
+*.db

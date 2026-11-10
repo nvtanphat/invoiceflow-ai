@@ -70,6 +70,13 @@ async def test_auth_login_and_protected_route():
         token = login_res.json()["access_token"]
         assert token is not None
 
+        # Email addresses are case-insensitive; provisioning stores them lowercased.
+        mixed_case = await client.post(
+            "/api/v1/auth/login",
+            json={"email": "Accountant@Example.com", "password": "password123"},
+        )
+        assert mixed_case.status_code == 200
+
         # Access documents endpoint with Bearer token
         headers = {"Authorization": f"Bearer {token}"}
         docs_res = await client.get("/api/v1/documents", headers=headers)
