@@ -1,6 +1,7 @@
 import React from "react";
 import { Icon } from "../../components/SvgIcons";
 import { ExtendedInvoiceItem } from "../../lib/seed-data";
+import { formatConfidence } from "../../lib/confidence";
 
 interface InvoiceInfoSectionProps {
   inv: ExtendedInvoiceItem;
@@ -114,7 +115,7 @@ export const InvoiceInfoSection: React.FC<InvoiceInfoSectionProps> = ({
               </span>
             ) : (
               <span className="pill g">
-                <Icon name="check" /> {mstEv ? `${Math.round((mstEv.confidence ?? 1.0) * 100)}%` : "100%"}
+                <Icon name="check" /> {formatConfidence(mstEv?.confidence)}
               </span>
             )}
           </div>
@@ -137,7 +138,7 @@ export const InvoiceInfoSection: React.FC<InvoiceInfoSectionProps> = ({
               <span className="v">{inv.invoice_number || "—"}</span>
             )}
             <span className="pill g">
-              <Icon name="check" /> {noEv ? `${Math.round((noEv.confidence ?? 1.0) * 100)}%` : "100%"}
+              <Icon name="check" /> {formatConfidence(noEv?.confidence)}
             </span>
           </div>
 
@@ -159,7 +160,7 @@ export const InvoiceInfoSection: React.FC<InvoiceInfoSectionProps> = ({
               <span className="v">{inv.issue_date || "—"}</span>
             )}
             <span className="pill g">
-              <Icon name="check" /> {dateEv ? `${Math.round((dateEv.confidence ?? 1.0) * 100)}%` : "100%"}
+              <Icon name="check" /> {formatConfidence(dateEv?.confidence)}
             </span>
           </div>
 

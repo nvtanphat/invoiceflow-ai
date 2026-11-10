@@ -1,47 +1,57 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Icon } from "../../components/SvgIcons";
 import { useInvoiceFlow } from "../../context/InvoiceFlowContext";
-import {
-  CC,
-  fmt,
-  sparkline,
-  colChart,
-  donutChart,
-  lastDays,
-  genSeries,
-  sum,
-} from "../../lib/chart-utils";
+import { api, ProcessingSummary } from "../../lib/api-client";
+import { CC, fmt, sparkline, colChart, donutChart } from "../../lib/chart-utils";
+import { meanConfidence } from "../../lib/confidence";
 
 export const DashboardPage: React.FC = () => {
   const { documents, invoices, events, setActivePage, setSelectedDocId } = useInvoiceFlow();
   const [days, setDays] = useState<number>(14);
 
+  const [summary, setSummary] = useState<ProcessingSummary | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    api
+      .getProcessingSummary(days)
+      .then((data) => active && setSummary(data))
+      .catch(() => active && setSummary(null));
+    return () => {
+      active = false;
+    };
+  }, [days, invoices]);
+
   const totalDocs = documents.length;
   const ex = invoices;
-  const pend = ex.filter((d) => d.status === "PENDING" || d.status === "READY_FOR_REVIEW").length;
   const st = {
     ok: ex.filter((d) => d.status === "APPROVED").length,
-    pend: pend,
-    rev: ex.filter((d) => d.status === "REVIEW_REQUIRED").length,
+    pend: ex.filter((d) => d.status === "READY_FOR_REVIEW").length,
     rej: ex.filter((d) => d.status === "REJECTED").length,
+    exported: ex.filter((d) => d.status === "EXPORTED").length,
     proc: documents.filter((d) => d.status !== "COMPLETED").length,
   };
 
-  const auto = genSeries(days, 11, 92, 15, 40);
-  const man = genSeries(days, 23, 12, 4, 3);
-  const tot = sum(auto) + sum(man) + (totalDocs || 6);
-  const stp = ((sum(auto) / (sum(auto) + sum(man) || 1)) * 100).toFixed(1);
+  const daily = summary?.days ?? [];
+  const auto = daily.map((d) => d.auto_approved);
+  const man = daily.map((d) => d.routed_to_review);
+  const labels = daily.map((d) => `${d.date.slice(8, 10)}/${d.date.slice(5, 7)}`);
+  const received = summary ? summary.totals.received : null;
+  const prevReceived = summary ? summary.previous_totals.received : null;
+  const receivedDelta =
+    received !== null && prevReceived ? ((received - prevReceived) / prevReceived) * 100 : null;
+  const stp = summary?.stp_rate != null ? summary.stp_rate * 100 : null;
+  const stpDelta =
+    summary?.stp_rate != null && summary.previous_stp_rate != null
+      ? (summary.stp_rate - summary.previous_stp_rate) * 100
+      : null;
+  const today = new Date().toLocaleDateString("vi-VN");
   const allEvidences = ex.flatMap((d) => d.evidence || []);
-  const conf =
-    allEvidences.length > 0
-      ? (allEvidences.reduce((s, e) => s + (e.confidence ?? 1.0), 0) / allEvidences.length) * 100
-      : ex.length > 0
-      ? 100.0
-      : 0;
+  const measured = meanConfidence(allEvidences);
+  const conf = measured !== null ? measured * 100 : null;
 
   const attn = ex.filter(
     (d) =>
-      d.status === "REVIEW_REQUIRED" ||
       d.status === "REJECTED" ||
       Boolean(d.issues && d.issues.some((i) => i.severity === "ERROR" || i.severity === "critical")) ||
       (d.lines || []).some(
@@ -53,17 +63,15 @@ export const DashboardPage: React.FC = () => {
       )
   );
 
-  const sp = (s: number, n: number) => genSeries(12, s, n, n * 0.12, 1);
-  const labels = lastDays(days);
   const pmax = Math.max(1, totalDocs);
 
   const pipe = [
     { name: "Đã tải lên", val: totalDocs, color: CC.s1, page: "xu-ly" as const },
     { name: "Đang trích xuất", val: st.proc, color: "#6da7ec", page: "xu-ly" as const },
     { name: "Cần rà soát / lệch", val: attn.length, color: CC.s4, page: "doi-soat" as const },
-    { name: "Chờ phê duyệt", val: st.pend + st.rev, color: "#256abf", page: "phe-duyet" as const },
+    { name: "Chờ phê duyệt", val: st.pend, color: "#256abf", page: "phe-duyet" as const },
     { name: "Đã phê duyệt", val: st.ok, color: CC.s3, page: "phe-duyet" as const },
-    { name: "Đã xuất kế toán", val: st.ok, color: "#0d366b", page: "xuat-du-lieu" as const },
+    { name: "Đã xuất kế toán", val: st.exported, color: "#0d366b", page: "xuat-du-lieu" as const },
   ];
 
   return (
@@ -71,7 +79,7 @@ export const DashboardPage: React.FC = () => {
       <div className="ph">
         <div>
           <h1>Tổng quan</h1>
-          <p className="sub">Tình hình xử lý chứng từ trong ngày · Hôm nay, 09/11/2026</p>
+          <p className="sub">Tình hình xử lý chứng từ · Hôm nay, {today}</p>
         </div>
         <div className="pha">
           <div className="sg" id="dsg">
@@ -96,52 +104,52 @@ export const DashboardPage: React.FC = () => {
       <div className="kpis">
         <div className="cd kpi">
           <div className="l">Chứng từ đã xử lý</div>
-          <div className="v">{fmt(tot)}</div>
-          <div className="dl up">
-            <Icon name="trendup" />
-            +12,4% <span>so với kỳ trước</span>
+          <div className="v">{received !== null ? fmt(received) : "—"}</div>
+          <div className={`dl ${receivedDelta !== null && receivedDelta < 0 ? "dn" : "up"}`}>
+            {receivedDelta !== null ? `${receivedDelta >= 0 ? "+" : ""}${receivedDelta.toFixed(1)}%` : "—"}{" "}
+            <span>so với kỳ trước</span>
           </div>
-          <div dangerouslySetInnerHTML={{ __html: sparkline(sp(1, 80)) }} />
+          {daily.length > 0 && (
+            <div dangerouslySetInnerHTML={{ __html: sparkline(daily.map((d) => d.received)) }} />
+          )}
         </div>
 
         <div className="cd kpi">
           <div className="l">Tỷ lệ tự động hoàn toàn</div>
           <div className="v">
-            {stp}
+            {stp !== null ? stp.toFixed(1) : "—"}
             <small>%</small>
           </div>
-          <div className="dl up">
-            <Icon name="trendup" />
-            +3,1 điểm <span>so với kỳ trước</span>
+          <div className={`dl ${stpDelta !== null && stpDelta < 0 ? "dn" : "up"}`}>
+            {stpDelta !== null ? `${stpDelta >= 0 ? "+" : ""}${stpDelta.toFixed(1)} điểm` : "—"}{" "}
+            <span>so với kỳ trước</span>
           </div>
-          <div dangerouslySetInnerHTML={{ __html: sparkline(sp(2, 85)) }} />
+          {daily.length > 0 && <div dangerouslySetInnerHTML={{ __html: sparkline(auto) }} />}
         </div>
 
         <div className="cd kpi">
           <div className="l">Độ tin cậy trích xuất TB</div>
           <div className="v">
-            {conf.toFixed(1)}
+            {conf !== null ? conf.toFixed(1) : "—"}
             <small>%</small>
           </div>
-          <div className={`dl ${conf >= 98 ? "up" : "dn"}`}>
-            {conf >= 98 && <Icon name="trendup" />}
+          <div className={`dl ${conf !== null && conf >= 98 ? "up" : "dn"}`}>
+            {conf !== null && conf >= 98 && <Icon name="trendup" />}
             Mục tiêu ≥ 98%
           </div>
-          <div dangerouslySetInnerHTML={{ __html: sparkline(sp(3, 98)) }} />
         </div>
 
         <div className="cd kpi">
           <div className="l">Cần rà soát / có cảnh báo</div>
           <div className="v">{attn.length}</div>
-          <div className="dl up">
-            <Icon name="trendup" />
-            -2 <span>so với hôm qua</span>
+          <div className="dl nt">
+            <span>Từ chối, issue nghiêm trọng hoặc lệch số học</span>
           </div>
         </div>
 
         <div className="cd kpi">
           <div className="l">Đang chờ phê duyệt</div>
-          <div className="v">{st.pend + st.rev}</div>
+          <div className="v">{st.pend}</div>
           <div className="dl nt">
             <span>Trong hạn mức</span>
           </div>
@@ -189,7 +197,7 @@ export const DashboardPage: React.FC = () => {
             <div className="ch">
               <div>
                 <div className="ct">Trạng thái chứng từ</div>
-                <div className="cs">Lô hiện tại · {totalDocs || 6} chứng từ</div>
+                <div className="cs">Lô hiện tại · {totalDocs} chứng từ</div>
               </div>
             </div>
             <div className="cb">
@@ -198,25 +206,25 @@ export const DashboardPage: React.FC = () => {
                   dangerouslySetInnerHTML={{
                     __html: donutChart(
                       [
-                        { label: "Đã phê duyệt", v: Math.max(st.ok, 1), c: CC.s1 },
-                        { label: "Chờ phê duyệt", v: Math.max(st.pend, 2), c: CC.s2 },
-                        { label: "Cần rà soát", v: Math.max(st.rev, 1), c: CC.s3 },
+                        { label: "Đã phê duyệt", v: st.ok, c: CC.s1 },
+                        { label: "Chờ phê duyệt", v: st.pend, c: CC.s2 },
+                        { label: "Đã xuất", v: st.exported, c: CC.s3 },
                         { label: "Từ chối", v: st.rej, c: CC.s4 },
                         { label: "Đang xử lý", v: st.proc, c: CC.s5 },
                       ],
-                      { center: Math.max(totalDocs, 6), sub: "chứng từ" }
+                      { center: totalDocs, sub: "chứng từ" }
                     ),
                   }}
                 />
                 <div className="dl-list">
                   <div>
-                    <i style={{ background: CC.s1 }}></i>Đã phê duyệt <b>{Math.max(st.ok, 1)}</b>
+                    <i style={{ background: CC.s1 }}></i>Đã phê duyệt <b>{st.ok}</b>
                   </div>
                   <div>
-                    <i style={{ background: CC.s2 }}></i>Chờ phê duyệt <b>{Math.max(st.pend, 2)}</b>
+                    <i style={{ background: CC.s2 }}></i>Chờ phê duyệt <b>{st.pend}</b>
                   </div>
                   <div>
-                    <i style={{ background: CC.s3 }}></i>Cần rà soát <b>{Math.max(st.rev, 1)}</b>
+                    <i style={{ background: CC.s3 }}></i>Đã xuất <b>{st.exported}</b>
                   </div>
                   <div>
                     <i style={{ background: CC.s4 }}></i>Từ chối <b>{st.rej}</b>
@@ -260,8 +268,8 @@ export const DashboardPage: React.FC = () => {
                       <span className="k k-a">
                         {d.status === "REJECTED"
                           ? "Từ chối"
-                          : d.status === "REVIEW_REQUIRED"
-                          ? "Cần rà soát"
+                          : d.issues && d.issues.length > 0
+                          ? "Có issue"
                           : "Lệch số học"}
                       </span>
                     </div>

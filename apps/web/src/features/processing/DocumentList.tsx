@@ -50,7 +50,8 @@ export const DocumentList: React.FC = () => {
     if (inv) {
       if (inv.status === "APPROVED") return { cls: "ok", text: "Hoàn thành", icon: "check" };
       if (inv.status === "REJECTED") return { cls: "rej", text: "Đã từ chối", icon: "x" };
-      if (inv.status === "REVIEW_REQUIRED") return { cls: "rev", text: "Cần rà soát", icon: "flag" };
+      if (inv.status === "EXPORTED") return { cls: "ok", text: "Đã xuất", icon: "check" };
+      if (inv.status === "READY_FOR_REVIEW") return { cls: "rev", text: "Cần rà soát", icon: "flag" };
       return { cls: "pend", text: "Chờ phê duyệt", icon: "" };
     }
     if (doc.status === "PROCESSING" || doc.status === "PENDING") {

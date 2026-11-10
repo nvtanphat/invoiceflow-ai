@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from "react";
 import { Icon } from "../../components/SvgIcons";
 import { useInvoiceFlow } from "../../context/InvoiceFlowContext";
 import { api } from "../../lib/api-client";
+import { formatConfidence } from "../../lib/confidence";
 
 const fmt = (n: number | string) => {
   const num = typeof n === "string" ? parseFloat(n) || 0 : n;
@@ -123,7 +124,6 @@ export const DocumentViewer: React.FC = () => {
   const [pageCount, setPageCount] = useState(1);
   const [pageWidth, setPageWidth] = useState(595);
   const [pageHeight, setPageHeight] = useState(842);
-  const [pageRotation, setPageRotation] = useState(0);
   const [pageImageUrl, setPageImageUrl] = useState<string | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -183,7 +183,6 @@ export const DocumentViewer: React.FC = () => {
           setPageWidth(res.width || 595);
           setPageHeight(res.height || 842);
           setPageCount(res.pageCount || 1);
-          setPageRotation(res.rotation || 0);
         }
       })
       .catch(() => {
@@ -384,7 +383,8 @@ export const DocumentViewer: React.FC = () => {
             className="page"
             id="docPage"
             style={{
-              transform: pageRotation ? `scale(${scale}) rotate(${pageRotation}deg)` : `scale(${scale})`,
+              // The server renders the rotation-normalised page that evidence bboxes refer to.
+              transform: `scale(${scale})`,
               transformOrigin: "0 0",
               left: `${leftOffset}px`,
               position: "relative",
@@ -421,13 +421,12 @@ export const DocumentViewer: React.FC = () => {
                   if (computed.pageIndex !== currentPage) return null;
 
                   const isHi = highlightedField === ev.field_name || highlightedField === ev.field_path;
-                  const confPercent = Math.round((ev.confidence ?? 1.0) * 100);
 
                   return (
                     <div
                       key={idx}
                       data-testid={`bbox-${ev.field_name}`}
-                      title={`${ev.field_name}: ${confPercent}%`}
+                      title={`${ev.field_name}: ${formatConfidence(ev.confidence)}`}
                       onClick={() => setHighlightedField(ev.field_name)}
                       onMouseEnter={() => setHighlightedField(ev.field_name)}
                       style={{
@@ -464,7 +463,7 @@ export const DocumentViewer: React.FC = () => {
                             boxShadow: "0 2px 8px rgba(0,0,0,.25)",
                           }}
                         >
-                          {ev.field_name}: {confPercent}%
+                          {ev.field_name}: {formatConfidence(ev.confidence)}
                         </div>
                       )}
                     </div>

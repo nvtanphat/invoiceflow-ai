@@ -3,6 +3,7 @@ import {
   api,
   AuthSession,
   DocumentItem,
+  FieldDecision,
   InvoiceItem,
   JobItem,
   ReconciliationResult,
@@ -63,6 +64,7 @@ interface InvoiceFlowContextType {
   approveInvoice: (invoiceId: string, notes?: string) => Promise<boolean>;
   rejectInvoice: (invoiceId: string, reason: string) => Promise<boolean>;
   correctInvoice: (invoiceId: string, corrections: Partial<InvoiceItem>) => Promise<boolean>;
+  resolveField: (invoiceId: string, fieldPath: string, decision: FieldDecision, value?: string) => Promise<boolean>;
   runReconcile: (invoiceId: string) => Promise<ReconciliationResult | null>;
   login: (email: string, pass: string) => Promise<void>;
   logout: () => void;
@@ -77,8 +79,10 @@ const nowStr = () => {
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
 
+// Fixture data and simulated outcomes exist only on the dev server; a production build
+// compiles this to `false`, so no URL flag can switch it to fake data or fake success.
 const isDemoMode = (): boolean => {
-  if (typeof window === "undefined") return false;
+  if (!import.meta.env.DEV || typeof window === "undefined") return false;
   return new URLSearchParams(window.location.search).get("demo") === "true";
 };
 
@@ -387,11 +391,9 @@ export const InvoiceFlowProvider: React.FC<{ children: React.ReactNode }> = ({ c
       if (!inv) return false;
       try {
         const updated = await api.reviewInvoice(invoiceId, "approve", inv.revision, undefined, notes);
-        const full = await api.getInvoice(invoiceId).catch(() => ({ ...inv, ...updated, status: "APPROVED" }));
-        setSelectedInvoice((prev) => (prev && prev.id === invoiceId ? { ...prev, ...full, status: "APPROVED" } : prev));
-        setInvoices((prev) =>
-          prev.map((i) => (i.id === invoiceId ? { ...i, ...full, status: "APPROVED" } : i))
-        );
+        const full = await api.getInvoice(invoiceId).catch(() => ({ ...inv, ...updated }));
+        setSelectedInvoice((prev) => (prev && prev.id === invoiceId ? { ...prev, ...full } : prev));
+        setInvoices((prev) => prev.map((i) => (i.id === invoiceId ? { ...i, ...full } : i)));
         showToast(`Đã phê duyệt hóa đơn #${inv.invoice_number || inv.id}`);
         logEvent(`Phê duyệt #${inv.invoice_number || inv.id}`, { icon: "circlecheck", page: "phe-duyet", docId: inv.document_id });
         await refreshData();
@@ -420,10 +422,10 @@ export const InvoiceFlowProvider: React.FC<{ children: React.ReactNode }> = ({ c
       if (!inv) return false;
       try {
         const updated = await api.reviewInvoice(invoiceId, "reject", inv.revision, undefined, undefined, reason);
-        const full = await api.getInvoice(invoiceId).catch(() => ({ ...inv, ...updated, status: "REJECTED" }));
-        setSelectedInvoice((prev) => (prev && prev.id === invoiceId ? { ...prev, ...full, status: "REJECTED" } : prev));
+        const full = await api.getInvoice(invoiceId).catch(() => ({ ...inv, ...updated }));
+        setSelectedInvoice((prev) => (prev && prev.id === invoiceId ? { ...prev, ...full } : prev));
         setInvoices((prev) =>
-          prev.map((i) => (i.id === invoiceId ? { ...i, ...full, status: "REJECTED", note: reason } : i))
+          prev.map((i) => (i.id === invoiceId ? { ...i, ...full, note: reason } : i))
         );
         showToast(`Đã từ chối hóa đơn: ${reason}`, "warn");
         logEvent(`Từ chối #${inv.invoice_number || inv.id}: ${reason}`, { icon: "circlex", page: "phe-duyet", docId: inv.document_id });
@@ -453,11 +455,10 @@ export const InvoiceFlowProvider: React.FC<{ children: React.ReactNode }> = ({ c
       if (!inv) return false;
       try {
         const updated = await api.reviewInvoice(invoiceId, "correct", inv.revision, corrections);
-        const full = await api.getInvoice(invoiceId).catch(() => ({ ...inv, ...updated, ...corrections }));
-        setSelectedInvoice((prev) => (prev && prev.id === invoiceId ? { ...prev, ...full, ...corrections } : prev));
-        setInvoices((prev) =>
-          prev.map((i) => (i.id === invoiceId ? { ...i, ...full, ...corrections } : i))
-        );
+        // Server state wins: it holds the normalised values and the new revision.
+        const full = await api.getInvoice(invoiceId).catch(() => ({ ...inv, ...updated }));
+        setSelectedInvoice((prev) => (prev && prev.id === invoiceId ? { ...prev, ...full } : prev));
+        setInvoices((prev) => prev.map((i) => (i.id === invoiceId ? { ...i, ...full } : i)));
         showToast("Thông tin đính chính đã được lưu thành công.");
         logEvent(`Đính chính hóa đơn #${inv.invoice_number || inv.id} (Rev v${updated.revision || inv.revision + 1})`, {
           icon: "edit",
@@ -486,6 +487,29 @@ export const InvoiceFlowProvider: React.FC<{ children: React.ReactNode }> = ({ c
     [invoices, selectedInvoice, isDemo, refreshData, showToast, logEvent]
   );
 
+  const resolveField = useCallback(
+    async (invoiceId: string, fieldPath: string, decision: FieldDecision, value?: string): Promise<boolean> => {
+      const inv = invoices.find((i) => i.id === invoiceId) || selectedInvoice;
+      if (!inv) return false;
+      try {
+        const full = await api.resolveField(invoiceId, inv.revision, fieldPath, decision, value);
+        setSelectedInvoice((prev) => (prev && prev.id === invoiceId ? { ...prev, ...full } : prev));
+        setInvoices((prev) => prev.map((i) => (i.id === invoiceId ? { ...i, ...full } : i)));
+        showToast(`Đã xác nhận trường ${fieldPath}`);
+        logEvent(`Xác nhận trường ${fieldPath} (#${inv.invoice_number || inv.id})`, {
+          icon: "edit",
+          page: "xu-ly",
+          docId: inv.document_id,
+        });
+        return true;
+      } catch (err: unknown) {
+        showToast(err instanceof Error ? err.message : "Xác nhận trường thất bại", "err");
+        return false;
+      }
+    },
+    [invoices, selectedInvoice, showToast, logEvent]
+  );
+
   const runReconcile = useCallback(
     async (invoiceId: string): Promise<ReconciliationResult | null> => {
       try {
@@ -498,7 +522,7 @@ export const InvoiceFlowProvider: React.FC<{ children: React.ReactNode }> = ({ c
         showToast(msg, "err");
         if (isDemo && !invoiceId.startsWith("inv-demo-")) {
           const inv = invoices.find((i) => i.id === invoiceId);
-          const isBad = inv?.status === "REVIEW_REQUIRED";
+          const isBad = inv?.status === "READY_FOR_REVIEW";
           const res: ReconciliationResult = {
             invoice_id: invoiceId,
             status: isBad ? "DISCREPANCY_DETECTED" : "MATCHED",
@@ -607,6 +631,7 @@ export const InvoiceFlowProvider: React.FC<{ children: React.ReactNode }> = ({ c
         approveInvoice,
         rejectInvoice,
         correctInvoice,
+        resolveField,
         runReconcile,
         login,
         logout,

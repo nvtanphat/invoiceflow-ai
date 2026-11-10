@@ -25,12 +25,7 @@ export const InvoiceAuditSection: React.FC<InvoiceAuditSectionProps> = ({
   const isDuplicate = Boolean(
     inv.issues && inv.issues.some((i) => i.code === "DUPLICATE_INVOICE")
   );
-  const hasIssues = Boolean(
-    (inv.issues && inv.issues.length > 0) ||
-    inv.status === "REVIEW_REQUIRED" ||
-    inv.status === "REQUIRES_REVIEW" ||
-    inv.status === "DISCREPANCY_DETECTED"
-  );
+  const hasIssues = Boolean(inv.issues && inv.issues.length > 0);
   const isOk = !isBadMst && !hasIssues && !isSignatureInvalid && !isDuplicate;
 
   const getTaxStatusLabel = () => {

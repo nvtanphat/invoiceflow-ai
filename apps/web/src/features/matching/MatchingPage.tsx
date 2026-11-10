@@ -120,12 +120,7 @@ export const MatchingPage: React.FC = () => {
     if (reconciliations[invItem.id]) {
       return !reconciliations[invItem.id].is_matched;
     }
-    return (
-      invItem.status === "REVIEW_REQUIRED" ||
-      invItem.status === "REQUIRES_REVIEW" ||
-      invItem.status === "DISCREPANCY_DETECTED" ||
-      Boolean(invItem.issues && invItem.issues.length > 0)
-    );
+    return Boolean(invItem.issues && invItem.issues.length > 0);
   };
 
   const counts = {
@@ -251,10 +246,7 @@ export const MatchingPage: React.FC = () => {
               const dec = getDecision(inv.id);
               const isBad =
                 dec !== "accepted" &&
-                (inv.id === "CASE-07" ||
-                  inv.id === "CASE-09" ||
-                  inv.status === "REVIEW_REQUIRED" ||
-                  (reconciliations[inv.id] && !reconciliations[inv.id].is_matched));
+                Boolean(reconciliations[inv.id] && !reconciliations[inv.id].is_matched);
               const ok = !isBad;
 
               return (
