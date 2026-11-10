@@ -153,6 +153,8 @@ class InvoiceORM(Base, TimestampMixin):
             "invoice_series",
             "invoice_number",
         ),
+        Index("ix_invoices_tenant_status", "tenant_id", "status"),
+        Index("ix_invoices_tenant_created_at", "tenant_id", "created_at"),
     )
 
 
@@ -223,6 +225,10 @@ class PurchaseOrderORM(Base, TimestampMixin):
         "PurchaseOrderLineORM", back_populates="purchase_order", cascade="all, delete-orphan"
     )
 
+    __table_args__ = (
+        Index("ix_purchase_orders_tenant_vendor", "tenant_id", "vendor_tax_id"),
+    )
+
 
 class PurchaseOrderLineORM(Base):
     __tablename__ = "purchase_order_lines"
@@ -259,6 +265,10 @@ class GoodsReceiptORM(Base, TimestampMixin):
 
     lines: Mapped[list["GoodsReceiptLineORM"]] = relationship(
         "GoodsReceiptLineORM", back_populates="goods_receipt", cascade="all, delete-orphan"
+    )
+
+    __table_args__ = (
+        Index("ix_goods_receipts_tenant_po", "tenant_id", "po_id"),
     )
 
 
@@ -333,6 +343,10 @@ class MatchResultORM(Base, TimestampMixin):
     is_matched: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     requires_review: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     issues_json: Mapped[str] = mapped_column(Text, default="[]", nullable=False)
+
+    __table_args__ = (
+        Index("ix_match_results_tenant_invoice", "tenant_id", "invoice_id"),
+    )
 
 
 class AuditLogORM(Base):
