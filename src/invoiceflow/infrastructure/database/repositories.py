@@ -364,6 +364,7 @@ class PolicyRepository:
             auto_approval_enabled=row.auto_approval_enabled,
             po_required=row.po_required,
             goods_receipt_required=row.goods_receipt_required,
+            line_description_min_similarity=row.line_description_min_similarity,
             effective_from=row.effective_from,
         )
 

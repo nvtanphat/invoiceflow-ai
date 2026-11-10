@@ -313,6 +313,9 @@ class TolerancePolicyORM(Base, TimestampMixin):
     auto_approval_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     po_required: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     goods_receipt_required: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    line_description_min_similarity: Mapped[Decimal] = mapped_column(
+        Numeric(6, 4), default=Decimal("0.5000"), nullable=False
+    )
     effective_from: Mapped[date] = mapped_column(Date, nullable=False)
 
 

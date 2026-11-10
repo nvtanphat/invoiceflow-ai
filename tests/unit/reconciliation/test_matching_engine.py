@@ -266,3 +266,31 @@ def test_warning_issues_are_not_hidden_by_tolerated_price_variance():
     assert report.status == MatchStatus.EXCEPTION
     assert report.is_matched is False
     assert report.requires_review is True
+
+
+def test_rejected_goods_do_not_count_as_received():
+    """Regression: GRN rejected_qty was ignored, so an invoice billing rejected goods matched."""
+    from invoiceflow.application.reconciliation.matching_engine import MatchingEngine
+
+    po, grn, invoice, policy = _po_grn_invoice("1000000.0000")
+    grn.lines[0].rejected_qty = Decimal("1.0000")
+
+    report = MatchingEngine().match_3_way(invoice, po, [grn], policy)
+
+    assert report.status == MatchStatus.QUANTITY_VARIANCE
+    variance = next(i for i in report.issues if i.code == "QUANTITY_VARIANCE")
+    assert variance.expected_value == "1.0000"
+
+
+def test_invoice_line_is_not_matched_to_a_po_line_by_position_alone():
+    """A dissimilar description must go to review instead of borrowing PO line N by index."""
+    from invoiceflow.application.reconciliation.matching_engine import MatchingEngine
+
+    po, grn, invoice, policy = _po_grn_invoice("1000000.0000")
+    invoice.lines[0].sku_ref = None
+    invoice.lines[0].description = "Phi van chuyen noi bo"
+
+    report = MatchingEngine().match_3_way(invoice, po, [grn], policy)
+
+    assert "UNMATCHED_LINE" in [i.code for i in report.issues]
+    assert report.is_matched is False

@@ -1024,3 +1024,53 @@ async def test_region_recovery_failure_is_reported_not_swallowed(monkeypatch):
         issue.startswith("REGION_RECOVERY_FAILED")
         for issue in result.invoice_aggregate.parser_issues
     )
+
+
+def test_vision_line_reconciliation_never_invents_confidence():
+    """LLM self-confidence is not calibrated; no numeric confidence may be fabricated for it."""
+    from invoiceflow.domain.invoices.models import InvoiceLine
+
+    ocr_lines = [
+        InvoiceLine(
+            line_no=1,
+            sku_ref="MOUSE-LOGI",
+            description="Chuot Logitech",
+            qty=Decimal("0"),
+            unit_price=Decimal("2000000"),
+            line_amount=Decimal("10000000"),
+            issues=["QTY_UNRECOVERED", "CELL_MERGE_SUSPECTED"],
+        ),
+        InvoiceLine(
+            line_no=2,
+            sku_ref="DELL-XPS",
+            description="Laptop Dell",
+            qty=Decimal("2"),
+            unit_price=Decimal("25000000"),
+            line_amount=Decimal("50000000"),
+        ),
+    ]
+    vision_lines = [
+        ExtractedLine(
+            line_no=1,
+            sku="MOUSE-LOGI",
+            description="Chuot Logitech",
+            qty=Decimal("5"),
+            unit_price=Decimal("2000000"),
+            line_amount=Decimal("10000000"),
+        ),
+        ExtractedLine(
+            line_no=2,
+            sku="DELL-XPS",
+            description="Laptop Dell",
+            qty=Decimal("3"),
+            unit_price=Decimal("25000000"),
+            line_amount=Decimal("50000000"),
+        ),
+    ]
+    evidence: list = []
+
+    VisionReconciler().reconcile_lines(ocr_lines, vision_lines, evidence, [])
+
+    vision_evidence = [ev for ev in evidence if ev.source_kind == "vision_llm"]
+    assert vision_evidence
+    assert all(ev.confidence is None for ev in vision_evidence)

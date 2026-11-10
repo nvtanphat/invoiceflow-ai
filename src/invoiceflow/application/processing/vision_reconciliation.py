@@ -11,6 +11,10 @@ from invoiceflow.domain.invoices.models import (
 
 logger = logging.getLogger(__name__)
 
+# Score of _score_line_match (SKU, price, amount and description agreement) below which an
+# OCR line and a Vision line are not considered the same line; ties above it are ambiguous.
+_MIN_LINE_MATCH_SCORE = 40.0
+
 
 class VisionReconciler:
     """Merges a Vision LLM extraction into deterministic OCR/parser results.
@@ -397,8 +401,8 @@ class VisionReconciler:
             sorted_v = sorted(v_scores, key=lambda x: x[0], reverse=True)
             if (
                 len(sorted_v) >= 2
-                and sorted_v[0][0] >= 40.0
-                and sorted_v[1][0] >= 40.0
+                and sorted_v[0][0] >= _MIN_LINE_MATCH_SCORE
+                and sorted_v[1][0] >= _MIN_LINE_MATCH_SCORE
                 and (sorted_v[0][0] - sorted_v[1][0]) < 10.0
             ):
                 ambiguous_ocr_lines.add(o_idx)
@@ -408,7 +412,7 @@ class VisionReconciler:
         used_vis: set[int] = set()
 
         for sc, o_idx, v_idx in candidates:
-            if sc < 40.0:
+            if sc < _MIN_LINE_MATCH_SCORE:
                 break
             if o_idx in matched_ocr or v_idx in used_vis:
                 continue
@@ -432,7 +436,7 @@ class VisionReconciler:
                 reconciled_lines.append(o_line)
                 continue
 
-            v_idx, match_score = matched_ocr[o_idx]
+            v_idx, _ = matched_ocr[o_idx]
             v_match = vision_lines[v_idx]
 
             # Case 1: OCR has a valid positive quantity (> 0).
@@ -452,7 +456,7 @@ class VisionReconciler:
                             source_kind="vision_llm",
                             raw_value=str(v_match.qty),
                             normalized_value=str(v_match.qty),
-                            confidence=0.75,
+                            confidence=None,
                             extractor="openai_vision",
                             verification_state="model_proposed",
                             review_reason=f"Conflicting line quantity proposed by Vision AI ({v_match.qty}) against OCR ({o_line.qty})",
@@ -489,7 +493,6 @@ class VisionReconciler:
                                 "CELL_MERGE_SUSPECTED",
                             )
                         ]
-                        dynamic_conf = round(min(0.88, 0.70 + (match_score / 150.0) * 0.18), 4)
                         o_line = o_line.model_copy(
                             update={
                                 "qty": v_match.qty,
@@ -504,7 +507,7 @@ class VisionReconciler:
                                 source_kind="vision_llm",
                                 raw_value=str(v_match.qty),
                                 normalized_value=str(v_match.qty),
-                                confidence=dynamic_conf,
+                                confidence=None,
                                 extractor="openai_vision",
                                 verification_state="arithmetically_consistent",
                                 review_reason="Recovered missing quantity validated by arithmetic consistency",
@@ -523,7 +526,7 @@ class VisionReconciler:
                                 source_kind="vision_llm",
                                 raw_value=str(v_match.qty),
                                 normalized_value=str(v_match.qty),
-                                confidence=0.65,
+                                confidence=None,
                                 extractor="openai_vision",
                                 verification_state="model_proposed",
                                 review_reason="Vision quantity failed line arithmetic check",

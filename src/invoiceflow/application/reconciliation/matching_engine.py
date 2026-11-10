@@ -93,7 +93,6 @@ class MatchingEngine:
         # Build index of PO lines
         po_lines_by_id = {line.id: line for line in po.lines}
         po_lines_by_sku = {line.sku: line for line in po.lines if line.sku}
-        po_lines_by_no = {line.line_no: line for line in po.lines}
 
         # Build index of total received qty per PO line across all GRNs
         received_qty_by_po_line: dict = {}
@@ -102,7 +101,9 @@ class MatchingEngine:
                 for grn_line in grn.lines:
                     po_line_id = grn_line.po_line_id
                     current = received_qty_by_po_line.get(po_line_id, Decimal("0.0000"))
-                    received_qty_by_po_line[po_line_id] = current + grn_line.received_qty
+                    # Rejected goods were returned; they cannot be invoiced as received.
+                    accepted = grn_line.received_qty - grn_line.rejected_qty
+                    received_qty_by_po_line[po_line_id] = current + accepted
 
         has_price_variance = False
         has_qty_variance = False
@@ -126,21 +127,11 @@ class MatchingEngine:
             elif inv_line.sku_ref and inv_line.sku_ref in po_lines_by_sku:
                 matched_po_line = po_lines_by_sku[inv_line.sku_ref]
             else:
-                # Text token similarity match on description
-                inv_tokens = set(re.findall(r"\w+", inv_line.description.lower()))
-                best_sim = 0.0
-                best_cand = None
-                for candidate_po_line in po.lines:
-                    po_tokens = set(re.findall(r"\w+", candidate_po_line.description.lower()))
-                    if inv_tokens and po_tokens:
-                        sim = len(inv_tokens & po_tokens) / len(inv_tokens | po_tokens)
-                        if sim > best_sim:
-                            best_sim = sim
-                            best_cand = candidate_po_line
-                if best_cand and best_sim >= 0.50:
-                    matched_po_line = best_cand
-                elif inv_line.line_no in po_lines_by_no:
-                    matched_po_line = po_lines_by_no[inv_line.line_no]
+                # No positional fallback: a line that matches no PO line by reference, SKU or
+                # an unambiguous description goes to review instead of borrowing line N.
+                matched_po_line = _match_by_description(
+                    inv_line.description, po.lines, policy.line_description_min_similarity
+                )
 
             if not matched_po_line:
                 issues.append(
@@ -276,3 +267,23 @@ class MatchingEngine:
             requires_review=requires_review,
             issues=issues,
         )
+
+
+def _match_by_description(
+    description: str, po_lines: List[POLine], min_similarity: Decimal
+) -> Optional[POLine]:
+    """Best token-Jaccard PO line, or None when below the policy minimum or tied."""
+    inv_tokens = set(re.findall(r"\w+", description.lower()))
+    if not inv_tokens:
+        return None
+    scored = []
+    for po_line in po_lines:
+        po_tokens = set(re.findall(r"\w+", po_line.description.lower()))
+        if po_tokens:
+            scored.append((len(inv_tokens & po_tokens) / len(inv_tokens | po_tokens), po_line))
+    scored.sort(key=lambda item: item[0], reverse=True)
+    if not scored or scored[0][0] < float(min_similarity):
+        return None
+    if len(scored) > 1 and scored[1][0] == scored[0][0]:
+        return None
+    return scored[0][1]

@@ -47,10 +47,8 @@ class GeminiAdapter(LLMProviderPort):
         if not self._client:
             raise RuntimeError("Gemini API client is not configured or missing API key.")
 
-        prompt = (
-            f"{INVOICE_EXTRACTION_SYSTEM_PROMPT}\n\nDOCUMENT CONTENT TO EXTRACT:\n{document_text}\n"
-        )
-        contents = [prompt]
+        # Instructions go in system_instruction; the untrusted document is user content only.
+        contents = [f"DOCUMENT CONTENT TO EXTRACT:\n{document_text}\n"]
         if image_bytes:
             from google.genai import types
 
@@ -60,6 +58,7 @@ class GeminiAdapter(LLMProviderPort):
             model=self.model_id,
             contents=contents,
             config={
+                "system_instruction": INVOICE_EXTRACTION_SYSTEM_PROMPT,
                 "response_mime_type": "application/json",
             },
         )

@@ -38,6 +38,10 @@ class TolerancePolicy(BaseModel):
     goods_receipt_required: bool = Field(
         default=True, description="Three-way match: invoiced quantities must be received"
     )
+    line_description_min_similarity: Decimal = Field(
+        default=Decimal("0.5000"),
+        description="Minimum token similarity to match an invoice line to a PO line by text",
+    )
     effective_from: date = Field(default_factory=lambda: datetime.now(timezone.utc).date())
 
     @field_validator(
@@ -45,6 +49,7 @@ class TolerancePolicy(BaseModel):
         "qty_tolerance_pct",
         "max_amount_delta",
         "auto_approve_threshold",
+        "line_description_min_similarity",
         mode="before",
     )
     @classmethod
