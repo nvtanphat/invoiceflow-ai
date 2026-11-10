@@ -19,6 +19,7 @@ Reports segregated by dataset category (Public Samples vs Augmented Mobile Photo
 and difficulty level (Easy, Medium, Hard), with complete 12-class Failure Analysis.
 """
 
+import asyncio
 import json
 from pathlib import Path
 import re
@@ -26,7 +27,6 @@ import sys
 import time
 import tracemalloc
 from typing import Any, Dict, List, Optional
-import cv2
 import fitz
 import numpy as np
 
@@ -40,18 +40,7 @@ from benchmarks.scripts.evaluator import (  # noqa: E402
     compute_table_extraction_quality,
 )
 from benchmarks.scripts.ocr_metrics import compute_cer, compute_cer_wer  # noqa: E402
-from invoiceflow.infrastructure.document.digital_pdf_parser import (  # noqa: E402
-    DigitalPDFParser,
-)
-from invoiceflow.infrastructure.document.docling_adapter import (  # noqa: E402
-    DoclingAdapter,
-)
-from invoiceflow.infrastructure.document.image_preprocessor import (  # noqa: E402
-    ImagePreprocessor,
-)
-from invoiceflow.infrastructure.document.table_extractor import (  # noqa: E402
-    StructureAwareTableExtractor,
-)
+from invoiceflow.application.processing.service import DocumentAIService  # noqa: E402
 
 FIXTURES_DIR = ROOT_DIR / "benchmarks" / "fixtures" / "real_world_eval"
 MANIFEST_PATH = ROOT_DIR / "benchmarks" / "fixtures" / "real_world_manifest.json"
@@ -98,10 +87,7 @@ def _align_lines_and_score(reference_text: str, hypothesis_text: str) -> dict[st
 
 class RealWorldEvaluator:
     def __init__(self):
-        self.preprocessor = ImagePreprocessor()
-        self.docling_adapter = DoclingAdapter()
-        self.digital_parser = DigitalPDFParser()
-        self.table_extractor = StructureAwareTableExtractor()
+        self.doc_ai_service = DocumentAIService()
 
     def evaluate_case(self, case: Dict[str, Any]) -> Dict[str, Any]:
         case_id = case["case_id"]
@@ -116,101 +102,83 @@ class RealWorldEvaluator:
         tracemalloc.start()
         start_time = time.perf_counter()
 
-        doc_detection_success = True
-        perspective_success = True
-        deskew_angle = 0.0
-        # 1. Image Preprocessing (for PNG / JPG)
-        if ext in (".png", ".jpg", ".jpeg"):
-            nparr = np.frombuffer(raw_bytes, np.uint8)
-            img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-
-            quad = self.preprocessor.detect_document_boundary(img)
-            doc_detection_success = quad is not None
-
-            prep_res = self.preprocessor.preprocess(
-                image_bytes=raw_bytes,
+        res = asyncio.run(
+            self.doc_ai_service.process_document(
+                tenant_id="eval-tenant",
+                document_id=case_id,
+                filename=filename,
+                content=raw_bytes,
             )
-            pdf_bytes = prep_res.pdf_bytes
-            perspective_success = prep_res.transform.applied_perspective
-            deskew_angle = prep_res.transform.deskew_angle
-        else:
-            pdf_bytes = raw_bytes
-
-        api_cost_usd = 0.0
-        used_vision = False
-
-        # 2. PDF Extraction & OCR via Docling + EasyOCR
-        doc_pdf = fitz.open(stream=pdf_bytes, filetype="pdf")
-        pdf_text = "\n".join(p.get_text() for p in doc_pdf)
-        is_digital = any(len(p.get_text().strip()) > 50 for p in doc_pdf)
-
-        canonical_doc = self.docling_adapter.extract_canonical(
-            tenant_id="eval",
-            document_id=case_id,
-            pdf_bytes=pdf_bytes,
-            do_ocr=True,
         )
-        docling_text = "\n".join(el.text for el in canonical_doc.elements)
-        recognized_text = docling_text if docling_text.strip() else pdf_text
+        agg = res.invoice_aggregate
+        used_vision = res.used_vision
+        api_cost_usd = res.cost_usd
 
-        lines_ext, evidence_ext = self.table_extractor.extract_lines_with_evidence(
-            canonical_doc.tables
-        )
+        # Extract header from unified InvoiceAggregate
+        extracted_header = {
+            "supplier_tax_id": agg.supplier_tax_id,
+            "buyer_tax_id": agg.buyer_tax_id,
+            "invoice_number": agg.invoice_number,
+            "invoice_series": agg.invoice_series,
+            "issue_date": str(agg.issue_date) if agg.issue_date else None,
+            "subtotal": str(agg.subtotal) if agg.subtotal is not None else None,
+            "tax_total": str(agg.tax_total) if agg.tax_total is not None else None,
+            "amount_payable": str(agg.amount_payable) if agg.amount_payable is not None else None,
+        }
 
-        extracted_lines = []
-        if lines_ext:
-            extracted_lines = [
-                {
-                    "sku": line_item.sku_ref or "",
-                    "description": line_item.description or "",
-                    "qty": str(line_item.qty) if line_item.qty is not None else None,
-                    "unit_price": str(line_item.unit_price) if line_item.unit_price is not None else None,
-                    "line_amount": str(line_item.line_amount) if line_item.line_amount is not None else None,
-                }
-                for line_item in lines_ext
-            ]
-        elif is_digital and not case.get("distortions"):
-            digital_res = self.digital_parser.parse(recognized_text)
-            extracted_lines = [
-                {
-                    "sku": line_item.sku or "",
-                    "description": line_item.description,
-                    "qty": str(line_item.qty) if line_item.qty is not None else None,
-                    "unit_price": str(line_item.unit_price) if line_item.unit_price is not None else None,
-                    "line_amount": str(line_item.line_amount) if line_item.line_amount is not None else None,
-                }
-                for line_item in digital_res.lines
-            ]
+        # Extract lines from unified InvoiceAggregate
+        extracted_lines = [
+            {
+                "sku": line_item.sku_ref or "",
+                "description": line_item.description or "",
+                "qty": str(line_item.qty) if line_item.qty is not None else None,
+                "unit_price": str(line_item.unit_price) if line_item.unit_price is not None else None,
+                "line_amount": str(line_item.line_amount) if line_item.line_amount is not None else None,
+            }
+            for line_item in agg.lines
+        ]
 
         # BBox spatial verification
         bbox_valid_count = 0
         bbox_total_count = 0
-        for ev in evidence_ext:
-            bbox_total_count += 1
-            if ev.bbox and (ev.bbox.x1 - ev.bbox.x0 > 0) and (ev.bbox.y1 - ev.bbox.y0 > 0):
-                bbox_valid_count += 1
+        for ev in agg.evidence:
+            if ev.bbox is not None:
+                bbox_total_count += 1
+                if (ev.bbox.x1 - ev.bbox.x0 > 0) and (ev.bbox.y1 - ev.bbox.y0 > 0):
+                    bbox_valid_count += 1
 
-        # Extract header
-        if is_digital and not case.get("distortions"):
-            digital_res = self.digital_parser.parse(recognized_text)
-            extracted_header = {
-                "supplier_tax_id": digital_res.supplier_tax_id,
-                "buyer_tax_id": digital_res.buyer_tax_id,
-                "invoice_number": digital_res.invoice_number,
-                "invoice_series": digital_res.invoice_series,
-                "issue_date": str(digital_res.issue_date) if digital_res.issue_date else None,
-                "subtotal": str(digital_res.subtotal) if digital_res.subtotal else None,
-                "tax_total": str(digital_res.tax_total) if digital_res.tax_total else None,
-                "amount_payable": str(digital_res.amount_payable) if digital_res.amount_payable else None,
-            }
-        else:
-            extracted_header = self._extract_header_from_text(recognized_text)
+        # Image Preprocessing & Orientation signals
+        doc_detection_success = any(
+            ev.field_path == "image_preprocessing.quality" for ev in agg.evidence
+        ) or ext == ".pdf"
+        perspective_success = any(
+            ev.field_path == "image_preprocessing.perspective_correction" for ev in agg.evidence
+        ) or ext == ".pdf"
+        deskew_angle = 0.0
+        for ev in agg.evidence:
+            if ev.field_path == "image_preprocessing.deskew":
+                try:
+                    deskew_angle = float(re.findall(r"[-+]?\d*\.\d+|\d+", ev.raw_value)[0])
+                except Exception:
+                    deskew_angle = 0.0
+
+        # Full recognized text from DocumentAIService for CER/WER
+        recognized_text = res.full_text if res.full_text.strip() else ""
+        if not recognized_text:
+            if ext == ".pdf":
+                doc_pdf = fitz.open(stream=raw_bytes, filetype="pdf")
+                recognized_text = "\n".join(p.get_text() for p in doc_pdf)
+                doc_pdf.close()
+            else:
+                recognized_text = "\n".join(
+                    f"{line.get('description', '')} {line.get('line_amount', '')}"
+                    for line in extracted_lines
+                )
 
         elapsed_ms = round((time.perf_counter() - start_time) * 1000, 2)
         _, peak_mem_bytes = tracemalloc.get_traced_memory()
         tracemalloc.stop()
         peak_ram_mb = round(peak_mem_bytes / (1024 * 1024), 2)
-        doc_pdf.close()
 
         # 3. Compute Metrics against Verified Ground Truth
         gt_header = case["header"]

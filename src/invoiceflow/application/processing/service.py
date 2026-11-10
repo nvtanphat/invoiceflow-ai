@@ -58,6 +58,7 @@ class DocumentAIResult:
     latency_ms: float = 0.0
     raw_header: dict[str, Any] = field(default_factory=dict)
     raw_lines: list[dict[str, Any]] = field(default_factory=list)
+    full_text: str = ""
 
 
 class DocumentAIService:
@@ -191,6 +192,7 @@ class DocumentAIService:
             cost_usd=0.0,
             raw_header=raw_header,
             raw_lines=raw_lines,
+            full_text=content.decode("utf-8", errors="ignore"),
         )
 
     async def _process_image(
@@ -733,6 +735,7 @@ class DocumentAIService:
             cost_usd=cost_usd,
             raw_header=raw_header,
             raw_lines=raw_lines,
+            full_text=full_text,
         )
 
 

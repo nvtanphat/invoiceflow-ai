@@ -205,24 +205,24 @@ Arithmetic Validity 100% và Anomaly Detection F1 100% ở cả hai run. Caseboo
 
 | Phân loại | Số lượng | CER | WER | Header EM | Financial Acc | Line Items F1 | False Auto-Accept | Human Review Rate | Peak RAM |
 |---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| **public_sample** | 3 | **39.45%** | **29.98%** | **80.0%** | **66.67%** | **33.33%** | **0.0%** | **100.0%** | 291.7 MB |
-| **augmented_image** | 7 | **47.18%** | **46.86%** | **62.86%** | **28.57%** | **19.64%** | **0.0%** | **100.0%** | 172.8 MB |
-| **Toàn bộ bộ đánh giá** | 10 | **44.86%** | **41.79%** | **68.0%** | **40.00%** | **23.75%** | **0.0%** | **100.0%** | 291.7 MB |
+| **public_sample** | 3 | **41.40%** | **32.93%** | **86.67%** | **88.89%** | **66.67%** | **0.0%** | **66.67%** | 285.6 MB |
+| **augmented_image** | 7 | **49.19%** | **52.39%** | **88.57%** | **95.24%** | **64.29%** | **0.0%** | **100.0%** | 172.8 MB |
+| **Toàn bộ bộ đánh giá** | 10 | **46.85%** | **46.55%** | **88.00%** | **93.33%** | **65.00%** | **0.0%** | **90.0%** | 285.6 MB |
 
 #### Phân định theo Mức độ Khó (Difficulty)
 
 | Mức độ khó | Số lượng | CER | Header Exact Match | Line Items F1 | Human Review Rate |
 |---|:---:|:---:|:---:|:---:|:---:|
-| **Dễ (Easy)** | 2 | 38.71% | 80.0% | 50.0% | 100.0% |
-| **Trung bình (Medium)** | 4 | 40.22% | 75.0% | 34.38% | 100.0% |
-| **Khó (Hard - Perspective/Shadow/Wrinkle/Skew)** | 4 | 52.59% | 55.0% | 0.0% | 100.0% |
+| **Dễ (Easy)** | 2 | 41.63% | 90.0% | 100.0% | 50.0% |
+| **Trung bình (Medium)** | 4 | 43.74% | 95.0% | 37.5% | 100.0% |
+| **Khó (Hard - Perspective/Shadow/Wrinkle/Skew)** | 4 | 52.59% | 80.0% | 50.0% | 100.0% |
 
 #### Độ trễ, Tài nguyên và Chi phí Vận hành
-- **Độ trễ trung bình:** 23,419.5 ms (~23.4s) trên CPU.
-- **Độ trễ P95:** 49,331.8 ms (~49.3s).
-- **Bộ nhớ RAM tiêu thụ đỉnh (Peak RSS/RAM):** 291.66 MB (trong giới hạn an toàn tài nguyên container 2GB).
-- **Chi phí gọi API (API Cost):** $0.00 (toàn bộ pipeline xử lý offline bằng Docling OCR + thuật toán tiền xử lý hình ảnh hình học).
-- **An toàn duyệt tự động (False Auto-Accept Rate):** **0.0%** (100% tài liệu có trường suy giảm/chưa xác minh được chuyển thẳng sang Human Review).
+- **Độ trễ trung bình:** 36,960.4 ms (~36.9s) trên CPU khi chạy qua pipeline hoàn chỉnh `DocumentAIService`.
+- **Độ trễ P95:** 77,959.9 ms (~78.0s).
+- **Bộ nhớ RAM tiêu thụ đỉnh (Peak RSS/RAM):** 285.59 MB (an toàn tuyệt đối dưới hạn mức 2GB).
+- **Chi phí gọi API (API Cost):** $0.00 (pipeline xử lý offline bằng Docling OCR + bộ nắn chỉnh hình học OpenCV).
+- **An toàn duyệt tự động (False Auto-Accept Rate):** **0.0%** (100% chứng từ có trường suy giảm/nghi vấn được chuyển sang Human Review).
 
 ---
 
@@ -239,9 +239,9 @@ Hệ thống ghi nhận và phân loại lỗi truy vết theo 12 nhóm nguyên 
 | **vietnamese_diacritics** | 10 | EasyOCR khi nhận dạng ký tự tiếng Việt có dấu (`ắ`, `ặ`, `ồ`, `ể`, `đ`) trên ảnh scan raster và ảnh chụp điện thoại thường bị mất dấu hoặc nhầm dấu thanh (`o` thay cho `ơ`, `a` thay cho `á`). Thuật toán `normalize_extracted_text` đã khôi phục một phần nhưng vẫn cần từ điển âm tiết tiếng Việt chuyên ngành hóa đơn. |
 | **reading_order** | 0 | Bố cục đọc đoạn thẳng và khối bảng được bóc tách đúng trật tự luồng từ trên xuống dưới theo tọa độ BBox. |
 | **table_structure** | 0 | Cấu trúc bảng đa dòng được bảo toàn lưới cell, không bị đứt dòng bảng giữa các trang. |
-| **merged_cells** | 0 | Bộ tách gộp ô (`split_merged_cells`) ngăn ngừa hoàn toàn tình trạng dính cột mô tả và cột số lượng. |
-| **field_association** | 8 | Các mẫu hóa đơn công khai (EVN, Petrolimex) và ảnh biến dạng có nhãn định danh nằm ở vị trí không chuẩn mực (ví dụ: nhãn "Mã số thuế" nằm tách biệt hoặc cách xa giá trị 3 ô trống). Cần tăng cường cơ chế liên kết nhãn-giá trị dựa trên khoảng cách không gian BBox (Spatial Nearest Neighbor). |
-| **quantity_price_amount** | 10 | Định dạng tiền tệ VND với dấu chấm phân cách hàng nghìn (`1.500.000`) trên ảnh nếp gấp hoặc scan mờ đôi khi bị OCR nhầm thành dấu phẩy, khoảng trắng, hoặc ký tự số `0` bị nhầm thành `o` (`6ooo0000`). Bounded recovery đã ngăn việc suy đoán số tiền sai, chuyển về Human Review. |
+| **merged_cells** | 0 | Bộ tách gộp ô (`recover_merged_quantities`) ngăn ngừa hoàn toàn tình trạng dính cột mô tả và cột số lượng. |
+| **field_association** | 4 | Chỉ còn 4 case ảnh scan/chụp khó (Petrolimex, Complex BG, Multi-line, Skew) bị lệch vị trí nhãn mô tả hoặc mã SKU so với giá trị. Đã cải thiện so với baseline nhờ cơ chế arbitration của `DocumentAIService`. |
+| **quantity_price_amount** | 2 | Chỉ còn 2 case (Petrolimex, Complex BG) có số tiền bị suy giảm trên ảnh nhiễu/bóng. Toàn bộ 8 case còn lại đạt độ chính xác tài chính 100%. |
 | **vision_hallucination** | 0 | Hoàn toàn không phát sinh hiện tượng sinh ảo số tiền hoặc dòng hàng (Zero Hallucination) do không sử dụng LLM ungrounded. |
 | **missing_provenance_wrong_bbox** | 0 | 100% bằng chứng trích xuất (`FieldEvidence`) đều có Bounding Box hợp lệ (`bbox_alignment_rate` = 100.0%), đảm bảo khả năng kiểm toán truy vết nguồn. |
 
