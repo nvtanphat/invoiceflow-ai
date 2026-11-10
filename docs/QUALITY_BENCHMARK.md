@@ -122,33 +122,55 @@ Hệ thống đánh giá chất lượng được phân định minh bạch thà
 
 ### 4.2. Tier B — Final Reconciled Document AI Quality (post-Reconciliation)
 
-> **Môi trường:** Pipeline ứng dụng hoàn chỉnh kết hợp Docling OCR + OpenAIAdapter (`gpt-6.1-sol` qua proxy) + Multi-Factor Line Matching + 3-Way Reconciliation.
-> **Lệnh kiểm chứng:** `python scripts/run_application_qa.py`
+> **Môi trường:** Pipeline ứng dụng hoàn chỉnh kết hợp Docling OCR + OpenAIAdapter (`gpt-6.1-sol` qua proxy) + Multi-Factor Line Matching + 3-Way Reconciliation. CPU-only, Windows 11, 16 GB RAM.
+> **Lệnh kiểm chứng:** `python scripts/run_application_qa.py --output <đường dẫn ngoài repo>/run.json` — artifact ghi `run_id`, git SHA (+ dirty), `manifest_sha256` của casebook, provider/model, và theo từng case: route, Vision, chi phí, độ trễ, peak RSS, trường lệch, lý do chưa qua gate `EXTRACTION_VERIFIED`. Artifact là local output, **không commit**.
+> **Run hiện hành:** `20261110T001842Z-e6714926` (baseline so sánh: `20261109T234523Z-bfa927a8`, cùng `manifest_sha256` `d32a2c7e…`).
 
-| Case ID | Loại chứng từ | Kết quả | Header Match | Line Items F1 | Độ trễ xử lý |
-|---|---|:---:|:---:|:---:|---:|
-| **CASE-01-XML-STANDARD** | `xml_standard` | **PASS** | 100.0% | 100.0% | 15.2 ms |
-| **CASE-02-PDF-DIGITAL** | `pdf_digital` | **PASS** | 100.0% | 100.0% | 14,743.4 ms |
-| **CASE-03-PDF-SCAN** | `pdf_scan` | **PASS** | 81.8% | 100.0% | 19,869.1 ms |
-| **CASE-04-DISCREPANCY-PRICE** | `discrepancy_price` | **PASS** | 100.0% | 100.0% | 1,912.0 ms |
-| **CASE-05-DISCREPANCY-QTY** | `discrepancy_qty` | **PASS** | 100.0% | 100.0% | 0.9 ms |
-| **CASE-06-PDF-MULTI-LINE** | `pdf_digital_table` | **PASS** | 100.0% | 100.0% | 2,404.2 ms |
-| **CASE-07-PDF-ROTATED-SCAN** | `pdf_scan_rotated` | **PASS** | 81.8% | 100.0% | 17,156.2 ms |
-| **CASE-08-PDF-COMPLEX-AMOUNTS** | `pdf_digital_numeric` | **PASS** | 100.0% | 100.0% | 1,930.8 ms |
-| **CASE-09-PDF-MIXED** | `pdf_mixed` | **PASS** | 100.0% | 100.0% | 16,236.3 ms |
-| **CASE-10-PDF-SCAN-TABLE** | `pdf_scan_table` | **PASS** | 81.8% | 100.0% | 31,871.7 ms |
+| Case ID | Route | Header Match | Line Items F1 | Qua gate extraction (số lý do chặn) | Vision | Độ trễ |
+|---|---|:---:|:---:|:---:|:---:|---:|
+| **CASE-01-XML-STANDARD** | xml_deterministic | 100.0% | 100.0% | Có | — | 5.1 ms |
+| **CASE-02-PDF-DIGITAL** | pdf_digital | 100.0% | 100.0% | Có | — | 16,771.4 ms |
+| **CASE-03-PDF-SCAN** | docling_ocr_structured | 100.0% | 100.0% | Không (3) | — | 19,487.0 ms |
+| **CASE-04-DISCREPANCY-PRICE** | pdf_digital | 100.0% | 100.0% | Không (1) | — | 1,791.3 ms |
+| **CASE-05-DISCREPANCY-QTY** | xml_deterministic | 100.0% | 100.0% | Có | — | 2.3 ms |
+| **CASE-06-PDF-MULTI-LINE** | pdf_digital | 100.0% | 100.0% | Không (1) | — | 2,580.2 ms |
+| **CASE-07-PDF-ROTATED-SCAN** | docling_ocr_structured | 100.0% | 100.0% | Không (3) | — | 16,345.5 ms |
+| **CASE-08-PDF-COMPLEX-AMOUNTS** | pdf_digital | 100.0% | 100.0% | Có | — | 1,845.8 ms |
+| **CASE-09-PDF-MIXED** | docling_ocr_structured | 100.0% | 100.0% | Không (3) | — | 16,459.8 ms |
+| **CASE-10-PDF-SCAN-TABLE** | docling_ocr_structured | 100.0% | 100.0% | Không (3) | Có | 33,026.9 ms |
 
 > [!IMPORTANT]
-> **Cơ chế phục hồi CASE-10 tại Tier B:** Số lượng dòng 2 (`5.0000`) được đề xuất bởi Vision AI qua thuật toán ghép cặp đa tiêu chí (Multi-Factor Line Matching), được kiểm tra số học nghiêm ngặt (`5.0000 × 2,000,000 = 10,000,000 VND`), gán trạng thái kiểm chứng `arithmetically_consistent` kèm độ tin cậy động (calibrated confidence = 0.844) thay vì hardcode 0.95.
+> **CASE-10:** OCR đọc nhầm `0` thành `o` ở tiền hàng/tổng cộng (`6ooo0000.0000`); số tiền dính ký tự được coi là **không đọc được** (không cắt thành `6`), Vision điền giá trị và mang trạng thái `model_proposed`. Số lượng dòng 2 do Vision đề xuất cũng là `model_proposed`: khớp số học của chính đầu ra model **không** được coi là xác minh, và không ghi confidence tự báo của LLM.
+>
+> **Lý do chặn còn lại (03/04/06/07/09):** dòng hàng đọc từ text dạng "So luong: … Don gia: …" chưa được định vị theo hàng (qty/thành tiền không có evidence nguồn). Đây là việc của targeted recovery, không nới gate.
 
-### Tổng hợp chỉ số toàn hệ thống (Tier B):
+### Tổng hợp chỉ số (run `20261110T001842Z-e6714926` so với baseline `20261109T234523Z-bfa927a8`)
 
-- **Tỷ lệ vượt qua nghiệm thu (Overall Pass Rate):** **10/10 chứng từ (100.0%)**
-- **Độ chính xác thông tin chung (Overall Header Match):** **94.5%**
-- **Độ chính xác dòng hàng (Overall Line Items F1):** **100.0%**
-- **Tính hợp lệ số học (Arithmetic Validity Rate):** **100.0% (Không có bất kỳ sai số số học nào)**
-- **Phát hiện chênh lệch đối soát (Anomaly Detection F1):** **100.0% (Nhận diện chính xác 100% lệch giá và lệch lượng)**
-- **Thời gian xử lý trung bình toàn pipeline:** **10,614.0 ms**
+| Chỉ số | Baseline | Hiện hành |
+|---|---:|---:|
+| Header Exact Match | 96.4% | **100.0%** |
+| Line Items F1 | 100.0% | 100.0% |
+| Case qua gate `EXTRACTION_VERIFIED` | 2/10 | **4/10** |
+| Độ trễ trung bình / tối đa | 11,424 / 32,901 ms | 10,832 / 33,027 ms |
+| Lần gọi Vision / chi phí | 1 / $0.000813 | 1 / $0.000822 |
+| Peak RSS (tiến trình) | 4,944 MB | 5,258 MB (chưa xác định do code hay dao động EasyOCR/Docling) |
+
+### Recovery & review (run `20261110T010304Z-2ed8dd1d`, cùng manifest)
+
+Bounded recovery (tách số lượng khỏi ô gộp, định vị dòng hàng bố cục text) nâng số case qua gate `EXTRACTION_VERIFIED` từ 4/10 lên **9/10**; Header/Line F1 giữ 100%, Vision 1 lần ($0.000803), độ trễ trung bình 11,591 ms. CASE-10 còn đúng 3 trường cần người quyết định (subtotal/amount_payable/qty dòng 2 do Vision đề xuất).
+
+| Chỉ số (chính sách đo: bật auto-approval, ngưỡng mặc định) | Giá trị |
+|---|---:|
+| STP rate (hệ thống duyệt) | 0% |
+| Review rate | 100% |
+| False auto-accept | 0 |
+| Case qua gate `MATCHING_CLEARED` | 0/10 |
+| Trường cần review trung bình / case review | 0.3 |
+
+> [!WARNING]
+> **STP 0% là do dữ liệu, không phải do pipeline:** MST người bán `0101234567` trong casebook sai checksum Mod-11, nên validator cảnh báo `TAX_ID_CHECKSUM_WARNING` và gate matching không clear kể cả khi khớp PO chính xác (CASE-01, CASE-08); CASE-04/05 bị chặn đúng vì lệch giá/lượng. Không sửa ground truth của bộ đã đóng băng; để đo STP có ý nghĩa cần phiên bản casebook mới (MST hợp lệ, `manifest_sha256` mới) và dữ liệu có nhãn thực tế. Correction rate chưa đo được vì chưa có dữ liệu chỉnh sửa của người dùng.
+
+Arithmetic Validity 100% và Anomaly Detection F1 100% ở cả hai run. Casebook là dữ liệu tổng hợp 10 chứng từ: không có ý nghĩa thống kê cho mọi hóa đơn Việt Nam.
 
 ---
 

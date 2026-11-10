@@ -134,11 +134,19 @@ Chỉ **application service** giao tiếp với nhiều port để phối hợp;
    - **Continuation rows:** Tự động phát hiện các dòng bảng phụ chỉ chứa thông tin mô tả chi tiết hoặc bảo hành, gộp vào dòng cha liền trước thay vì tạo dòng rác.
    - **Tính nhất quán số học nội tại:** Kiểm tra điều kiện `Qty * UnitPrice == LineAmount` cho từng dòng hàng; nếu không khớp, đánh cờ nghi vấn thay vì tự ý điều chỉnh số liệu tài chính.
    - **Bảo toàn nguồn gốc tế bào (Cell-level Provenance):** Mọi dòng hàng trích xuất đều lưu giữ liên kết 1-1 tới danh sách cell nguồn kèm `BoundingBox` tọa độ trang gốc.
-5. **Context-Aware Numeric Parsing & Ambiguity Disambiguation:**
+5. **Header totals & evidence grounding:**
+   - Tổng tiền đọc theo từ vựng nhãn không dấu (`domain/invoices/field_labels.py`, `infrastructure/document/totals_extractor.py`): chịu được nhiều tổng trên một dòng OCR, lấy lần xuất hiện cuối (khối tổng kết), số dính ký tự (`6ooo0000`) là không đọc được. Không tìm thấy → issue `<FIELD>_NOT_FOUND` và verifier gán `MISSING` (giá trị 0 mặc định không bao giờ được coi là đã đọc).
+   - `EvidenceMapper` định vị **mọi** trường header trong CDR theo giá trị (tiền theo Decimal qua định dạng VN/US, ngày qua nhiều định dạng in), ưu tiên phần tử mang nhãn của trường. Không định vị được → evidence `UNCERTAIN`, không bbox, `review_reason=no_direct_text_match`; không bao giờ trình bày như nguồn đã định vị.
+   - Giá trị Vision luôn có evidence `vision_llm` (`model_proposed`), không ghi confidence tự báo của LLM.
+   - Route ảnh: OCR chạy trên ảnh đã xử lý; bbox evidence được map ngược qua tỷ lệ trang PDF → deskew → perspective về **pixel ảnh gốc** (`coordinate_system=pixels`, kích thước ảnh gốc) vì viewer hiển thị ảnh gốc đã lưu.
+   - **Bounded recovery trước Vision** (`application/processing/line_evidence_recovery.py`): (1) số lượng bị TableFormer gộp vào cuối ô mô tả chỉ được tách khi con số in trong ô và `qty × đơn giá − chiết khấu = thành tiền` (table extractor vẫn không tự đoán); (2) dòng hàng bố cục text được định vị trong khối của chính dòng đó (từ phần tử chứa SKU/mô tả đến dòng kế tiếp hoặc khối tổng kết, tối đa 4 phần tử) theo nhãn `field_labels.LINE_LABELS`; (3) thành tiền **không in** trên dòng chỉ được suy ra (`arithmetic_derivation`) khi qty và đơn giá đã định vị và tổng dòng khớp tiền hàng in trên chứng từ — gate chỉ chấp nhận nguồn này cho `line_amount`. Vision gọi tối đa 1 lần/tài liệu theo ngân sách; không dùng LLM để xác minh LLM.
+   - Khác biệt định dạng (MST có khoảng trắng, ngày `dd/mm/yyyy`, `ngày … tháng … năm …`) được chuẩn hóa trước khi so OCR với Vision; ngày Vision không parse được không được điền (issue `VISION_ISSUE_DATE_UNPARSEABLE`).
+   - **Review theo trường:** `evidence_gate.review_items` liệt kê đúng các trường chặn STP; reviewer giải quyết từng trường (`accept_extracted` / `accept_candidate` / `correct`) qua CAS revision + audit. Candidate bị bác ghi `human_rejected`, được chọn ghi `human_approved`; không còn thao tác "giải quyết tất cả xung đột" hàng loạt.
+6. **Context-Aware Numeric Parsing & Ambiguity Disambiguation:** (`domain/documents/value_parsing.py`, một implementation dùng chung)
    - Phân giải dấu chấm phân cách hàng nghìn (`12.000.000`) và dấu phẩy thập phân theo thói quen kế toán Việt Nam.
    - Khi gặp giá trị gây mơ hồ ngữ cảnh (như `5,500` không có ngữ cảnh đơn giá/thành tiền rõ ràng), gán mã cảnh báo `AMBIGUOUS_NUMBER` để đưa vào luồng kiểm duyệt nhân sự, tuyệt đối không tự bịa giá trị.
-6. **Mixed PDF & Orientation Handling:** per-page route và hợp nhất thứ tự/trang đúng; tự động nhận diện góc xoay 90/180/270 độ và xử lý OCR thích ứng. `page_index` 0-based trong API, frontend hiển thị 1-based.
-7. **XML + PDF paired:** liên kết bằng business key có kiểm chứng và checksum; so field tương ứng, mismatch thành review issue. Không ghi đè XML bằng OCR không căn cứ.
+7. **Mixed PDF & Orientation Handling:** per-page route và hợp nhất thứ tự/trang đúng; tự động nhận diện góc xoay 90/180/270 độ và xử lý OCR thích ứng. `page_index` 0-based trong API, frontend hiển thị 1-based.
+8. **XML + PDF paired:** liên kết bằng business key có kiểm chứng và checksum; so field tương ứng, mismatch thành review issue. Không ghi đè XML bằng OCR không căn cứ.
 
 ### Canonical Document Representation (CDR)
 
@@ -206,6 +214,10 @@ Any non-terminal stage -> FAILED_PERMANENT / NEEDS_INPUT / WAITING_PROVIDER
 - Retry chỉ lỗi tạm thời (`429`, `5xx`, network reset, object store transient), exponential backoff + jitter và giới hạn; invalid schema/file/policy → permanent/review. Không retry vô tận; không timeout rồi gửi lại provider không giới hạn cost.
 - `WAITING_PROVIDER` không phải `COMPLETED` giả. Reconcile stuck jobs khi restart; message trùng phải an toàn.
 - Review: `If-Match` hoặc `expected_revision`; đã đổi bản ghi thì HTTP `409 CONFLICT`, yêu cầu tải lại; audit actor/time/old/new/reason và mối liên hệ với source.
+- **Ba quyết định tách biệt** (`application/reconciliation/stp_evaluator.py`, evidence rules ở `domain/invoices/evidence_gate.py`): `EXTRACTION_VERIFIED` (mọi trường trọng yếu có evidence nguồn tất định hoặc `human_approved`; không MISSING/UNCERTAIN/INVALID/CONFLICT/MODEL_PROPOSED; giá trị Vision không được tự xác minh bằng số học) → `MATCHING_CLEARED` (match report đã clear; thiếu PO chỉ được chấp nhận khi `po_required=false` và không còn issue khác) → `ACCOUNTING_APPROVED` (chỉ khi policy `auto_approval_enabled=true` và dưới `auto_approve_threshold`). Hệ thống chỉ ghi `APPROVED` khi cả ba qua; audit `AUTO_APPROVED_STP`/`ROUTED_TO_HUMAN_REVIEW` lưu `gates` + lý do. Ba gate hiện là kết quả quyết định trong audit, chưa phải trạng thái DB riêng.
+- Duyệt thủ công: chỉ từ `READY_FOR_REVIEW`; kiểm tra SoD trước, rồi số học dòng, evidence trọng yếu (MISSING/INVALID/CONFLICT phải được **sửa**, sửa trường nào thì evidence trường đó thành `human_approved`), rồi match result mới nhất (bắt buộc tồn tại).
+- Worker claim job bằng CAS (`QUEUED`/`RETRYING`, hoặc job đang chạy quá `JOB_LEASE_SECONDS` không đổi trạng thái); message trùng khi job còn trong lease là no-op; hóa đơn của tài liệu đã tồn tại → hoàn tất job, không chạy lại pipeline/STP.
+- Frontend production không có chế độ demo (`import.meta.env.DEV`), không tự đặt trạng thái khi API thất bại, số liệu dashboard/báo cáo chỉ lấy từ `reports/processing-summary`.
 - Export tạo snapshot từ **approved invoice revision**, có checksum và version của schema; không export dữ liệu đang pending hoặc stale.
 
 ## 7. Lựa chọn AI API / prompt
@@ -221,7 +233,9 @@ Any non-terminal stage -> FAILED_PERMANENT / NEEDS_INPUT / WAITING_PROVIDER
 
 - **2-way:** invoice line price/price total đối chiếu PO line, theo vendor/legal-entity policy.
 - **3-way:** thêm số lượng nhận hàng từ **một hoặc nhiều GRN**; xét giao một phần, nhận nhiều đợt, hàng trả lại, invoice nhiều phần, VAT/discount/freight tùy dòng.
-- Matching deterministic: explicit PO reference trước; fallback deterministic restricted candidates; ambiguous match -> REVIEW, không tự gán mã SKU/PO bằng LLM một cách quyết đoán.
+- Matching deterministic: explicit PO reference trước; fallback deterministic restricted candidates; ambiguous match -> REVIEW, không tự gán mã SKU/PO bằng LLM một cách quyết đoán. Hiện trạng: invoice chưa có trường số PO nên `ReconciliationService` lấy PO theo MST nhà cung cấp; >1 PO → `AMBIGUOUS_PURCHASE_ORDER` (review). Worker, API và review dùng chung `ReconciliationService.reconcile_invoice`.
+- `max_amount_delta` so **tiền hàng trước thuế** của hóa đơn với giá PO × số lượng hóa đơn (hỗ trợ hóa đơn từng phần); mọi warning issue làm kết quả là `EXCEPTION`, chênh lệch trong tolerance không che được warning khác.
+- 2-way/3-way theo policy `goods_receipt_required`; policy hiệu lực chọn theo tenant → vendor override → `effective_from` mới nhất (`PolicyRepository.get_effective`); không có policy → mặc định an toàn (không auto-approve, cần PO và GRN, SoD bật).
 - Thresholds là policy per tenant/legal-entity/vendor/item, lưu version/approval; `amount_delta` và `percent_delta` tính Decimal, zero denominator xác định rõ.
 - Không có PO/GRN không luôn đồng nghĩa hóa đơn sai: phân loại `NON_PO`, `PENDING_RECEIPT`, `MISSING_REFERENCE`, `UNMATCHED`, `MATCHED_WITHIN_TOLERANCE`, `EXCEPTION`.
 - Không tự chuyển tiền, ghi sổ ERP/thuế. Export/webhook có approval và idempotency.
@@ -237,6 +251,7 @@ Any non-terminal stage -> FAILED_PERMANENT / NEEDS_INPUT / WAITING_PROVIDER
 | Redis + Dramatiq | MVP nhẹ hơn orchestration phức tạp | workflow dài có compensation/large scale -> đánh giá Temporal |
 | PostgreSQL authoritative | ACID, uniqueness, audit | không thay bằng queue/LLM state |
 | No LangGraph/RAG | tác vụ có state machine cố định | có bằng chứng workflow thực sự cần planning/tool autonomy |
+| Auto-approval opt-in per policy (mặc định tắt) | extraction đúng ≠ match clear ≠ duyệt chi (Odoo/Dynamics tách matching và bill approval) | tenant có calibration cho thấy false auto-accept đạt ngưỡng đã duyệt |
 
 **Tham khảo:** `docs/REFERENCES.md`; benchmark parser luôn theo `docs/QUALITY_BENCHMARK.md`. Khi thay decision, cập nhật **trực tiếp bảng này**, không tạo tài liệu `architecture_new`.
 
@@ -295,8 +310,9 @@ policy = policy_repository.get_effective(
 )
 issues = validate_invoice(candidate, policy)  # pure function
 match = reconcile(invoice=candidate, po=po_snapshot, receipts=grn_snapshots, policy=policy)
-if issues.has_critical or match.requires_review or not evidence.is_sufficient:
-    next_status = "READY_FOR_REVIEW"  # never silently auto-approve
+decision = stp.evaluate(candidate, match, policy)  # extraction / matching / accounting gates
+next_status = "APPROVED" if decision.accounting_approved else "READY_FOR_REVIEW"
+# accounting_approved requires policy.auto_approval_enabled; never implied by the other gates
 ```
 
 ### 10.3. Secure XML parser contract

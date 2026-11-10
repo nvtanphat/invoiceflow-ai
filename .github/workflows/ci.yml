@@ -10,6 +10,7 @@ jobs:
   backend-test:
     name: Backend Lint & Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
       - name: Checkout Code
@@ -73,6 +74,7 @@ jobs:
   frontend-build:
     name: Frontend Lint & Build
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
       - name: Checkout Code
@@ -108,6 +110,7 @@ jobs:
   e2e-playwright:
     name: E2E Playwright Browser Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     needs: [frontend-build, backend-test]
     steps:
       - name: Checkout Code
@@ -141,6 +144,7 @@ jobs:
   docling-pipeline:
     name: Real Docling OCR Integration
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
