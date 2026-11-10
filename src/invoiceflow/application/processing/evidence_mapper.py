@@ -15,12 +15,13 @@ from typing import Any, Callable, List, Optional
 
 from invoiceflow.domain.documents.models import BoundingBox, CanonicalDocument
 from invoiceflow.domain.documents.value_parsing import fold_vietnamese, parse_vn_decimal
-from invoiceflow.domain.invoices.evidence_gate import UNLOCATED_IN_SOURCE
+from invoiceflow.domain.invoices.evidence_gate import AMBIGUOUS_DATE_ORDER, UNLOCATED_IN_SOURCE
 from invoiceflow.domain.invoices.field_labels import TOTAL_LABELS
 from invoiceflow.domain.invoices.models import FieldEvidence, FieldVerificationState
 
 _MONEY_FIELDS = frozenset({"subtotal", "tax_total", "amount_payable", "discount_total"})
 _DATE_FIELDS = frozenset({"issue_date"})
+_VN_DATE_LABEL = re.compile(r"\bngay\b")
 _NUMBER_TOKENS = (re.compile(r"\d[\d.,]*\d|\d"), re.compile(r"\d{1,3}(?:\s\d{3})+"))
 _MIN_FUZZY_TEXT_LENGTH = 4
 
@@ -49,6 +50,9 @@ class EvidenceMapper:
                 continue
             str_val = str(value).strip()
             matches = [src for src in sources if _matcher(field_path, str_val)(src)]
+            if field_path in _DATE_FIELDS:
+                evidence_list.append(_date_evidence(field_path, str_val, matches, canonical_doc))
+                continue
             located = _prefer_labelled(field_path, matches)
             evidence_list.append(_evidence(field_path, str_val, located, canonical_doc))
         return evidence_list
@@ -121,6 +125,41 @@ def _date_pattern(value: date) -> re.Pattern[str]:
         rf"|{day}\s*[/.-]\s*{month}\s*[/.-]\s*{year}"
         rf"|ngay\s*{day}\s*thang\s*{month}\s*nam\s*{year})(?!\d)"
     )
+
+
+def _date_order_is_grounded(src: _SourceText, value: date) -> bool:
+    """True when the located text fixes which number is the day.
+
+    ISO and worded ("ngay d thang m nam y") renderings are unambiguous, as is any date whose
+    day exceeds 12 or equals the month. A Vietnamese date label states the day/month
+    convention of Vietnamese invoices; an unlabelled or foreign numeric date does not.
+    """
+    if value.day > 12 or value.day == value.month:
+        return True
+    unambiguous = re.compile(
+        rf"{value.isoformat()}|ngay\s*0?{value.day}\s*thang\s*0?{value.month}\s*nam\s*{value.year}"
+    )
+    return bool(unambiguous.search(src.folded)) or _VN_DATE_LABEL.search(src.folded) is not None
+
+
+def _date_evidence(
+    field_path: str, value: str, matches: list[_SourceText], doc: CanonicalDocument
+) -> FieldEvidence:
+    try:
+        parsed = date.fromisoformat(value)
+    except ValueError:
+        return _evidence(field_path, value, matches[0] if matches else None, doc)
+    grounded = [src for src in matches if _date_order_is_grounded(src, parsed)]
+    located = grounded[0] if grounded else (matches[0] if matches else None)
+    evidence = _evidence(field_path, value, located, doc)
+    if located is not None and not grounded:
+        return evidence.model_copy(
+            update={
+                "verification_state": FieldVerificationState.UNCERTAIN,
+                "review_reason": AMBIGUOUS_DATE_ORDER,
+            }
+        )
+    return evidence
 
 
 def _prefer_labelled(field_path: str, matches: list[_SourceText]) -> Optional[_SourceText]:

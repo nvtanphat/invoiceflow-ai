@@ -8,6 +8,20 @@ from invoiceflow.domain.invoices.models import FieldEvidence, InvoiceLine
 
 _BRACKET_SKU_PATTERN = re.compile(r"\[([A-Z0-9_-]+)(?:\]|\.[\d]*\s*|\s|$)")
 _LINE_FIELD_PATH_PATTERN = re.compile(r"^lines\[(\d+)\]\.(.+)$")
+_OCR_L_CONFUSIONS = str.maketrans({"]": "l", "|": "l"})
+# Whole-word summary labels; substring matching would drop products such as "Totalcare".
+_SUMMARY_TOKENS = frozenset({"total", "subtotal"})
+_AMOUNT_MATCH_TOLERANCE = Decimal("0.0100")
+
+
+def _cell_matching_amount(cells: List[DocumentCell], expected: Decimal) -> Optional[DocumentCell]:
+    """The single unmapped cell whose printed number equals the expected line amount."""
+    matches = []
+    for cell in cells:
+        value, issue = parse_vn_decimal(cell.text.strip())
+        if issue is None and abs(value - expected) < _AMOUNT_MATCH_TOLERANCE:
+            matches.append(cell)
+    return matches[0] if len(matches) == 1 else None
 
 
 class StructureAwareTableExtractor:
@@ -274,6 +288,14 @@ class StructureAwareTableExtractor:
     ) -> Dict[str, Any]:
         data: Dict[str, Any] = {}
         merged_fields: set[str] = set()
+        data["_unmapped_cells"] = [
+            cell
+            for col_idx, cell in sorted(cells.items())
+            if col_idx not in mapping
+            and cell.row_index == row_idx
+            and cell.col_index == col_idx
+            and cell.text.strip()
+        ]
         for col_idx, field in mapping.items():
             cell = cells.get(col_idx)
             if not cell or not cell.text:
@@ -303,8 +325,11 @@ class StructureAwareTableExtractor:
     def _is_summary_row(self, data: Dict[str, Any]) -> bool:
         desc = fold_vietnamese(str(data.get("description", ""))).lower().strip()
         sku = fold_vietnamese(str(data.get("sku", ""))).lower().strip()
-        row_text = f"{desc} {sku}".strip()
-        return any(pattern in row_text for pattern in self._SUMMARY_ROW_PATTERNS)
+        # OCR commonly reads a trailing "l" as "]" or "|" ("Subtota]", "Tota|").
+        row_text = f"{desc} {sku}".strip().translate(_OCR_L_CONFUSIONS)
+        if any(pattern in row_text for pattern in self._SUMMARY_ROW_PATTERNS):
+            return True
+        return bool(_SUMMARY_TOKENS & set(re.findall(r"[a-z]+", row_text)))
 
     def _is_continuation_row(
         self, extracted: Dict[str, Any], current_line: Optional[Dict[str, Any]]
@@ -399,6 +424,12 @@ class StructureAwareTableExtractor:
             issues.append("CELL_MERGE_SUSPECTED")
 
         expected = (qty * price) - discount
+        if amount == Decimal("0.0000") and expected > Decimal("0.0000"):
+            amount_cell = _cell_matching_amount(data.get("_unmapped_cells", []), expected)
+            if amount_cell is not None:
+                # The printed value agrees with qty x unit price: grounded, not derived.
+                raw_amount, amount = amount_cell.text.strip(), expected
+                source_cells = {**source_cells, "line_amount": amount_cell}
         if amount > Decimal("0.0000") and abs(amount - expected) >= Decimal("0.0100"):
             issues.append("ARITHMETIC_MISMATCH")
 

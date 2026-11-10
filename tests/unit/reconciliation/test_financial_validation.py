@@ -397,3 +397,30 @@ def test_multi_signal_verifier_uses_the_configured_confidence_threshold():
 
     assert strict["supplier_name"] == FieldVerificationState.UNCERTAIN
     assert lenient["supplier_name"] == FieldVerificationState.VALID
+
+
+def test_verifier_keeps_ambiguous_date_order_for_review():
+    from invoiceflow.domain.invoices.evidence_gate import AMBIGUOUS_DATE_ORDER, automation_blockers
+
+    inv = InvoiceAggregate(
+        tenant_id=uuid.uuid4(),
+        document_id=uuid.uuid4(),
+        issue_date=date(2021, 11, 4),
+        evidence=[
+            FieldEvidence(
+                field_path="issue_date",
+                source_kind="pdf",
+                raw_value="Date of issue: 04/11/2021",
+                normalized_value="2021-11-04",
+                extractor="docling",
+                verification_state=FieldVerificationState.UNCERTAIN,
+                review_reason=AMBIGUOUS_DATE_ORDER,
+            )
+        ],
+    )
+
+    verified = MultiSignalVerifier().verify_invoice(inv)
+    record = next(ev for ev in verified.evidence if ev.field_path == "issue_date")
+
+    assert record.verification_state == FieldVerificationState.UNCERTAIN
+    assert any("issue_date" in blocker for blocker in automation_blockers(verified))

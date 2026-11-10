@@ -323,7 +323,7 @@ class DocumentAIService:
         table_lines, table_line_evidence = recover_merged_quantities(
             table_lines, table_line_evidence
         )
-        full_text = "\n".join([el.text for el in canonical_doc.elements])
+        full_text = canonical_doc.reading_order_text()
         digital_res = self._digital_parser.parse(full_text)
 
         header = {

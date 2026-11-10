@@ -65,6 +65,9 @@ class Settings(BaseSettings):
     MAX_DOCUMENT_PAGES: int = 50
     OCR_DPI: int = 200
     FORCE_FULL_PAGE_OCR: bool = True
+    # Longest side, in pixels, that OCR may render for an uploaded photo/scan image. Larger
+    # images are scaled down instead of being upsampled by Docling's 216 DPI OCR render.
+    IMAGE_OCR_MAX_SIDE_PX: int = 3500
     WORKER_CONCURRENCY: int = 4
     # A job whose status has not advanced for this long is treated as abandoned by a crashed
     # worker and may be claimed again; it must exceed the slowest expected processing stage.

@@ -8,6 +8,9 @@ from invoiceflow.domain.documents.models import BoundingBox, CoordinateSystem
 
 # Processed images are embedded at a 150 DPI page equivalent (72 PDF points per inch).
 PDF_POINTS_PER_PIXEL = 72.0 / 150.0
+# Docling's EasyOCR stage re-renders each page at 216 DPI (scale 3 in easyocr_model.py),
+# so the page size, not the source pixels, decides how many pixels OCR processes.
+DOCLING_OCR_RENDER_DPI = 216.0
 
 
 @dataclass
@@ -103,10 +106,27 @@ class ImagePreprocessor:
         blur_threshold: float = 65.0,
         min_document_area_ratio: float = 0.15,
         max_processing_dim: int = 2400,
+        max_ocr_side_px: Optional[int] = None,
     ):
         self._blur_threshold = blur_threshold
         self._min_document_area_ratio = min_document_area_ratio
         self._max_processing_dim = max_processing_dim
+        if max_ocr_side_px is None:
+            from invoiceflow.config import get_settings
+
+            max_ocr_side_px = get_settings().IMAGE_OCR_MAX_SIDE_PX
+        self._max_ocr_side_px = max_ocr_side_px
+
+    def page_points_per_pixel(self, width: int, height: int) -> float:
+        """Page scale for the generated PDF, capped so OCR never renders above the limit.
+
+        Small photos keep the 150 DPI equivalent the layout model was tuned on; large
+        photos and 300 DPI scans would otherwise be upsampled by OCR at ~2x the pixels.
+        """
+        ocr_long_side = max(width, height) * PDF_POINTS_PER_PIXEL * DOCLING_OCR_RENDER_DPI / 72.0
+        if ocr_long_side <= self._max_ocr_side_px:
+            return PDF_POINTS_PER_PIXEL
+        return PDF_POINTS_PER_PIXEL * self._max_ocr_side_px / ocr_long_side
 
     def assess_quality(self, image: np.ndarray) -> ImageQualityMetrics:
         if len(image.shape) == 3:
@@ -350,8 +370,9 @@ class ImagePreprocessor:
 
         # Generate a clean single-page PDF containing the processed document image
         pdf_doc = fitz.open()
-        page_w = proc_w * PDF_POINTS_PER_PIXEL
-        page_h = proc_h * PDF_POINTS_PER_PIXEL
+        transform.pdf_points_per_pixel = self.page_points_per_pixel(proc_w, proc_h)
+        page_w = proc_w * transform.pdf_points_per_pixel
+        page_h = proc_h * transform.pdf_points_per_pixel
         page = pdf_doc.new_page(width=page_w, height=page_h)
         page.insert_image(fitz.Rect(0, 0, page_w, page_h), stream=processed_bytes)
         pdf_bytes = pdf_doc.tobytes(garbage=4, deflate=True)

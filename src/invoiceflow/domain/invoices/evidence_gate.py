@@ -25,6 +25,9 @@ CRITICAL_LINE_FIELDS = ("qty", "unit_price", "line_amount")
 CANDIDATE_SUFFIX = ".candidate_vision"
 # Review reason of a value the parser produced but that could not be found in the document.
 UNLOCATED_IN_SOURCE = "no_direct_text_match"
+# A numeric date such as 04/11/2021 reads as two different days (day/month vs month/day);
+# locating it on the page does not confirm which one the extractor chose.
+AMBIGUOUS_DATE_ORDER = "ambiguous_numeric_date_order"
 
 # Values a generative model produced cannot verify themselves, even when they add up.
 MODEL_SOURCE_KINDS = frozenset({"vision_llm"})

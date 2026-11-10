@@ -105,3 +105,41 @@ class CanonicalDocument(BaseModel):
     elements: List[DocumentElement] = Field(default_factory=list)
     tables: List[DocumentTable] = Field(default_factory=list)
     metadata: dict[str, Any] = Field(default_factory=dict)
+
+    def reading_order_text(self) -> str:
+        """All recognised text, table rows included, top-to-bottom per page.
+
+        Layout analysis moves table regions out of the text elements; totals and labels
+        printed inside such regions must still be visible to text-based field extraction.
+        """
+        blocks: list[tuple[int, float, float, str]] = []
+        for element in self.elements:
+            if element.text.strip():
+                blocks.append(_block_key(element.page_index, element.bbox, element.text))
+        for table in self.tables:
+            rows: dict[int, list[DocumentCell]] = {}
+            seen: set[int] = set()
+            for cell in table.cells:
+                if id(cell) in seen or not cell.text.strip():
+                    continue
+                seen.add(id(cell))
+                rows.setdefault(cell.row_index, []).append(cell)
+            for cells in rows.values():
+                cells.sort(key=lambda c: c.col_index)
+                anchor = min(
+                    (c for c in cells if c.bbox is not None),
+                    key=lambda c: (c.bbox.y0, c.bbox.x0) if c.bbox else (0.0, 0.0),
+                    default=None,
+                )
+                text = " ".join(c.text.strip() for c in cells)
+                blocks.append(_block_key(table.page_index, anchor.bbox if anchor else None, text))
+        blocks.sort(key=lambda block: block[:3])
+        return "\n".join(block[3] for block in blocks)
+
+
+def _block_key(
+    page_index: int, bbox: Optional[BoundingBox], text: str
+) -> tuple[int, float, float, str]:
+    if bbox is None:
+        return page_index, 0.0, 0.0, text.strip()
+    return page_index, bbox.y0, bbox.x0, text.strip()

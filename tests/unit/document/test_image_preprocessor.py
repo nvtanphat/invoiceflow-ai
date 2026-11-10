@@ -1,3 +1,4 @@
+import pytest
 import cv2
 import fitz
 import numpy as np
@@ -280,3 +281,30 @@ def test_processed_page_bbox_maps_back_through_deskew_perspective_and_pdf_scale(
     assert mapped.x0 <= 300.0 + 1e-6 and mapped.y0 <= 500.0 + 1e-6
     assert mapped.x1 >= 420.0 - 1e-6 and mapped.y1 >= 540.0 - 1e-6
     assert mapped.x1 - mapped.x0 < 200 and mapped.y1 - mapped.y0 < 120
+
+
+def _encoded_page(width: int, height: int) -> bytes:
+    img = np.full((height, width, 3), 250, dtype=np.uint8)
+    cv2.putText(img, "TOTAL 978,12", (40, height // 2), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 0), 3)
+    return cv2.imencode(".png", img)[1].tobytes()
+
+
+def test_large_photo_page_is_sized_so_ocr_does_not_upsample_beyond_the_cap():
+    from invoiceflow.infrastructure.document.image_preprocessor import DOCLING_OCR_RENDER_DPI
+
+    # An A4 scan at 300 DPI used to become an A2-sized page that Docling OCR re-rendered
+    # at 216 DPI: ~18 MP per page, roughly twice the source pixels, for no extra detail.
+    result = ImagePreprocessor(max_ocr_side_px=3000).preprocess(_encoded_page(2481, 3508))
+
+    page = fitz.open(stream=result.pdf_bytes, filetype="pdf").load_page(0)
+    ocr_long_side = max(page.rect.width, page.rect.height) * DOCLING_OCR_RENDER_DPI / 72.0
+    assert ocr_long_side <= 3000 + 1
+    assert result.transform.pdf_points_per_pixel * result.transform.processed_height == (
+        pytest.approx(page.rect.height)
+    )
+
+
+def test_small_photo_keeps_the_default_page_scale():
+    result = ImagePreprocessor(max_ocr_side_px=3000).preprocess(_encoded_page(420, 740))
+
+    assert result.transform.pdf_points_per_pixel == pytest.approx(72.0 / 150.0)

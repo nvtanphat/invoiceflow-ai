@@ -132,3 +132,43 @@ def test_evidence_mapper_does_not_claim_source_for_unlocated_values():
     assert evidence.bbox is None
     assert evidence.raw_value is None
     assert evidence.verification_state == FieldVerificationState.UNCERTAIN
+
+
+def _date_evidence(*texts: str, value: str):
+    from invoiceflow.application.processing.evidence_mapper import EvidenceMapper
+
+    return EvidenceMapper().map_evidence({"issue_date": value}, _doc(*texts))[0]
+
+
+def test_numeric_date_with_both_parts_up_to_twelve_is_not_verified_without_a_convention():
+    from invoiceflow.domain.invoices.evidence_gate import AMBIGUOUS_DATE_ORDER
+    from invoiceflow.domain.invoices.models import FieldVerificationState
+
+    # "04/11/2021" is 4 November as day/month but 11 April as month/day; the page does
+    # not say which, so the located text cannot confirm the interpretation.
+    evidence = _date_evidence("Date of issue: 04/11/2021", value="2021-11-04")
+
+    assert evidence.raw_value == "Date of issue: 04/11/2021"
+    assert evidence.bbox is not None
+    assert evidence.verification_state == FieldVerificationState.UNCERTAIN
+    assert evidence.review_reason == AMBIGUOUS_DATE_ORDER
+
+
+def test_numeric_date_is_verified_when_the_order_is_unambiguous_or_labelled_vietnamese():
+    from invoiceflow.domain.invoices.models import FieldVerificationState
+
+    unambiguous = _date_evidence("Date of issue: 25/11/2021", value="2021-11-25")
+    vietnamese = _date_evidence("Ngày lập: 04/11/2021", value="2021-11-04")
+    worded = _date_evidence("Ngày 04 tháng 11 năm 2021", value="2021-11-04")
+
+    for evidence in (unambiguous, vietnamese, worded):
+        assert evidence.verification_state == FieldVerificationState.VALID
+
+
+def test_unambiguous_rendering_of_a_date_is_preferred_over_an_ambiguous_one():
+    from invoiceflow.domain.invoices.models import FieldVerificationState
+
+    evidence = _date_evidence("Printed 04/11/2021", "Ngày 04 tháng 11 năm 2021", value="2021-11-04")
+
+    assert evidence.raw_value == "Ngày 04 tháng 11 năm 2021"
+    assert evidence.verification_state == FieldVerificationState.VALID

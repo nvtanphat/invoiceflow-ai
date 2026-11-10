@@ -221,6 +221,17 @@ def _git_state() -> dict[str, Any]:
     return {"sha": git("rev-parse", "HEAD"), "dirty": bool(git("status", "--porcelain"))}
 
 
+def _current_rss_mb() -> float:
+    return round(psutil.Process().memory_info().rss / (1024 * 1024), 1)
+
+
+def _completed_cases(progress: Path) -> dict[str, dict[str, Any]]:
+    if not progress.exists():
+        return {}
+    records = (json.loads(line) for line in progress.read_text(encoding="utf-8").splitlines())
+    return {record["case_id"]: record for record in records}
+
+
 def _peak_rss_mb() -> float:
     info = psutil.Process().memory_info()
     return round((getattr(info, "peak_wset", None) or info.rss) / (1024 * 1024), 1)
@@ -237,12 +248,24 @@ def main() -> int:
 
     settings = get_settings()
     service = DocumentAIService()
-    results: dict[str, list[dict[str, Any]]] = {}
+    # One JSON line per finished case, so a crash (e.g. OOM) loses nothing and a rerun
+    # resumes after the last completed document.
+    progress = args.output.with_suffix(".jsonl")
+    progress.parent.mkdir(parents=True, exist_ok=True)
+    done = _completed_cases(progress)
+    results: dict[str, list[dict[str, Any]]] = {name: [] for name in args.datasets}
+    for record in done.values():
+        if record["dataset"] in results:
+            results[record["dataset"]].append(record)
     for name in args.datasets:
-        results[name] = []
         for case in load_cases(args.data_dir, name, args.split, args.limit):
+            if case.case_id in done:
+                continue
             record = evaluate_case(service, case)
+            record["rss_mb_after"] = _current_rss_mb()
             results[name].append(record)
+            with progress.open("a", encoding="utf-8") as stream:
+                stream.write(json.dumps(record, ensure_ascii=False) + "\n")
             print(
                 f"{record['case_id']}: fields {len(record['fields_correct'])}/"
                 f"{len(record['fields_evaluated'])} lines_f1={record['lines_f1']} "

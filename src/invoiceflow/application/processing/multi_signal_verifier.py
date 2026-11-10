@@ -4,7 +4,7 @@ import re
 from typing import Any, List, Optional
 
 from invoiceflow.config import get_settings
-from invoiceflow.domain.invoices.evidence_gate import UNLOCATED_IN_SOURCE
+from invoiceflow.domain.invoices.evidence_gate import AMBIGUOUS_DATE_ORDER, UNLOCATED_IN_SOURCE
 from invoiceflow.domain.invoices.models import (
     FieldEvidence,
     FieldVerificationState,
@@ -256,6 +256,8 @@ class MultiSignalVerifier:
                 FieldVerificationState.UNCERTAIN,
                 f"Value of {field_name} could not be located in the source document",
             )
+        if existing_ev is not None and existing_ev.review_reason == AMBIGUOUS_DATE_ORDER:
+            return FieldVerificationState.UNCERTAIN, AMBIGUOUS_DATE_ORDER
 
         if field_name == "amount_payable":
             if invoice.amount_payable <= Decimal("0.0000"):

@@ -86,3 +86,49 @@ def test_canonical_document_provenance_and_roundtrip():
     assert reconstituted.document_id == canonical.document_id
     assert reconstituted.tables[0].cells[0].normalized_text == "Máy tính Dell"
     assert reconstituted.metadata["ocr_engine"] == "rapidocr"
+
+
+def test_reading_order_text_interleaves_table_rows_with_text_by_position():
+    import uuid
+
+    from invoiceflow.domain.documents.models import (
+        BoundingBox,
+        CanonicalDocument,
+        DocumentCell,
+        DocumentElement,
+        DocumentTable,
+    )
+
+    def box(y: float, x: float = 10.0) -> BoundingBox:
+        return BoundingBox(page_index=0, x0=x, y0=y, x1=x + 50, y1=y + 10)
+
+    doc = CanonicalDocument(
+        document_id=uuid.uuid4(),
+        tenant_id=uuid.uuid4(),
+        source_format="pdf",
+        parser_name="docling",
+        parser_version="2",
+        config_hash="h",
+        page_count=1,
+        elements=[
+            DocumentElement(id="e1", page_index=0, text="Receipt", bbox=box(0)),
+            DocumentElement(id="e2", page_index=0, text="Thank you", bbox=box(200)),
+        ],
+        tables=[
+            DocumentTable(
+                id="t1",
+                page_index=0,
+                row_count=2,
+                column_count=2,
+                cells=[
+                    DocumentCell(row_index=1, col_index=1, text="81.000", bbox=box(100, 120)),
+                    DocumentCell(row_index=1, col_index=0, text="Subtotal", bbox=box(100)),
+                    DocumentCell(row_index=0, col_index=0, text="Nasi", bbox=box(50)),
+                    DocumentCell(row_index=0, col_index=1, text="10.000", bbox=box(50, 120)),
+                ],
+            )
+        ],
+    )
+
+    # Totals printed inside a detected table must reach text-based field extraction.
+    assert doc.reading_order_text() == "Receipt\nNasi 10.000\nSubtotal 81.000\nThank you"

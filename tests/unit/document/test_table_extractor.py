@@ -604,3 +604,59 @@ def test_table_extractor_merges_multiline_description_and_expands_bbox():
     assert desc_ev.bbox.y0 == 50
     assert desc_ev.bbox.y1 == 120
     assert desc_ev.bbox.x1 == 350
+
+
+def _row(r, texts):
+    return [
+        DocumentCell(
+            row_index=r,
+            col_index=c,
+            text=t,
+            id=f"c{r}-{c}",
+            table_id="t",
+            bbox=_make_bbox(0, 10 + 60 * c, 20 * r, 60 + 60 * c, 20 * r + 15),
+        )
+        for c, t in enumerate(texts)
+    ]
+
+
+def test_unlabelled_line_amount_column_is_found_by_row_arithmetic():
+    """Headers like 'Net worth' carry no known label; the printed cell equal to
+    qty x unit price is the line amount, never the tax-inclusive gross column."""
+    cells = _row(
+        0, ["No.", "Description", "Qty", "Net price", "Net worth", "VAT [%]", "Gross worth"]
+    ) + _row(1, ["1", "Maxi dress", "3,00", "48,99", "146,97", "10%", "161,67"])
+    table = DocumentTable(id="t", page_index=0, row_count=2, column_count=7, cells=cells)
+
+    lines, evidence = StructureAwareTableExtractor().extract_invoice_lines_with_evidence(table)
+
+    assert lines[0].line_amount == Decimal("146.97")
+    amount_ev = next(ev for ev in evidence if ev.field_path == "lines[0].line_amount")
+    assert amount_ev.raw_value == "146,97"
+    assert amount_ev.cell_id == "c1-4"
+
+
+def test_no_line_amount_is_invented_when_no_printed_cell_matches_the_arithmetic():
+    cells = _row(0, ["No.", "Description", "Qty", "Net price", "Gross worth"]) + _row(
+        1, ["1", "Maxi dress", "3,00", "48,99", "161,67"]
+    )
+    table = DocumentTable(id="t", page_index=0, row_count=2, column_count=5, cells=cells)
+
+    lines, evidence = StructureAwareTableExtractor().extract_invoice_lines_with_evidence(table)
+
+    assert lines[0].line_amount == Decimal("0")
+    assert not any(ev.field_path == "lines[0].line_amount" for ev in evidence)
+
+
+def test_summary_rows_are_recognised_through_common_ocr_confusions():
+    cells = (
+        _row(0, ["Description", "Amount"])
+        + _row(1, ["Nasi Putih", "10.000"])
+        + _row(2, ["Subtota]", "10.000"])
+        + _row(3, ["Tota|", "11.000"])
+    )
+    table = DocumentTable(id="t", page_index=0, row_count=4, column_count=2, cells=cells)
+
+    lines = StructureAwareTableExtractor().extract_invoice_lines(table)
+
+    assert [line.description for line in lines] == ["Nasi Putih"]
