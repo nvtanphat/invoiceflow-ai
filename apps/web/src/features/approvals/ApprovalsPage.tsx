@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Icon } from "../../components/SvgIcons";
 import { useInvoiceFlow } from "../../context/InvoiceFlowContext";
 import { ReviewNoteModal } from "../processing/ReviewNoteModal";
+import { formatConfidence, meanConfidence } from "../../lib/confidence";
 
 const fmt = (n: number | string) => {
   const num = typeof n === "string" ? parseFloat(n) || 0 : n;
@@ -262,9 +263,7 @@ export const ApprovalsPage: React.FC = () => {
                         </td>
                         <td>
                           {(() => {
-                            const isMismatch =
-                              inv.status === "REVIEW_REQUIRED" ||
-                              Boolean(inv.issues && inv.issues.some((i) => i.severity === "ERROR" || i.severity === "critical"));
+                            const isMismatch = Boolean(inv.issues && inv.issues.some((i) => i.severity === "ERROR" || i.severity === "critical"));
                             return (
                               <span className={`k ${isMismatch ? "k-a" : "k-g"}`}>
                                 <Icon name={isMismatch ? "alert" : "check"} />
@@ -274,13 +273,7 @@ export const ApprovalsPage: React.FC = () => {
                           })()}
                         </td>
                         <td>
-                          {inv.evidence && inv.evidence.length > 0
-                            ? `${(
-                                (inv.evidence.reduce((s, e) => s + (e.confidence ?? 1.0), 0) /
-                                  inv.evidence.length) *
-                                100
-                              ).toFixed(1)}%`
-                            : "—"}
+                          {formatConfidence(meanConfidence(inv.evidence))}
                         </td>
                         <td>
                           <span className={`k ${invAppr ? "k-g" : invRej ? "k-r" : "k-b"}`}>
@@ -333,13 +326,7 @@ export const ApprovalsPage: React.FC = () => {
                 <div>
                   <small>Độ tin cậy trích xuất</small>
                   <b>
-                    {curInv.evidence && curInv.evidence.length > 0
-                      ? `${(
-                          (curInv.evidence.reduce((s, e) => s + (e.confidence ?? 1.0), 0) /
-                            curInv.evidence.length) *
-                          100
-                        ).toFixed(1)}%`
-                      : "100% (XML)"}
+                    {formatConfidence(meanConfidence(curInv.evidence))}
                   </b>
                 </div>
                 <div>
@@ -349,7 +336,7 @@ export const ApprovalsPage: React.FC = () => {
                 <div>
                   <small>Đối soát 3-Way</small>
                   <b>
-                    {curInv.issues && curInv.issues.length > 0 || curInv.status === "REVIEW_REQUIRED"
+                    {curInv.issues && curInv.issues.length > 0
                       ? "Có chênh lệch"
                       : "Khớp"}
                   </b>

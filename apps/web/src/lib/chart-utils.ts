@@ -38,26 +38,6 @@ export const esc = (s: unknown) =>
 
 export const pad = (n: number) => String(n).padStart(2, "0");
 
-export const hash = (s: unknown) => {
-  let h = 2166136261;
-  for (const ch of String(s)) {
-    h ^= ch.charCodeAt(0);
-    h = Math.imul(h, 16777619);
-  }
-  return h >>> 0;
-};
-
-export const rng = (seed: number) => {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-};
-
 export const nice = (m: number) => {
   if (!m) return 1;
   const p = Math.pow(10, Math.floor(Math.log10(m)));
@@ -82,25 +62,6 @@ export const rright = (x: number, y: number, w: number, h: number, r: number) =>
 export const tipHTML = (title: string, rows: [string, string, string][]) =>
   `<b>${title}</b>` +
   rows.map((r) => `<br><i style="background:${r[2]}"></i>${r[0]}: <b>${r[1]}</b>`).join("");
-
-export const lastDays = (n: number) => {
-  const out = [];
-  for (let i = n - 1; i >= 0; i--) {
-    const d = new Date(2026, 10, 9 - i);
-    out.push(pad(d.getDate()) + "/" + pad(d.getMonth() + 1));
-  }
-  return out;
-};
-
-export const genSeries = (n: number, seed: number, base: number, amp: number, min = 1) => {
-  const r = rng(seed);
-  return Array.from({ length: n }, (_, i) =>
-    Math.max(
-      min,
-      Math.round(base + amp * Math.sin(i / 2.1 + (seed % 5)) + amp * (r() - 0.5) * 1.3)
-    )
-  );
-};
 
 export const sum = (a: number[]) => a.reduce((x, y) => x + y, 0);
 

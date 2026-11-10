@@ -6,6 +6,8 @@ import { InvoiceInfoSection } from "./InvoiceInfoSection";
 import { LineItemsSection } from "./LineItemsSection";
 import { InvoiceAuditSection } from "./InvoiceAuditSection";
 import { ReviewNoteModal } from "./ReviewNoteModal";
+import { formatConfidence, meanConfidence } from "../../lib/confidence";
+import { FieldReviewSection } from "./FieldReviewSection";
 
 export const ExtractionPanel: React.FC = () => {
   const {
@@ -18,6 +20,7 @@ export const ExtractionPanel: React.FC = () => {
     approveInvoice,
     rejectInvoice,
     correctInvoice,
+    resolveField,
     setActivePage,
     showToast,
   } = useInvoiceFlow();
@@ -99,10 +102,8 @@ export const ExtractionPanel: React.FC = () => {
     });
 
   // Calculate true overall confidence
-  const hasEvidence = Boolean(inv.evidence && inv.evidence.length > 0);
-  const avgConf = hasEvidence
-    ? (inv.evidence!.reduce((s, e) => s + (e.confidence ?? 1.0), 0) / inv.evidence!.length) * 100
-    : null;
+  const measured = meanConfidence(inv.evidence);
+  const avgConf = measured !== null ? measured * 100 : null;
   const confVal = avgConf !== null ? Math.min(100, Math.max(0, avgConf)) : null;
   const ring = confVal !== null ? ((confVal / 100) * 238.76 - 3).toFixed(1) : "235.7";
   const isApproved = inv.status === "APPROVED";
@@ -284,6 +285,12 @@ export const ExtractionPanel: React.FC = () => {
           </div>
         ) : activeTab === "res" ? (
           <>
+            <FieldReviewSection
+              items={inv.review_items ?? []}
+              readOnly={isViewer || isApproved}
+              onResolve={(fieldPath, decision, value) => resolveField(inv.id, fieldPath, decision, value)}
+              onHighlight={setHighlightedField}
+            />
             {/* Confidence Score Gauge Header */}
             <div className="conf">
               <div className="donut">
@@ -307,7 +314,7 @@ export const ExtractionPanel: React.FC = () => {
                     strokeDasharray={`${ring} 238.76`}
                   />
                 </svg>
-                <span>{confVal !== null ? `${confVal.toFixed(1)}%` : "100%"}</span>
+                <span>{confVal !== null ? `${confVal.toFixed(1)}%` : "—"}</span>
               </div>
               <div className="tx">
                 <div className="t1">Độ tin cậy tổng thể</div>
@@ -383,8 +390,8 @@ export const ExtractionPanel: React.FC = () => {
             </div>
             {inv.evidence && inv.evidence.length > 0 ? (
               inv.evidence.map((ev, i) => {
-                const conf = ev.confidence != null ? Math.round(ev.confidence * 100) : 100;
-                const confClass = conf >= 85 ? "k-g" : conf >= 70 ? "k-b" : "k-r";
+                const conf = ev.confidence != null ? Math.round(ev.confidence * 100) : null;
+                const confClass = conf === null ? "k-b" : conf >= 85 ? "k-g" : conf >= 70 ? "k-b" : "k-r";
                 const isCandidate = (ev.field_name || "").endsWith(".candidate_vision");
                 const state = ev.verification_state;
 
@@ -440,7 +447,7 @@ export const ExtractionPanel: React.FC = () => {
                           <span className="k k-b" style={{ fontSize: "10px" }}>AI đề xuất</span>
                         )}
                         <span className={`k ${confClass}`} style={{ fontSize: "11px" }}>
-                          {conf}%
+                          {formatConfidence(ev.confidence)}
                         </span>
                       </div>
                     </div>
@@ -476,7 +483,7 @@ export const ExtractionPanel: React.FC = () => {
             <div className="tli g">
               <i></i>
               <b>Trích xuất Document AI hoàn tất</b>
-              <small>Độ tin cậy {confVal !== null ? `${confVal.toFixed(1)}%` : "100% (XML)"} · Đa tầng OCR + Docling</small>
+              <small>Độ tin cậy {confVal !== null ? `${confVal.toFixed(1)}%` : "—"} · Đa tầng OCR + Docling</small>
             </div>
             <div className={`tli ${hasArithmeticMismatch ? "a" : "g"}`}>
               <i></i>

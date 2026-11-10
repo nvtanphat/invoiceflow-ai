@@ -345,3 +345,45 @@ def test_playwright_e2e_production_auth_rejection_and_viewer_rbac(e2e_server):
 
         context.close()
         browser.close()
+
+
+def test_playwright_e2e_demo_query_flag_is_ignored_in_production_build(e2e_server):
+    """Regression: '?demo=true' switched a production build to fixture data, fake sessions and
+    client-side 'success' for accounting actions the API had refused."""
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        page = browser.new_page()
+
+        page.goto(f"{e2e_server}/?demo=true")
+        page.wait_for_selector("text=Đăng nhập hệ thống", timeout=10000)
+        page.fill("input[type='email']", "nobody@invoiceflow.vn")
+        page.fill("input[type='password']", "wrong-password")
+        page.click("button[type='submit']")
+        page.wait_for_timeout(1500)
+
+        # A wrong password must not open a demo session or show fixture invoices.
+        assert page.is_visible("text=Đăng nhập hệ thống")
+        assert not page.is_visible("text=INV-DIV-01.pdf")
+        browser.close()
+
+
+def test_playwright_e2e_field_level_review_round_trips_through_api(e2e_server):
+    """A flagged field is settled individually and disappears only after the API confirms."""
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        page = browser.new_page(viewport={"width": 1280, "height": 800})
+        _login(page, e2e_server)
+        # A seeded invoice no other test approves (the e2e server is shared per module).
+        page.click("tr:has-text('invoice_paper_company.pdf') button:has-text('Xem chi tiết')")
+        page.wait_for_selector("[data-testid='field-review']", timeout=12000)
+
+        item = page.locator("[data-testid='review-item-supplier_name']")
+        assert item.is_visible()
+        item.locator("input").fill("Công ty CP Giấy & Văn phòng phẩm Miền Nam")
+        item.locator("button:has-text('Sửa')").click()
+
+        page.wait_for_selector(
+            "[data-testid='review-item-supplier_name']", state="detached", timeout=8000
+        )
+        assert page.is_visible("text=Đã xác nhận trường supplier_name")
+        browser.close()

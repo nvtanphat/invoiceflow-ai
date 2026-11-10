@@ -53,7 +53,7 @@ export interface FieldEvidenceItem {
   bbox_json: string;
   table_id?: string | null;
   cell_id?: string | null;
-  confidence: number;
+  confidence: number | null;
   verification_state?: string | null;
   review_reason?: string | null;
   raw_value: string;
@@ -83,6 +83,36 @@ export interface InvoiceItem {
   lines: InvoiceLineItem[];
   evidence?: FieldEvidenceItem[];
   issues?: MatchingIssue[];
+  review_items?: ReviewItem[];
+}
+
+// A field the backend still needs a human decision on (see evidence_gate.review_items).
+export interface ReviewItem {
+  field_path: string;
+  reasons: string[];
+  current_value: string | null;
+  source_kind: string | null;
+  candidate_value: string | null;
+}
+
+export type FieldDecision = "accept_extracted" | "accept_candidate" | "correct";
+
+export interface ProcessingCounts {
+  received: number;
+  auto_approved: number;
+  routed_to_review: number;
+  manual_approved: number;
+  rejected: number;
+}
+
+// Daily UTC counts of recorded pipeline decisions; rates are null when nothing was decided.
+export interface ProcessingSummary {
+  window_days: number;
+  days: (ProcessingCounts & { date: string })[];
+  totals: ProcessingCounts;
+  previous_totals: ProcessingCounts;
+  stp_rate: number | null;
+  previous_stp_rate: number | null;
 }
 
 export interface MatchingIssue {
@@ -196,12 +226,42 @@ class ApiClient {
     return res.json();
   }
 
+  public async getProcessingSummary(days: number): Promise<ProcessingSummary> {
+    const res = await fetch(`${this.baseUrl}/reports/processing-summary?days=${days}`, {
+      headers: this.headers(),
+    });
+    if (!res.ok) throw new Error("Failed to fetch processing summary");
+    return res.json();
+  }
+
   public async getInvoice(invoiceId: string): Promise<InvoiceItem> {
     const res = await fetch(`${this.baseUrl}/invoices/${invoiceId}`, {
       headers: this.headers(),
     });
     if (!res.ok) throw new Error("Failed to fetch invoice details");
     return res.json();
+  }
+
+  public async resolveField(
+    invoiceId: string,
+    revision: number,
+    fieldPath: string,
+    decision: FieldDecision,
+    value?: string
+  ): Promise<InvoiceItem> {
+    const res = await fetch(`${this.baseUrl}/invoices/${invoiceId}/review`, {
+      method: "POST",
+      headers: this.headers({ "Content-Type": "application/json", "If-Match": `"${revision}"` }),
+      body: JSON.stringify({ action: "resolve_field", field_path: fieldPath, decision, value }),
+    });
+    if (res.status === 409) {
+      throw new Error("Xung đột phiên bản (409 Conflict): Hóa đơn vừa được cập nhật bởi người khác. Vui lòng tải lại.");
+    }
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: "Field review failed" }));
+      throw new Error(typeof err.detail === "string" ? err.detail : "Field review failed");
+    }
+    return this.getInvoice(invoiceId);
   }
 
   public async reviewInvoice(
