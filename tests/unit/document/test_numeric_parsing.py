@@ -58,3 +58,16 @@ def test_printed_dates_and_tax_ids_normalise_across_formats():
     assert normalize_tax_id("0101 234 567") == "0101234567"
     assert normalize_tax_id("0101234567 - 001") == "0101234567-001"
     assert normalize_tax_id("0101234567\u00ad001") == "0101234567-001"
+
+
+def test_ocr_spaces_around_thousands_separators_do_not_turn_into_decimals():
+    """Regression: OCR read '20,000' as '20, 000'; the stray space sent it down the
+    decimal branch and the total became 20, a verified but wrong amount."""
+    from decimal import Decimal
+
+    from invoiceflow.domain.documents.value_parsing import parse_vn_decimal
+
+    assert parse_vn_decimal("20, 000") == (Decimal("20000"), None)
+    assert parse_vn_decimal("1. 100. 000") == (Decimal("1100000"), None)
+    assert parse_vn_decimal("89 . 100") == (Decimal("89100"), None)
+    assert parse_vn_decimal("48 ,99") == (Decimal("48.99"), None)

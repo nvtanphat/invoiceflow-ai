@@ -8,6 +8,9 @@ import unicodedata
 
 _CURRENCY_MARKS = re.compile(r"(?i)(?:vnd|vnđ|usd|eur|[₫đ$])")
 _SPACED_THOUSANDS = re.compile(r"(\d)\s+(\d{3})\b")
+# OCR inserts spaces around separators ("20, 000", "89 . 100"); left in place they push the
+# value into the decimal branch and 20,000 becomes 20.
+_SPACED_SEPARATOR = re.compile(r"(?<=\d)\s*([.,])\s*(?=\d)")
 _ZERO = Decimal("0.0000")
 _ISO_DATE = re.compile(r"(?<!\d)(\d{4})-(\d{1,2})-(\d{1,2})(?!\d)")
 _DMY_DATE = re.compile(r"(?<!\d)(\d{1,2})\s*[/.-]\s*(\d{1,2})\s*[/.-]\s*(\d{4})(?!\d)")
@@ -30,6 +33,7 @@ def parse_vn_decimal(value: Any, is_qty: bool = False) -> tuple[Decimal, Optiona
         return _ZERO, None
     s = str(value).strip().replace(" ", " ")
     s = _CURRENCY_MARKS.sub("", s).strip()
+    s = _SPACED_SEPARATOR.sub(r"\1", s)
     s = _SPACED_THOUSANDS.sub(r"\1\2", s)
     # A trailing "%" marks a percentage; strip it before the separator heuristics so
     # "10.00%" is not misread as a thousands-grouped "10,000".
