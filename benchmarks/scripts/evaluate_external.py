@@ -139,6 +139,9 @@ def evaluate_case(service: DocumentAIService, case: ExternalCase) -> dict[str, A
         "latency_ms": latency_ms,
         "cost_usd": result.cost_usd,
         "used_vision": result.used_vision,
+        # A failed provider call still sets used_vision; keep the reason so runs whose
+        # Vision availability differs are never compared as if they were equivalent.
+        "provider_failure": result.provider_failure,
         "fields_evaluated": evaluated_fields,
         "fields_correct": correct,
         "field_mismatches": {
@@ -208,6 +211,7 @@ def summarize(cases: list[dict[str, Any]]) -> dict[str, Any]:
         "mean_latency_ms": round(float(np.mean(latencies)), 1),
         "p95_latency_ms": round(float(np.percentile(latencies, 95)), 1),
         "vision_calls": sum(c["used_vision"] for c in cases),
+        "vision_failures": sum(1 for c in cases if c.get("provider_failure")),
         "total_cost_usd": round(sum(c["cost_usd"] or 0.0 for c in cases), 6),
     }
 

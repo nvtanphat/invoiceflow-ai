@@ -15,6 +15,10 @@ from invoiceflow.domain.invoices.field_labels import TOTAL_LABELS
 
 # An amount must end cleanly: OCR glyph swaps such as "6ooo0000" are unreadable, never "6".
 _NUMBER = r"(\d[\d.,]*(?:\s\d{3})*)(?![\w.,])(?!\s*%)"
+_CURRENCY_SYMBOL = r"(?:[$€£¥₫]\s*)?"
+# Another amount right after the matched one (same line, no label between): the label
+# does not identify which of the amounts it names, e.g. "Total 196,97 19,70 216,67".
+_FOLLOWING_AMOUNT = re.compile(rf"[ \t]*{_CURRENCY_SYMBOL}\d")
 
 
 @dataclass(frozen=True)
@@ -27,7 +31,9 @@ class TotalMatch:
 def _label_pattern(labels: tuple[str, ...]) -> re.Pattern[str]:
     alternation = "|".join(re.escape(label) for label in sorted(labels, key=len, reverse=True))
     # Optional "(10%)" rate annotation and ":" between label and amount.
-    return re.compile(rf"(?<![a-z])({alternation})(?:\s*\([^)]*\))?\s*:?\s*{_NUMBER}")
+    return re.compile(
+        rf"(?<![a-z])({alternation})(?:\s*\([^)]*\))?\s*:?\s*{_CURRENCY_SYMBOL}{_NUMBER}"
+    )
 
 
 _PATTERNS = {field: _label_pattern(labels) for field, labels in TOTAL_LABELS.items()}
@@ -48,6 +54,8 @@ def extract_invoice_totals(text: str) -> dict[str, TotalMatch]:
             # A shorter label of another field inside a longer label (e.g. "thue gtgt"
             # within "tien thue gtgt") is not a separate occurrence.
             if owners.get(match.start(1)) != match.group(1):
+                continue
+            if _FOLLOWING_AMOUNT.match(folded, match.end(2)):
                 continue
             totals[field] = TotalMatch(
                 raw=text[match.start(2) : match.end(2)].strip(),

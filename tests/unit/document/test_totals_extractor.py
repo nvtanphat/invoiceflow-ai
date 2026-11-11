@@ -62,3 +62,22 @@ def test_ocr_garbled_amounts_are_not_truncated_into_small_numbers():
     )
 
     assert _raw(text) == {"tax_total": "6000000.0000"}
+
+
+def test_plain_total_label_and_currency_symbol_are_read():
+    assert _raw("SubTotal: 63,636\nTotal: 59,500") == {
+        "subtotal": "63,636",
+        "amount_payable": "59,500",
+    }
+    assert _raw("Total $ 216,67") == {"amount_payable": "216,67"}
+
+
+def test_label_followed_by_several_amounts_is_not_assigned_to_one_field():
+    """A summary row such as 'Total 196,97 19,70 216,67' does not say which amount is
+    payable; taking the first one would record the pre-tax subtotal as amount payable."""
+    assert _raw("Total $ 196,97 $ 19,70 $ 216,67") == {}
+    assert _raw("Tong cong: 7.000.000 560.000 7.560.000") == {}
+
+
+def test_total_label_without_an_adjacent_amount_is_ignored():
+    assert _raw("Total Qty 2\nTotal Items: 3 pcs") == {}

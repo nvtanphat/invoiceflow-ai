@@ -25,6 +25,7 @@ TOTAL_LABELS: dict[str, tuple[str, ...]] = {
         "tong cong",
         "grand total",
         "total amount",
+        "total",
     ),
 }
 
